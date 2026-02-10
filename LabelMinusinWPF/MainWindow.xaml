@@ -6,15 +6,25 @@
         xmlns:local="clr-namespace:LabelMinusinWPF"
         mc:Ignorable="d"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes" 
-        xmlns:viewmodels="clr-namespace:LabelMinusinWPF.ViewModels" 
-        d:DataContext="{d:DesignInstance Type=viewmodels:MainViewModel}"
-        Title="LabelMinus" Height="800" Width="1000"
-        
-        
-        >
+        Title="LabelMinus" Height="800" Width="1200">
+    <Window.Resources>
+        <Style TargetType="materialDesign:PackIcon">
+            <Setter Property="Foreground"
+            Value="{DynamicResource MaterialDesignBody}" />
+        </Style>
+        <Style TargetType="Button"
+       BasedOn="{StaticResource MaterialDesignFlatButton}">
+            <Setter Property="Foreground"
+            Value="{DynamicResource MaterialDesignBody}" />
+        </Style>
+    </Window.Resources>
     <Grid x:Name="RootGrid">
         <DockPanel Grid.ColumnSpan="2">
-            <Menu DockPanel.Dock="Top" 
+            <!-- 菜单栏 -->
+            <Menu x:Name="Menu" FontFamily="微软雅黑" FontWeight="Bold"
+                  DockPanel.Dock="Top" 
+                  Background="{DynamicResource MaterialDesignPaper}"
+                  Foreground="{DynamicResource MaterialDesignBody}"
                   materialDesign:MenuAssist.TopLevelMenuItemHeight="25"
                   FontSize="12">
                 <!-- 1. 文件 -->
@@ -36,14 +46,14 @@
                     <Separator />
 
                     <!-- 翻译相关 -->
-                    <MenuItem Header="打开翻译" />
+                    <MenuItem Header="打开翻译" Command="{Binding OpenTranslationCommand}"/>
                     <MenuItem Header="保存翻译"/>
                     <MenuItem Header="翻译另存为..." />
 
                     <Separator />
 
                     <!-- 图片相关 -->
-                    <MenuItem Header="打开图片/压缩包" />
+                    <MenuItem Header="打开图片/压缩包" Command="{Binding OpenImageCommand}"/>
                     <MenuItem Header="打开图片文件夹" />
 
                     <Separator />
@@ -140,140 +150,157 @@
                 </MenuItem>
 
             </Menu>
-            <ToolBarTray DockPanel.Dock="Top" Height="35">
-                <ToolBar Style="{StaticResource MaterialDesignToolBar}" ClipToBounds="False">
+            <!-- 顶栏 -->
+            <ToolBarTray x:Name="ImageContainerBorder" DockPanel.Dock="Top" Height="35">
+                <ToolBar ClipToBounds="False">
 
-                    <Button ToolTip="标记模式" Padding="4">
+                    <Button Command="{Binding ChangeModeCommand}" 
+                            CommandParameter="{x:Static local:AppMode.See}"
+                            ToolTip="浏览图片" Padding="4">
                         <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Draw" VerticalAlignment="Center" />
-                            <TextBlock Text="标记模式" VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            <materialDesign:PackIcon Kind="Eye" VerticalAlignment="Center" />
+                            <TextBlock Text="浏览" VerticalAlignment="Center" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Button>
 
-                    <Button ToolTip="文校模式" Padding="4">
+                    <Button Command="{Binding ChangeModeCommand}"      
+                            CommandParameter="{x:Static local:AppMode.LabelDo}"
+                            ToolTip="标记图片" Padding="4">
                         <StackPanel Orientation="Horizontal">
                             <materialDesign:PackIcon Kind="FileEdit" VerticalAlignment="Center" />
-                            <TextBlock Text="文校模式" VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            <TextBlock Text="标记" VerticalAlignment="Center" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Button>
 
-                    <Button ToolTip="识别模式" Padding="4">
+                    <Button Command="{Binding ChangeModeCommand}" 
+                            CommandParameter="{x:Static local:AppMode.OCR}"
+                            ToolTip="内容识别" Padding="4">
                         <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="EyeCheck" VerticalAlignment="Center" />
-                            <TextBlock Text="识别模式" VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            <materialDesign:PackIcon Kind="ImageSearch" VerticalAlignment="Center" />
+                            <TextBlock Text="识别" VerticalAlignment="Center" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Button>
 
-                    <Separator />
 
-                    <TextBlock Text="网站：" VerticalAlignment="Center" Margin="0,0,0,0"/>
-                    <ComboBox Width="150" Margin="5,0" materialDesign:HintAssist.Hint="选择网站">
-                        <ComboBoxItem Content="百度" />
-                        <ComboBoxItem Content="谷歌" />
-                        <ComboBoxItem Content="必应" />
-                    </ComboBox>
 
-                    <Separator />
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static local:AppMode.OCR}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
 
-                    <Button ToolTip="图校模式" Padding="4" Click="OpenImageReview_Click">
+                        <Separator />
+                        <ComboBox Width="150" Margin="5,0" materialDesign:HintAssist.Hint="选择网站">
+                            <ComboBoxItem Content="百度" />
+                            <ComboBoxItem Content="谷歌" />
+                            <ComboBoxItem Content="必应" />
+                        </ComboBox>
+                        <Separator />
+                    </StackPanel>
+
+
+
+                    <Button ToolTip="图片对比" Padding="4" Click="OpenImageReview_Click">
                         <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="ImageEdit" VerticalAlignment="Center" />
-                            <TextBlock Text="图校模式" VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            <materialDesign:PackIcon Kind="Compare" VerticalAlignment="Center" />
+                            <TextBlock Text="图校" VerticalAlignment="Center" Margin="0,0,0,0"/>
                         </StackPanel>
                     </Button>
-
+                    <ToggleButton Cursor="Hand"
+                                  ToolTip="切换深色模式"
+                                  Checked="DarkMode_Checked"
+                                  Unchecked="DarkMode_Unchecked"
+                                  Style="{StaticResource MaterialDesignSwitchToggleButton}">
+                        <materialDesign:PackIcon Kind="WeatherNight" Width="20" Height="20" />
+                    </ToggleButton>
                 </ToolBar>
             </ToolBarTray>
-            <Grid ShowGridLines="False">
+            <!-- 主界面 -->
+            <Grid ShowGridLines="False" ToolBar.OverflowMode="Never">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="5" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
+                <!-- 左侧图片与底栏 -->
+                <Border Grid.Column="0" Background="{DynamicResource MaterialDesignPaper}">
 
-                <Border Grid.Column="0" Margin="5" Background="#22000000">
                     <DockPanel>
-                        <ToolBarTray DockPanel.Dock="Bottom" Background="Transparent">
-                            <ToolBar Style="{StaticResource MaterialDesignToolBar}">
-                                <!-- 使用 Grid 来模拟 WinForms 的 Dock 布局 (左对齐 + 右对齐) -->
-                                <Grid Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ToolBar}}">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <!-- 左侧：图片适配按钮 -->
-                                        <ColumnDefinition Width="*"/>
-                                        <!-- 中间空白占位 -->
-                                        <ColumnDefinition Width="Auto"/>
-                                        <!-- 右侧：图集信息 -->
-                                        <ColumnDefinition Width="Auto"/>
-                                        <!-- 右侧：文件夹按钮 -->
-                                        <ColumnDefinition Width="Auto"/>
-                                        <!-- 右侧：翻页按钮 -->
-                                    </Grid.ColumnDefinitions>
+                        <ToolBar DockPanel.Dock="Bottom"
+                                 Style="{StaticResource MaterialDesignToolBar}"
+                                 Height="36">
 
-                                    <!-- 1. 左侧：图片适配 (对应 PicFitPanel) -->
-                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                        <Button ToolTip="适应视图" Padding="4" >
-                                            <materialDesign:PackIcon Kind="FitToPage" />
-                                        </Button>
-                                        <Button ToolTip="适应宽度" Padding="4" >
-                                            <materialDesign:PackIcon Kind="ArrowExpandHorizontal" />
-                                        </Button>
-                                        <Button ToolTip="适应高度" Padding="4" >
-                                            <materialDesign:PackIcon Kind="ArrowExpandVertical" />
-                                        </Button>
+                            <Button ToolTip="适应视图" Padding="4">
+                                <materialDesign:PackIcon Kind="FitToPage" />
+                            </Button>
+                            <Button ToolTip="适应宽度" Padding="4">
+                                <materialDesign:PackIcon Kind="ArrowExpandHorizontal" />
+                            </Button>
+                            <Button ToolTip="适应高度" Padding="4">
+                                <materialDesign:PackIcon Kind="ArrowExpandVertical" />
+                            </Button>
 
-                                        <Separator Margin="8,0"/>
+                            <Button ToolTip="锁定X" Padding="4">
+                                <materialDesign:PackIcon Kind="LockOpen" />
+                            </Button>
+                            <Button ToolTip="锁定Y" Padding="4">
+                                <materialDesign:PackIcon Kind="LockOpen" />
+                            </Button>
+                            <Separator/>
+                            <Button ToolTip="打开工作文件夹" 
+                                        Padding="8,4" 
+                                        Margin="5,0"
+                                        Height="32">
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon Kind="FolderOpen" VerticalAlignment="Center"/>
+                                    <TextBlock Text="文件夹" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Button>
+                            <Separator/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="图集:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                <ComboBox Width="180" 
+                                            ItemsSource="{Binding ImageList}"
+                                            SelectedItem="{Binding SelectedImage}"
+                                            DisplayMemberPath="ImageName"
+                                            materialDesign:HintAssist.Hint="选择图片" 
+                                            VerticalAlignment="Center"
+                                            FontSize="12">
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Button ToolTip="上一张" Command="{Binding PreviousImageCommand}"  Padding="4">
+                                    <materialDesign:PackIcon Kind="ArrowUp" />
+                                </Button>
+                                <Button ToolTip="下一张" Command="{Binding NextImageCommand}"  Padding="4">
+                                    <materialDesign:PackIcon Kind="ArrowDown" />
+                                </Button>
+                            </StackPanel>
 
-                                        <Button ToolTip="锁定X" Padding="4" >
-                                            <materialDesign:PackIcon Kind="LockOpen" />
-                                        </Button>
-                                        <Button ToolTip="锁定Y" Padding="4" >
-                                            <materialDesign:PackIcon Kind="LockOpen" />
-                                        </Button>
-                                    </StackPanel>
-
-                                    <!-- 2. 右侧区域：图集信息 (对应 PicNameLabel 和 PicName) -->
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="图集:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                        <ComboBox Width="150" 
-                                                  materialDesign:HintAssist.Hint="选择图片" 
-                                                  VerticalAlignment="Center"
-                                                  FontSize="12">
-                                            <ComboBoxItem Content="Image_001.jpg" />
-                                            <ComboBoxItem Content="Image_002.jpg" />
-                                        </ComboBox>
-                                    </StackPanel>
-
-                                    <Separator Grid.Column="2" Margin="10,0"/>
-
-                                    <!-- 3. 右侧：文件夹按钮 (对应 WorkforlderOpen) -->
-                                    <Button Grid.Column="3" 
-                                            ToolTip="打开工作文件夹" 
-                                            Padding="8,4" 
-                                            Margin="0,0,5,0"
-                                            >
-                                        <StackPanel Orientation="Horizontal">
-                                            <materialDesign:PackIcon Kind="FolderOpen" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                            <TextBlock Text="文件夹" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </Button>
-
-                                    <!-- 4. 右侧：翻页按钮 (对应 LPbutton 和 NPbutton) -->
-                                    <StackPanel Grid.Column="4" Orientation="Horizontal">
-                                        <Button ToolTip="上一张" Width="30" Height="30" Padding="0" >
-                                            <materialDesign:PackIcon Kind="ArrowUp" />
-                                        </Button>
-                                        <Button ToolTip="下一张" Width="30" Height="30" Padding="0" >
-                                            <materialDesign:PackIcon Kind="ArrowDown" />
-                                        </Button>
-                                    </StackPanel>
-                                </Grid>
-                            </ToolBar>
-                        </ToolBarTray>
-
-                        <Image Source="{Binding SelectedImage.ImageSource}" 
-                               Stretch="Uniform"
-                               RenderOptions.BitmapScalingMode="HighQuality" />
+                        </ToolBar>
+                        <!-- 图片！！！！！ -->
+                        <Grid x:Name="ImageParent" ClipToBounds="True"
+                                MouseWheel="ImageParent_MouseWheel"
+                                MouseDown="ImageParent_MouseDown"
+                                MouseUp="ImageParent_MouseUp"
+                                MouseMove="ImageParent_MouseMove">
+                            <Grid RenderTransformOrigin="0.5,0.5">
+                                <Grid.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="ImageScale" />
+                                        <TranslateTransform x:Name="ImageTranslate" />
+                                    </TransformGroup>
+                                </Grid.RenderTransform>
+                                <!-- 图片控件！！！！！ -->
+                                <local:ImagewithLabelShow DataContext="{Binding SelectedImage}"/>
+                            </Grid>
+                        </Grid>
 
                     </DockPanel>
                 </Border>
@@ -281,50 +308,57 @@
                 <GridSplitter Grid.Column="1" 
                       Width="5" 
                       HorizontalAlignment="Stretch" 
-                      VerticalAlignment="Stretch" 
-                      Background="#eee" />
-
-                <Grid Grid.Column="2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*" />
-                        <RowDefinition Height="5" />
-                        <RowDefinition Height="200" />
-                    </Grid.RowDefinitions>
-
+                      VerticalAlignment="Stretch"/>
+                <!-- 右侧列表与文本 -->
+                <Grid Grid.Column="2" Background="RoyalBlue">
                     <DataGrid x:Name="LabelDataGrid"
-                        ItemsSource="{Binding SelectedImage.Labels}"
-                        AutoGenerateColumns="False"
-                        CanUserAddRows="False"
-                        SelectionMode="Single"
-                        GridLinesVisibility="Horizontal"
-                        HeadersVisibility="Column">
+                              Style="{StaticResource MaterialDesignDataGrid}"
+                                ItemsSource="{Binding SelectedImage.Labels}"
+                                SelectedItem="{Binding SelectedLabel, Mode=TwoWay}" 
+                                AutoGenerateColumns="False"
+                                CanUserAddRows="False"
+                                SelectionMode="Single"
+                                GridLinesVisibility="Horizontal"
+                                HeadersVisibility="Column"
+                              Margin="4">
 
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="序号" Binding="{Binding Index}" IsReadOnly="True" Width="80"/>
+                            <!-- 高级文本编辑 -->
+                            <DataGridTemplateColumn Header="内容" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
 
-                            <DataGridTextColumn Header="内容" Binding="{Binding Text, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                                 TextWrapping="Wrap"
+                                                 AcceptsReturn="True" 
+                                                 BorderThickness="0"
+                                                 Padding="2"
+                                                 Background="White"
+                                                 Foreground="Black"
+                                                 VerticalContentAlignment="Top"
+                                                 Style="{x:Null}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
 
                             <DataGridTextColumn Header="组" Binding="{Binding Group}" Width="80"/>
+                            <DataGridTextColumn Header="X" Binding="{Binding X}" Width="80"/>
+                            <DataGridTextColumn Header="Y" Binding="{Binding Y}" Width="80"/>
 
                         </DataGrid.Columns>
                     </DataGrid>
-
-                    <GridSplitter Grid.Row="1" 
-                          Height="5" 
-                          HorizontalAlignment="Stretch" 
-                          VerticalAlignment="Stretch" 
-                          Background="#eee" />
-
-                    <TextBox Grid.Row="2" Margin="5" 
-                     TextWrapping="Wrap" 
-                     AcceptsReturn="True" 
-                     Style="{StaticResource MaterialDesignOutlinedTextBox}" />
                 </Grid>
             </Grid>
         </DockPanel>
+        <!-- 图校界面 -->
         <local:ImageReView x:Name="FullScreenReview" 
-                       Visibility="Collapsed" 
-                       Background="White" 
-                       ExitClicked="FullScreenReview_ExitClicked" Grid.ColumnSpan="2"/>
+                           Visibility="Collapsed" 
+                           ExitClicked="FullScreenReview_ExitClicked" Grid.ColumnSpan="2"/>
     </Grid>
 </Window>

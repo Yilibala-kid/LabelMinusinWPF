@@ -1,13 +1,100 @@
-﻿using System;
-using SharpCompress.Archives;
+﻿using SharpCompress.Archives;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace LabelMinusinWPF
 {
     internal class Modules
     {
+        public static Dictionary<string, ImageInfo> ParseTextToLabels(string content, out string? sourceName)//文本解析
+        {
+            sourceName = null;
+            var database = new Dictionary<string, ImageInfo>();
+            var groupList = new List<string>(); // 存储从文件头读取到的动态分组
+
+            // 使用预编译正则，提高性能
+            var imgRegex = new Regex(@">>>>>>>>\[(.*?)\]<<<<<<<<", RegexOptions.Compiled);
+            var metaRegex = new Regex(@"----------------\[(\d+)\]----------------\[([\d\.]+),([\d\.]+),(\d+)\]", RegexOptions.Compiled);
+
+            string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            string? currentImgName = null;
+            ImageLabel? currentLabel = null;
+            int hyphenCount = 0; // 用于追踪我们处理到了第几个 "-" 分隔符
+
+            foreach (string rawLine in lines)
+            {
+                string line = rawLine.Trim();
+                if (string.IsNullOrEmpty(line)) continue;
+                // 1. 处理文件头分组
+                if (line == "-") { hyphenCount++; continue; }
+                if (hyphenCount == 1) { groupList.Add(line); continue; }
+                if (hyphenCount == 2 && currentImgName == null)// 在第二个 "-" 之后，图片标记出现之前，寻找路径信息
+                {
+                    if (line.StartsWith("关联文件:"))
+                    {
+                        var path = line.Replace("关联文件:", "").Trim();
+                        sourceName = string.IsNullOrEmpty(path) ? null : path;
+                    }
+                }
+                // 2. 识别图片
+                var imgMatch = imgRegex.Match(line);
+                if (imgMatch.Success)
+                {
+                    currentImgName = imgMatch.Groups[1].Value;
+
+                    // 这里非常关键：ImageInfo 现在依赖 ImagePath！
+                    // 我们先创建一个临时的 ImageInfo，ImagePath 稍后在 ViewModel 里根据 BaseFolderPath 补全
+                    database[currentImgName] = new ImageInfo { ImagePath = currentImgName };
+                    currentLabel = null;
+                    continue;
+                }
+
+                // --- 3. 识别标注元数据行 ---
+                var metaMatch = metaRegex.Match(line);
+                if (metaMatch.Success && currentImgName != null)
+                {
+                    // 在处理新 Label 前，锁定上一个 Label 的原文
+                    currentLabel?.LoadBaseContent(currentLabel.Text);
+
+                    int groupIdx = int.Parse(metaMatch.Groups[4].Value);
+                    string groupName = (groupIdx > 0 && groupIdx <= groupList.Count)
+                                       ? groupList[groupIdx - 1]
+                                       : (groupIdx == 2 ? "框外" : "框内");
+
+                    currentLabel = new ImageLabel
+                    {
+                        Index = int.Parse(metaMatch.Groups[1].Value),
+                        Position = new BoundingBox(float.Parse(metaMatch.Groups[2].Value), float.Parse(metaMatch.Groups[3].Value), 0, 0),
+                        Group = groupName,
+                        Text = "" // 暂时为空，等待下方读取文本行
+                    };
+                    database[currentImgName].Labels.Add(currentLabel);
+                    continue;
+                }
+
+                // --- 4. 识别标注文本内容 ---
+                // 排除掉干扰行（如头部信息和分隔符）
+                if (currentLabel != null && hyphenCount >= 2)
+                {
+                    currentLabel.Text = string.IsNullOrEmpty(currentLabel.Text)
+                                        ? line
+                                        : currentLabel.Text + Environment.NewLine + line;
+                }
+            }
+            foreach (var img in database.Values)
+            {
+                foreach (var lbl in img.Labels)
+                {
+                    // 将当前读到的 Text 正式转为 OriginalText，并重置 IsModified
+                    lbl.LoadBaseContent(lbl.Text);
+                }
+            }
+
+            return database;
+        }
     }
     public class ArchiveHelper
     {
@@ -57,22 +144,22 @@ namespace LabelMinusinWPF
                 // 2. 物理缓存不存在，执行解压
                 if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
 
-                using (var archive = ArchiveFactory.Open(archivePath))
-                {
-                    var entry = archive.Entries.FirstOrDefault(e =>
-                        e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
-                        e.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase));
+                using var archive = ArchiveFactory.Open(archivePath);
 
-                    if (entry != null && !entry.IsDirectory)
+                var entry = archive.Entries.FirstOrDefault(e =>
+                    e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
+                    e.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase));
+
+                if (entry != null && !entry.IsDirectory)
+                {
+                    // 解压并保存到磁盘
+                    using (var fs = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write))
                     {
-                        // 解压并保存到磁盘
-                        using (var fs = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write))
-                        {
-                            entry.WriteTo(fs);
-                        }
-                        // 返回读取到的字节
-                        return File.ReadAllBytes(targetFilePath);
+                        entry.WriteTo(fs);
                     }
+                    // 注意：这里保留 fs 的块是为了确保 File.ReadAllBytes 执行前文件已关闭并释放
+
+                    return File.ReadAllBytes(targetFilePath);
                 }
             }
             catch (Exception ex)

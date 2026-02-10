@@ -14,7 +14,7 @@ using System.Windows.Shapes;
 namespace LabelMinusinWPF
 {
     /// <summary>
-    /// ImageReView.xaml 的交互逻辑
+    /// ImageReview.xaml 的交互逻辑
     /// </summary>
     public partial class ImageReView : UserControl
     {
