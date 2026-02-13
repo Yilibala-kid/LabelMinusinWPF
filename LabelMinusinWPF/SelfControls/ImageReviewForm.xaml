@@ -13,6 +13,7 @@
             <Setter Property="Orientation"
             Value= "Horizontal" />
         </Style>
+        
         <Style TargetType="TextBlock">
             <Setter Property="VerticalAlignment"
                     Value= "Center" />
