@@ -1,19 +1,26 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>False</UseWindowsForms>
+    <ApplicationIcon>face.ico</ApplicationIcon>
+    <OutputType>WinExe</OutputType>
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="face.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageReference Include="HandyControl" Version="3.5.1" />
     <PackageReference Include="MaterialDesignColors" Version="5.3.0" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
     <PackageReference Include="MaterialDesignThemes.MahApps" Version="5.3.0" />
-    <PackageReference Include="SharpCompress" Version="0.44.5" />
+    <PackageReference Include="SharpCompress" Version="0.46.0" />
   </ItemGroup>
 
 </Project>

@@ -4,25 +4,26 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:LabelMinusinWPF"
+             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
     <UserControl.Resources>
         <local:ImageRelativePositionConverter x:Key="PosConverter"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
     </UserControl.Resources>
-
-    <Grid Background="{DynamicResource MaterialDesignPaper}">
+    <Grid Background="SeaShell">
         <!-- 图片 -->
-        <Image x:Name="TargetImage"
-               Source="{Binding ImageSource}"
-               Stretch="Uniform"/>
+        <Image x:Name="TargetImage" 
+               Source="{Binding ImageSource}"/>
 
         <!-- 标记层 -->
-        <ItemsControl x:Name="MarkerItemsControl"
-                      ItemsSource="{Binding Labels}"
+        <ItemsControl x:Name="LabelItemsControl"
+                      ItemsSource="{Binding ActiveLabels}"
                       Width="{Binding ActualWidth, ElementName=TargetImage}"
                       Height="{Binding ActualHeight, ElementName=TargetImage}"
-                      HorizontalAlignment="Center"
-                      VerticalAlignment="Center">
+                      MouseLeftButtonDown="LabelItemsControl_MouseLeftButtonDown"
+                      MouseMove="LabelItemsControl_MouseMove"
+                      MouseLeftButtonUp="LabelItemsControl_MouseLeftButtonUp">
 
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
@@ -56,18 +57,24 @@
             <!-- 标记内容 -->
             <ItemsControl.ItemTemplate>
                 <DataTemplate>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Background="Transparent">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
 
                         <!-- 点 -->
-                        <Border Width="20" Height="20" Background="Red" CornerRadius="10"
-                            MouseLeftButtonDown="Label_MouseDown"
-                            MouseMove="Label_MouseMove"
-                            MouseLeftButtonUp="Label_MouseUp">
+                        <Border Width="20" Height="20" Background="Red" CornerRadius="10" VerticalAlignment="Top"
+                                MouseLeftButtonDown="Label_LeftMouseDown"
+                                MouseRightButtonDown="Label_RightMouseDown"
+                                Visibility="{Binding IsIndexVisible, 
+                                 RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, 
+                                 Converter={StaticResource BoolToVis}}">
+
                             <TextBlock Text="{Binding Index}" Foreground="White" FontWeight="Bold" 
                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <!-- 文字 -->
-                        <Border Background="#80000000" CornerRadius="2" Margin="4,0,0,0" Padding="4,2">
+                        <Border Background="#80000000" CornerRadius="2" Margin="4,0,0,0" Padding="4,2"
+                                Visibility="{Binding IsTextVisible, 
+                                 RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, 
+                                 Converter={StaticResource BoolToVis}}">
                             <TextBlock Text="{Binding Text}" Foreground="White" FontSize="12"/>
                         </Border>
                     </StackPanel>

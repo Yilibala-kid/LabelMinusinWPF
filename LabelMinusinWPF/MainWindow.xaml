@@ -5,19 +5,18 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:LabelMinusinWPF"
         mc:Ignorable="d"
+        xmlns:hc="https://handyorg.github.io/handycontrol"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes" 
         Title="LabelMinus" Height="800" Width="1200">
     <Window.Resources>
-        <Style TargetType="materialDesign:PackIcon">
-            <Setter Property="Foreground"
-            Value="{DynamicResource MaterialDesignBody}" />
-        </Style>
-        <Style TargetType="Button"
-       BasedOn="{StaticResource MaterialDesignFlatButton}">
-            <Setter Property="Foreground"
-            Value="{DynamicResource MaterialDesignBody}" />
+        <Style TargetType="StackPanel">
+            <Setter Property="Orientation"
+            Value= "Horizontal" />
         </Style>
     </Window.Resources>
+    <Window.DataContext>
+        <local:MainViewModel />
+    </Window.DataContext>
     <Grid x:Name="RootGrid">
         <DockPanel Grid.ColumnSpan="2">
             <!-- 菜单栏 -->
@@ -28,7 +27,7 @@
                   materialDesign:MenuAssist.TopLevelMenuItemHeight="25"
                   FontSize="12">
                 <!-- 1. 文件 -->
-                <MenuItem Header="文件" >
+                <MenuItem Header="文件">
                     <MenuItem.Icon>
                         <materialDesign:PackIcon Kind="File"/>
                     </MenuItem.Icon>
@@ -119,8 +118,8 @@
                     <MenuItem Header="次要参数" IsCheckable="True" />
                     <MenuItem Header="列表序号" IsCheckable="True" IsChecked="True" />
                     <MenuItem Header="列表组别" IsCheckable="True" IsChecked="True" />
-                    <MenuItem Header="图片组别" IsCheckable="True" IsChecked="True" />
-                    <MenuItem Header="图片文本" IsCheckable="True" IsChecked="True" />
+                    <MenuItem x:Name="MenuShowIndex" Header="图片序号" IsCheckable="True" IsChecked="{Binding IsPictureIndexVisible}" />
+                    <MenuItem x:Name="MenuShowText" Header="图片文本" IsCheckable="True" IsChecked="{Binding IsPictureTextVisible}" />
                     <MenuItem Header="流畅图片显示" IsCheckable="True" IsChecked="True" />
 
                     <Separator />
@@ -151,76 +150,72 @@
 
             </Menu>
             <!-- 顶栏 -->
-            <ToolBarTray x:Name="ImageContainerBorder" DockPanel.Dock="Top" Height="35">
-                <ToolBar ClipToBounds="False">
-
-                    <Button Command="{Binding ChangeModeCommand}" 
+            <Border DockPanel.Dock="Top" Height="35" 
+                    Background="{DynamicResource MaterialDesignPaper}">
+                
+                <Grid Margin="10,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <Button Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding ChangeModeCommand}"
                             CommandParameter="{x:Static local:AppMode.See}"
-                            ToolTip="浏览图片" Padding="4">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Eye" VerticalAlignment="Center" />
-                            <TextBlock Text="浏览" VerticalAlignment="Center" Margin="0,0,0,0"/>
-                        </StackPanel>
-                    </Button>
+                            Tag="Eye" 
+                            Content="浏览" 
+                            ToolTip="浏览图片"/>
 
-                    <Button Command="{Binding ChangeModeCommand}"      
+                        <Button Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding ChangeModeCommand}"
                             CommandParameter="{x:Static local:AppMode.LabelDo}"
-                            ToolTip="标记图片" Padding="4">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="FileEdit" VerticalAlignment="Center" />
-                            <TextBlock Text="标记" VerticalAlignment="Center" Margin="0,0,0,0"/>
-                        </StackPanel>
-                    </Button>
-
-                    <Button Command="{Binding ChangeModeCommand}" 
+                            Tag="FileEdit" 
+                            Content="标记" 
+                            ToolTip="标记图片"/>
+                        <!-- 识别模式与网站栏-->
+                        <Button Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding ChangeModeCommand}"
                             CommandParameter="{x:Static local:AppMode.OCR}"
-                            ToolTip="内容识别" Padding="4">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="ImageSearch" VerticalAlignment="Center" />
-                            <TextBlock Text="识别" VerticalAlignment="Center" Margin="0,0,0,0"/>
+                            Tag="ImageSearch" 
+                            Content="识别" 
+                            ToolTip="内容识别"/>
+                        <StackPanel>
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static local:AppMode.OCR}">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <ComboBox Width="150" Height="35" materialDesign:HintAssist.Hint="选择网站">
+                                    <ComboBoxItem Content="百度" />
+                                    <ComboBoxItem Content="谷歌" />
+                                    <ComboBoxItem Content="必应" />
+                                </ComboBox>
                         </StackPanel>
-                    </Button>
-
-
-
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static local:AppMode.OCR}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-
-                        <Separator />
-                        <ComboBox Width="150" Margin="5,0" materialDesign:HintAssist.Hint="选择网站">
-                            <ComboBoxItem Content="百度" />
-                            <ComboBoxItem Content="谷歌" />
-                            <ComboBoxItem Content="必应" />
-                        </ComboBox>
-                        <Separator />
+                        
                     </StackPanel>
 
-
-
-                    <Button ToolTip="图片对比" Padding="4" Click="OpenImageReview_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <materialDesign:PackIcon Kind="Compare" VerticalAlignment="Center" />
-                            <TextBlock Text="图校" VerticalAlignment="Center" Margin="0,0,0,0"/>
-                        </StackPanel>
-                    </Button>
-                    <ToggleButton Cursor="Hand"
-                                  ToolTip="切换深色模式"
-                                  Checked="DarkMode_Checked"
-                                  Unchecked="DarkMode_Unchecked"
-                                  Style="{StaticResource MaterialDesignSwitchToggleButton}">
-                        <materialDesign:PackIcon Kind="WeatherNight" Width="20" Height="20" />
-                    </ToggleButton>
-                </ToolBar>
-            </ToolBarTray>
+                    <StackPanel Grid.Column="2">
+                        <Button Style="{StaticResource IconButtonStyle}"
+                            Click="OpenImageReview_Click"
+                            Tag="Compare" 
+                            Content="图校" 
+                            ToolTip="图片对比"/>
+                        <ToggleButton Cursor="Hand"
+                                      ToolTip="切换深色模式"
+                                      Checked="DarkMode_Checked"
+                                      Unchecked="DarkMode_Unchecked"
+                                      VerticalAlignment="Center">
+                            <materialDesign:PackIcon Kind="WeatherNight" Width="20" Height="20" />
+                        </ToggleButton>
+                    </StackPanel>
+                </Grid>
+            </Border>
             <!-- 主界面 -->
             <Grid ShowGridLines="False" ToolBar.OverflowMode="Never">
                 <Grid.ColumnDefinitions>
@@ -236,7 +231,7 @@
                                  Style="{StaticResource MaterialDesignToolBar}"
                                  Height="36">
 
-                            <Button ToolTip="适应视图" Padding="4">
+                            <Button ToolTip="适应视图" Padding="4" Click="ResetView_Click">
                                 <materialDesign:PackIcon Kind="FitToPage" />
                             </Button>
                             <Button ToolTip="适应宽度" Padding="4">
@@ -247,34 +242,31 @@
                             </Button>
 
                             <Button ToolTip="锁定X" Padding="4">
-                                <materialDesign:PackIcon Kind="LockOpen" />
+                                <materialDesign:PackIcon Kind="ArrowHorizontalLock" />
                             </Button>
                             <Button ToolTip="锁定Y" Padding="4">
-                                <materialDesign:PackIcon Kind="LockOpen" />
+                                <materialDesign:PackIcon Kind="ArrowVerticalLock" />
                             </Button>
                             <Separator/>
-                            <Button ToolTip="打开工作文件夹" 
-                                        Padding="8,4" 
-                                        Margin="5,0"
-                                        Height="32">
-                                <StackPanel Orientation="Horizontal">
-                                    <materialDesign:PackIcon Kind="FolderOpen" VerticalAlignment="Center"/>
-                                    <TextBlock Text="文件夹" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </Button>
+                            <Button Style="{StaticResource IconButtonStyle}"
+                            Command="{Binding ChangeModeCommand}"
+                            CommandParameter="{x:Static local:AppMode.LabelDo}"
+                            Tag="FolderMultipleImage" 
+                            Content="文件夹" 
+                            ToolTip="打开工作文件夹"/>
                             <Separator/>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="图集:" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                <ComboBox Width="180" 
+                            <StackPanel Margin="5,0">
+                                <materialDesign:PackIcon Kind="ImageMultiple" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <ComboBox Width="100" 
                                             ItemsSource="{Binding ImageList}"
                                             SelectedItem="{Binding SelectedImage}"
                                             DisplayMemberPath="ImageName"
                                             materialDesign:HintAssist.Hint="选择图片" 
                                             VerticalAlignment="Center"
-                                            FontSize="12">
+                                            FontSize="12" >
                                 </ComboBox>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal">
+                            <StackPanel>
                                 <Button ToolTip="上一张" Command="{Binding PreviousImageCommand}"  Padding="4">
                                     <materialDesign:PackIcon Kind="ArrowUp" />
                                 </Button>
@@ -290,16 +282,46 @@
                                 MouseDown="ImageParent_MouseDown"
                                 MouseUp="ImageParent_MouseUp"
                                 MouseMove="ImageParent_MouseMove">
-                            <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid RenderTransformOrigin="0,0">
                                 <Grid.RenderTransform>
                                     <TransformGroup>
                                         <ScaleTransform x:Name="ImageScale" />
                                         <TranslateTransform x:Name="ImageTranslate" />
                                     </TransformGroup>
                                 </Grid.RenderTransform>
-                                <!-- 图片控件！！！！！ -->
-                                <local:ImagewithLabelShow DataContext="{Binding SelectedImage}"/>
+                                <!-- 图片与标签显示控件！！！！！ -->
+                                <local:ImagewithLabelShow 
+                                    x:Name="PicView"
+                                    DataContext="{Binding SelectedImage}" 
+                                    IsIndexVisible="{Binding IsChecked, ElementName=MenuShowIndex}"
+                                    IsTextVisible="{Binding IsChecked, ElementName=MenuShowText}" 
+                                    RequestDragImage="MyLabelControl_RequestDragImage"/>
                             </Grid>
+                            <!--截图控件,要与上面的grid平行-->
+                            <Canvas x:Name="SnipCanvas" Background="#55000000"
+                                    MouseDown="SnipCanvas_MouseDown"       
+                                    MouseMove="SnipCanvas_MouseMove"                                 
+                                    MouseUp="SnipCanvas_MouseUp">
+                                <Canvas.Style>
+                                    <Style TargetType="Canvas">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Setter Property="IsHitTestVisible" Value="False"/>
+
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static local:AppMode.OCR}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Setter Property="IsHitTestVisible" Value="True"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Canvas.Style>
+
+                                <Rectangle x:Name="SnipRectangle" 
+                                           Stroke="RoyalBlue" 
+                                           StrokeThickness="2" 
+                                           StrokeDashArray="4 4"
+                                           Visibility="Collapsed"/>
+                            </Canvas>
                         </Grid>
 
                     </DockPanel>
@@ -311,17 +333,30 @@
                       VerticalAlignment="Stretch"/>
                 <!-- 右侧列表与文本 -->
                 <Grid Grid.Column="2" Background="RoyalBlue">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="3*"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
                     <DataGrid x:Name="LabelDataGrid"
                               Style="{StaticResource MaterialDesignDataGrid}"
                                 ItemsSource="{Binding SelectedImage.Labels}"
-                                SelectedItem="{Binding SelectedLabel, Mode=TwoWay}" 
+                                SelectedItem="{Binding SelectedImage.SelectedLabel, Mode=TwoWay}" 
                                 AutoGenerateColumns="False"
                                 CanUserAddRows="False"
                                 SelectionMode="Single"
                                 GridLinesVisibility="Horizontal"
                                 HeadersVisibility="Column"
                               Margin="4">
-
+                        <DataGrid.RowStyle>
+                            <Style TargetType="DataGridRow" BasedOn="{StaticResource MaterialDesignDataGridRow}">
+                                <Style.Triggers>
+                                    <Trigger Property="IsSelected" Value="True">
+                                        <Setter Property="FontWeight" Value="Bold" />
+                                        <Setter Property="BorderThickness" Value="1"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DataGrid.RowStyle>
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="序号" Binding="{Binding Index}" IsReadOnly="True" Width="80"/>
                             <!-- 高级文本编辑 -->
@@ -348,11 +383,22 @@
                             </DataGridTemplateColumn>
 
                             <DataGridTextColumn Header="组" Binding="{Binding Group}" Width="80"/>
-                            <DataGridTextColumn Header="X" Binding="{Binding X}" Width="80"/>
-                            <DataGridTextColumn Header="Y" Binding="{Binding Y}" Width="80"/>
+                            <DataGridTextColumn Header="X" Binding="{Binding X}" Width="50"/>
+                            <DataGridTextColumn Header="Y" Binding="{Binding Y}" Width="40"/>
 
                         </DataGrid.Columns>
                     </DataGrid>
+
+                    <TextBox Grid.Row="1" 
+                             Text="{Binding SelectedImage.SelectedLabel.Text, UpdateSourceTrigger=PropertyChanged}"
+                             Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                             Background="{StaticResource MaterialDesignPaper}"
+                             FontSize="16"
+                             HorizontalContentAlignment="Left"
+                             VerticalContentAlignment="Top"
+                             TextAlignment="Left"/>
+
+
                 </Grid>
             </Grid>
         </DockPanel>

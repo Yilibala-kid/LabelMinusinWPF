@@ -15,7 +15,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 namespace LabelMinusinWPF
 {
-
+    //TODO:目前ImageParent的伸缩会影响标记位置，需要改进
 
     public enum AppMode { See, LabelDo, OCR }
     public partial class MainViewModel : ObservableObject
@@ -24,15 +24,24 @@ namespace LabelMinusinWPF
         [ObservableProperty] private ProjectContext _currentProject = ProjectContext.Empty;
         public BindingList<ImageInfo> ImageList { get; } = [];
         [ObservableProperty] private ImageInfo? _selectedImage;
-        //TODO:订阅ImageList.ListChanged事件，自动维护
         #region 模式选择
         [ObservableProperty]
-        private AppMode _currentMode = AppMode.See; // 默认选中第一个
+        private AppMode _currentMode = AppMode.LabelDo; // 默认选中第一个
 
         [RelayCommand]
         private void ChangeMode(AppMode newMode)
         {
             CurrentMode = newMode;
+            if (CurrentMode == AppMode.See)
+            {
+                IsPictureIndexVisible = false;
+                IsPictureTextVisible = false;
+            }
+            if (CurrentMode == AppMode.LabelDo)
+            {
+                IsPictureIndexVisible = true;
+                IsPictureTextVisible = false;
+            }
         }
         #endregion
         #region 文件处理
@@ -100,7 +109,17 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-        #region 图片浏览
+        #region 菜单栏部分参数
+        // 控制序号显示
+        [ObservableProperty]
+        private bool _isPictureIndexVisible = true;
+
+        // 控制文本显示
+        [ObservableProperty]
+        private bool _isPictureTextVisible = true;
+        #endregion
+
+        #region 底栏/图片浏览
         [RelayCommand(CanExecute = nameof(CanGoToPrevious))]
         public void PreviousImage()
         {

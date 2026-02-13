@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Windows;
 
 namespace LabelMinusinWPF
 {
@@ -19,7 +20,7 @@ namespace LabelMinusinWPF
             var imgRegex = new Regex(@">>>>>>>>\[(.*?)\]<<<<<<<<", RegexOptions.Compiled);
             var metaRegex = new Regex(@"----------------\[(\d+)\]----------------\[([\d\.]+),([\d\.]+),(\d+)\]", RegexOptions.Compiled);
 
-            string[] lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            string[] lines = content.Split(["\r\n", "\r", "\n" ], StringSplitOptions.None);
             string? currentImgName = null;
             ImageLabel? currentLabel = null;
             int hyphenCount = 0; // 用于追踪我们处理到了第几个 "-" 分隔符
@@ -67,7 +68,7 @@ namespace LabelMinusinWPF
                     currentLabel = new ImageLabel
                     {
                         Index = int.Parse(metaMatch.Groups[1].Value),
-                        Position = new BoundingBox(float.Parse(metaMatch.Groups[2].Value), float.Parse(metaMatch.Groups[3].Value), 0, 0),
+                        Position = new Point(float.Parse(metaMatch.Groups[2].Value), float.Parse(metaMatch.Groups[3].Value)),
                         Group = groupName,
                         Text = "" // 暂时为空，等待下方读取文本行
                     };
@@ -109,7 +110,7 @@ namespace LabelMinusinWPF
             var entryNames = new List<string>();
 
             // ArchiveFactory 可以自动识别文件格式 (Zip, Rar, 7z, Tar...)
-            using (var archive = ArchiveFactory.Open(archivePath))
+            using (var archive = ArchiveFactory.OpenArchive(File.OpenRead(archivePath)))
             {
                 foreach (var entry in archive.Entries)
                 {
@@ -144,7 +145,7 @@ namespace LabelMinusinWPF
                 // 2. 物理缓存不存在，执行解压
                 if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
 
-                using var archive = ArchiveFactory.Open(archivePath);
+                using var archive = ArchiveFactory.OpenArchive(archivePath);
 
                 var entry = archive.Entries.FirstOrDefault(e =>
                     e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
@@ -173,7 +174,7 @@ namespace LabelMinusinWPF
         public static async Task PrefetchNeighbors(string archivePath, List<string> allFileNames, int currentIndex)
         {
             // 定义预加载范围，比如前后各 1 张
-            int[] offsets = { 1, -1, 2, -2 };
+            int[] offsets = [1, -1, 2, -2];
 
             await Task.Run(() =>
             {
@@ -193,7 +194,7 @@ namespace LabelMinusinWPF
                 try
                 {
                     // --- 关键优化：只打开一次压缩包 ---
-                    using var archive = ArchiveFactory.Open(archivePath);
+                    using var archive = ArchiveFactory.OpenArchive(archivePath);
                     foreach (var fileName in pendingFiles)
                     {
                         var entry = archive.Entries.FirstOrDefault(e =>

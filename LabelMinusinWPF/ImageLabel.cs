@@ -2,6 +2,8 @@
 using MahApps.Metro.Controls;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media.Imaging;
+using System.Windows;
 
 
 namespace LabelMinusinWPF
@@ -18,8 +20,8 @@ namespace LabelMinusinWPF
         [ObservableProperty] private double _fontSize = 20.0;
         [ObservableProperty] private string _fontFamily = "微软雅黑";
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(X), nameof(Y), nameof(Width), nameof(Height))]
-        private BoundingBox _position = BoundingBox.Default;
+        [NotifyPropertyChangedFor(nameof(X), nameof(Y))]
+        private Point _position = new(0, 0);
 
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsModified))]
@@ -29,11 +31,12 @@ namespace LabelMinusinWPF
 
         private bool _isModified = false;
         public bool IsModified => _isModified || IsDeleted;
+
+        [ObservableProperty] private bool _isEditing;
         #region 快捷坐标访问
-        public float X { get => Position.X; set => Position = Position with { X = Math.Clamp(value, 0, 1) }; }
-        public float Y { get => Position.Y; set => Position = Position with { Y = Math.Clamp(value, 0, 1) }; }
-        public float Width { get => Position.Width; set => Position = Position with { Width = value }; }
-        public float Height { get => Position.Height; set => Position = Position with { Height = value }; }
+        public double X { get => Position.X; set => Position = Position with { X = Math.Clamp(value, 0, 1) }; }
+        public double Y { get => Position.Y; set => Position = Position with { Y = Math.Clamp(value, 0, 1) }; }
+
         #endregion
 
         #region 5. 业务方法
@@ -62,8 +65,4 @@ namespace LabelMinusinWPF
         #endregion
     }
 
-    public readonly record struct BoundingBox(float X, float Y, float Width, float Height)
-    {
-        public static BoundingBox Default => new(0, 0, 0, 0);
-    }
 }

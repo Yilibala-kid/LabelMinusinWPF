@@ -1,10 +1,13 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -23,7 +26,7 @@ namespace LabelMinusinWPF
         // 图片包含的标签
         public BindingList<ImageLabel> Labels { get; } = [];
         // 只读属性：获取未删除的标签列表
-        public List<ImageLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];
+        public BindingList<ImageLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];
         // 当前选中的标注
         [ObservableProperty] private ImageLabel? _selectedLabel;
         // 图片显示
@@ -63,7 +66,6 @@ namespace LabelMinusinWPF
             };
         }
 
-
         #region 业务逻辑方法
         public void RefreshIndices()
         {
@@ -85,6 +87,17 @@ namespace LabelMinusinWPF
                 _isRefreshing = false;
             }
         }
+        public ICommand DeleteLabelCommand => new RelayCommand<ImageLabel>(label =>
+        {
+            if (label == null) return;
+            label.IsDeleted = true;
+            RefreshIndices(); // 刷新索引逻辑
+        });
+
+        public ICommand SelectLabelCommand => new RelayCommand<ImageLabel>(label =>
+        {
+            SelectedLabel = label;
+        });
         //public void ResetModificationFlags()// 保存后重置所有修改标记
         //{
         //    foreach (var l in Labels) l._isModified = false;
