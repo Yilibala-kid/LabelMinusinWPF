@@ -1,5 +1,4 @@
-﻿using MahApps.Metro.Controls;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Dynamic;
@@ -15,6 +14,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using MahApps.Metro.Controls;
 
 namespace LabelMinusinWPF
 {
@@ -27,175 +27,229 @@ namespace LabelMinusinWPF
         {
             InitializeComponent();
         }
-        public ImageInfo? ViewModel => DataContext as ImageInfo;
 
-        #region 状态变量
-        private bool _isDragging = false;
-        private bool _isCanvasClick = false;
-        private Point _canvasClickPoint;
-        private Point _startDragPoint;
-        // 新增：记录拖拽开始时标签的原始位置，用于计算位移，避免“瞬移”
-        private double _startLabelX;
-        private double _startLabelY;
-        #endregion
+        public ImageInfo? ShowingImage => DataContext as ImageInfo;
 
-        #region 鼠标按下：区分点击画布与点击标签
+        #region 第一层：整体拖动与缩放
+        private Point _lastMousePosition; // 记录鼠标按下时的坐标（用于计算位移量）
+        private Point _mouseDownPosition; // 用于计算是否超过点击阈值
 
-        // 1. 父容器按下（点击在空白画布上）
-        private void LabelItemsControl_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void Viewport_MouseLeftDown(object sender, MouseButtonEventArgs e)
         {
-            // 因为标签自身的 Label_LeftMouseDown 已经标记了 e.Handled = true
-            // 所以能走到这里的，必然是点击在了没有标签的空白区域
-            var clickPoint = e.GetPosition(LabelItemsControl);
+            _mouseDownPosition = _lastMousePosition = e.GetPosition(ViewportGrid);
 
-            _isCanvasClick = true;
-            _canvasClickPoint = clickPoint;
+            if (ShowingImage != null)
+            {
+                ShowingImage.SelectedLabel = null;
+            }
 
-            // 捕获鼠标，准备后续判断是新建标签还是拖动画布
-            LabelItemsControl.CaptureMouse();
-            e.Handled = true;
+            ViewportGrid.CaptureMouse();
         }
 
-        // 2. 子元素按下（点击在已有标签上）
-        private void Label_LeftMouseDown(object sender, MouseButtonEventArgs e)
+        // 2. 鼠标移动
+        private void Viewport_MouseMove(object sender, MouseEventArgs e)
         {
-            if (sender is Border { DataContext: ImageLabel label })
+            if (!ViewportGrid.IsMouseCaptured) return;// 如果没有捕获鼠标，什么都不做
+
+            var currentPos = e.GetPosition(ViewportGrid);
+
+            var delta = currentPos - _lastMousePosition;
+            // 只有移动距离超过阈值才算拖动（防抖）
+            if ((currentPos - _mouseDownPosition).Length > 2)
             {
-                if (ViewModel == null) return;
+                if (!IsXLocked) MyTranslateTransform.X += delta.X;
+                if (!IsYLocked) MyTranslateTransform.Y += delta.Y;
+            }
+            _lastMousePosition = currentPos;
+        }
 
-                // 选中标签
-                ViewModel.SelectedLabel = label;
+        // 3. 鼠标抬起
+        private void Viewport_MouseLeftUp(object sender, MouseButtonEventArgs e)
+        {
+            // 如果鼠标按下和抬起的距离很短，且没有在拖动标签 -> 视为点击，新建标签
+            if ((e.GetPosition(ViewportGrid) - _mouseDownPosition).Length < 2)
+            {
+                AddNewLabel(e.GetPosition(TargetImage)); // 直接传入相对于图片的坐标
+            }
+            ViewportGrid.ReleaseMouseCapture();
+            _draggingLabel = null;
+        }
 
-                // 【修复】正式开启拖拽状态
-                _isDragging = true;
-                _startDragPoint = e.GetPosition(LabelItemsControl);
+        private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)// 鼠标滚轮缩放
+        {
+            var st = MyScaleTransform;
+            var tt = MyTranslateTransform;
 
-                // 【修复】记录标签当前的起始坐标
-                _startLabelX = label.X;
-                _startLabelY = label.Y;
+            double zoom = e.Delta > 0 ? 1.1 : 0.9;
+            Point relative = e.GetPosition(ContentGrid); // 鼠标相对于内容的中心点
 
-                // 由父容器捕获鼠标，防止拖动过快时鼠标脱离标签范围
+            // 简单的中心缩放公式
+            st.ScaleX *= zoom;
+            st.ScaleY *= zoom;
+            tt.X = relative.X * st.ScaleX / zoom * (1 - zoom) + tt.X; // 修正位移以保持鼠标下内容不动
+            tt.Y = relative.Y * st.ScaleY / zoom * (1 - zoom) + tt.Y;
+        }
+        #endregion
+
+
+        #region 第二层：处理标签移动
+        private void LabelItemsControl_MouseMove(object sender, MouseEventArgs e)
+        {
+            // 如果没有捕获鼠标，什么都不做
+            if (!LabelItemsControl.IsMouseCaptured) return;
+
+            var currentPos = e.GetPosition(LabelItemsControl);
+
+            // 正在拖拽标签
+            if (_draggingLabel != null)
+            {
+                Point posInImage = e.GetPosition(TargetImage);
+
+                if (TargetImage.ActualWidth > 0 && TargetImage.ActualHeight > 0)
+                {
+                    _draggingLabel.X = posInImage.X / TargetImage.ActualWidth;
+                    _draggingLabel.Y = posInImage.Y / TargetImage.ActualHeight;
+                }
+            }
+            _lastMousePosition = currentPos;
+            e.Handled = true; // 阻止事件冒泡，防止 ViewportGrid 误认为是拖动空白处
+        }
+        private void LabelItemsControl_MouseLeftUp(object sender, MouseButtonEventArgs e)
+        {
+
+            LabelItemsControl.ReleaseMouseCapture();
+            _draggingLabel = null;
+            e.Handled = true;
+        }
+        #endregion
+
+        #region 第三层(上)：标签选中与删除
+        private ImageLabel? _draggingLabel; // 当前拖动的标签，非空即代表正在拖拽标签
+        private void LabelNode_LeftMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement elm && elm.DataContext is ImageLabel label && ShowingImage != null)
+            {
+                _draggingLabel = label;
+
+                ShowingImage.SelectedLabel = label;
+
                 LabelItemsControl.CaptureMouse();
+
+                _lastMousePosition = e.GetPosition(ViewportGrid);
+
+                e.Handled = true;
+            }
+        }
+        private void LabelNode_RightMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: ImageLabel label } && ShowingImage != null)
+            {
+                label.IsDeleted = true;
+                if (ShowingImage.SelectedLabel == label) ShowingImage.SelectedLabel = null;
                 e.Handled = true;
             }
         }
         #endregion
 
-        #region 鼠标移动：处理拖拽标签或拖动画布
-        private void LabelItemsControl_MouseMove(object sender, MouseEventArgs e)
+        #region 辅助逻辑方法
+
+        // 辅助：新建标签 (保持原本逻辑)
+        private void AddNewLabel(Point posInImage)
         {
-            // 如果没有捕获鼠标，直接返回
-            if (!LabelItemsControl.IsMouseCaptured) return;
+            if (ShowingImage == null || TargetImage.ActualWidth == 0) return;
 
-            var currentPoint = e.GetPosition(LabelItemsControl);
-
-            // 场景 A：正在拖拽已有标签
-            if (_isDragging && ViewModel?.SelectedLabel != null)
+            ShowingImage.Labels.Add(new ImageLabel
             {
-                if (LabelItemsControl.ActualWidth > 0 && LabelItemsControl.ActualHeight > 0)
-                {
-                    // 【修复】计算相对位移 (Delta)，实现平滑拖拽
-                    double dx = (currentPoint.X - _startDragPoint.X) / LabelItemsControl.ActualWidth;
-                    double dy = (currentPoint.Y - _startDragPoint.Y) / LabelItemsControl.ActualHeight;
+                X = Math.Clamp(posInImage.X / TargetImage.ActualWidth, 0, 1),
+                Y = Math.Clamp(posInImage.Y / TargetImage.ActualHeight, 0, 1),
+                Index = ShowingImage.Labels.Count + 1,
+                Text = $"标签{ShowingImage.Labels.Count + 1}",
+            });
+            ShowingImage.SelectedLabel = ShowingImage.Labels.Last();
+        }
 
-                    // 更新坐标，并限制在 0~1 范围内
-                    ViewModel.SelectedLabel.X = Math.Clamp(_startLabelX + dx, 0, 1);
-                    ViewModel.SelectedLabel.Y = Math.Clamp(_startLabelY + dy, 0, 1);
+        #endregion
+
+        #region 第三层(下)：文本框编辑相关
+        private void LabelText_MouseLeftDown(object sender, MouseButtonEventArgs e)
+        {
+            // 双击判定
+            if (e.ClickCount == 2)
+            {
+                var border = sender as Border;
+                var grid = border?.Parent as Grid;
+
+                // 在 DataTemplate 内部查找对应的 TextBox
+                // 如果你用了 x:Name，也可以通过 grid.FindName 查找
+                var textBox = grid?.Children.OfType<TextBox>().FirstOrDefault();
+
+                if (border != null && textBox != null)
+                {
+                    border.Visibility = Visibility.Collapsed;
+                    textBox.Visibility = Visibility.Visible;
+
+                    // 必须延迟一点点 Focus，确保控件已渲染
+                    textBox.Focus();
+                    textBox.SelectAll();
                 }
             }
-            // 场景 B：在画布上按住并移动（判断是否达到拖动画布的阈值）
-            else if (_isCanvasClick)
-            {
-                var diff = currentPoint - _canvasClickPoint;
-                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
-                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
-                {
-                    // 移动超过阈值，不再视为“点击新建标签”，而是触发拖动画布
-                    LabelItemsControl.ReleaseMouseCapture();
-                    _isDragging = false;
-                    _isCanvasClick = false;
+            e.Handled = true; // 阻止冒泡到 Canvas 触发新建标签
+        }
+        // 失去焦点时，自动切回显示模式
+        private void LabelEdit_LostFocus(object sender, RoutedEventArgs e)
+        {
+            var textBox = sender as TextBox;
+            var grid = textBox?.Parent as Grid;
+            var border = grid?.Children.OfType<Border>().FirstOrDefault();
 
-                    RaiseEvent(new RequestDragImageEventArgs(RequestDragImageEvent, e.GetPosition(this)));
-                }
+            if (border != null && textBox != null)
+            {
+                textBox.Visibility = Visibility.Collapsed;
+                border.Visibility = Visibility.Visible;
+            }
+        }
+        private void LabelEdit_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape || (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control))
+            {
+                // 强制让父容器获取焦点，从而触发 TextBox 的 LostFocus 事件
+                ViewportGrid.Focus();
             }
         }
         #endregion
 
-        #region 鼠标抬起：释放状态与新建标签
-        // 【修复】合并 MouseUp 逻辑，只保留这一个方法
-        private void LabelItemsControl_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        #region 暴露给外部的状态属性/公开控制方法
+       
+        public bool IsXLocked { get; set; } = false;
+        public bool IsYLocked { get; set; } = false;
+
+        // 适应全屏 (Fit to Page)
+        public void Fit(string mode = "All")
         {
-            if (LabelItemsControl.IsMouseCaptured)
+            if (TargetImage.ActualWidth == 0 || ViewportGrid.ActualWidth == 0) return;
+
+            double sX = ViewportGrid.ActualWidth / TargetImage.ActualWidth;
+            double sY = ViewportGrid.ActualHeight / TargetImage.ActualHeight;
+
+            double scale = mode switch
             {
-                LabelItemsControl.ReleaseMouseCapture();
-
-                // 如果是在画布上点击，并且没有触发画布拖动，则新建标签
-                if (_isCanvasClick)
-                {
-                    var clickPoint = e.GetPosition(LabelItemsControl);
-                    AddNewLabel(clickPoint);
-                }
-
-                // 统一重置所有状态
-                _isDragging = false;
-                _isCanvasClick = false;
-            }
-        }
-        #endregion
-
-        // 右键删除逻辑和 AddNewLabel 保持你原本的实现即可，没有问题。
-        private void AddNewLabel(Point position)
-        {
-            if (ViewModel == null) return;
-
-            // 计算相对坐标 (0.0 - 1.0)
-            double relativeX = Math.Clamp(position.X / LabelItemsControl.ActualWidth, 0, 1);
-            double relativeY = Math.Clamp(position.Y / LabelItemsControl.ActualHeight, 0, 1);
-
-            // 创建新标签
-            var newLabel = new ImageLabel
-            {
-                X = relativeX,
-                Y = relativeY,
-                Index = ViewModel.Labels.Count + 1,
-                Text = $"标签{ViewModel.Labels.Count + 1}"
+                "Width" => sX,
+                "Height" => sY,
+                _ => Math.Min(sX, sY)
             };
 
-            // 添加到集合
-            ViewModel.Labels.Add(newLabel);
-
-            // 选中新创建的标签
-            ViewModel.SelectedLabel = newLabel;
+            MyScaleTransform.ScaleX = MyScaleTransform.ScaleY = scale;
+            MyTranslateTransform.X = MyTranslateTransform.Y = 0; // 归零位移，左上角对齐
         }
-        // 4. 右键按下：删除逻辑
-        private void Label_RightMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (sender is Border { DataContext: ImageLabel label } && ViewModel != null)
-            {
-                label.IsDeleted = true;
 
-                // 如果删除的是当前选中的，清理选中状态
-                if (ViewModel.SelectedLabel == label)
-                {
-                    ViewModel.SelectedLabel = null;
-                }
+        // 保持原来的接口，只是转发调用
+        public void FitToView() => Fit("All");
+        public void FitToWidth() => Fit("Width");
+        public void FitToHeight() => Fit("Height");
 
-                ViewModel.RefreshIndices();
-            }
-            e.Handled = true;
-        }
+        #endregion
 
         #region 外部显示控制/自设参数
-        // 控制文字显示的属性
-        // 声明路由事件（冒泡类型）
-        public static readonly RoutedEvent RequestDragImageEvent = EventManager.RegisterRoutedEvent(
-            "RequestDragImage", RoutingStrategy.Bubble, typeof(EventHandler<RequestDragImageEventArgs>), typeof(ImagewithLabelShow));
-
-        public event EventHandler<RequestDragImageEventArgs> RequestDragImage
-        {
-            add { AddHandler(RequestDragImageEvent, value); }
-            remove { RemoveHandler(RequestDragImageEvent, value); }
-        }
         public bool IsTextVisible
         {
             get => (bool)GetValue(IsTextVisibleProperty);
@@ -203,7 +257,12 @@ namespace LabelMinusinWPF
         }
 
         public static readonly DependencyProperty IsTextVisibleProperty =
-            DependencyProperty.Register(nameof(IsTextVisible), typeof(bool), typeof(ImagewithLabelShow), new PropertyMetadata(true));
+            DependencyProperty.Register(
+                nameof(IsTextVisible),
+                typeof(bool),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(true)
+            );
 
         // --- 新增：控制点显示的属性 ---
         public bool IsIndexVisible
@@ -213,45 +272,47 @@ namespace LabelMinusinWPF
         }
 
         public static readonly DependencyProperty IsIndexVisibleProperty =
-            DependencyProperty.Register(nameof(IsIndexVisible), typeof(bool), typeof(ImagewithLabelShow), new PropertyMetadata(true));
-
+            DependencyProperty.Register(
+                nameof(IsIndexVisible),
+                typeof(bool),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(true)
+            );
 
         #endregion
+    }
 
-    }
-    public class RequestDragImageEventArgs : RoutedEventArgs
-    {
-        public Point MousePosition { get; set; }
-        public RequestDragImageEventArgs(RoutedEvent routedEvent, Point position)
-            : base(routedEvent) => MousePosition = position;
-    }
     #region 图片坐标转换器
     public class ImageRelativePositionConverter : IMultiValueConverter
     {
-        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        public object Convert(
+            object[] values,
+            Type targetType,
+            object parameter,
+            CultureInfo culture
+        )
         {
-            double relative = (double)values[0];
-            Image img = (Image)values[1];
-
-            if (img.Source == null) return 0.0;
-
-            double controlWidth = img.ActualWidth;
-            double controlHeight = img.ActualHeight;
-            double pixelWidth = img.Source.Width;
-            double pixelHeight = img.Source.Height;
-
-            double scale = Math.Min(controlWidth / pixelWidth, controlHeight / pixelHeight);
-            double displayedWidth = pixelWidth * scale;
-            double displayedHeight = pixelHeight * scale;
+            // values[0] 是相对坐标 (0~1)
+            // values[1] 是 Image 控件
+            if (
+                values[0] is not double relative
+                || values[1] is not Image img
+                || img.Source == null
+            )
+                return 0.0;
 
             bool isX = (string)parameter == "X";
-            double offset = isX ? (controlWidth - displayedWidth) / 2 : (controlHeight - displayedHeight) / 2;
-            double size = isX ? displayedWidth : displayedHeight;
+            double size = isX ? img.ActualWidth : img.ActualHeight;
 
-            return offset + relative * size;
+            return relative * size;
         }
 
-        public object[]? ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => null;
+        public object[]? ConvertBack(
+            object value,
+            Type[] targetTypes,
+            object parameter,
+            CultureInfo culture
+        ) => null;
     }
     #endregion
 }

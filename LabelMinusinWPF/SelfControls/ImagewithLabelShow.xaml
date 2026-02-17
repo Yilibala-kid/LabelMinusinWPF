@@ -1,86 +1,133 @@
-﻿<UserControl x:Class="LabelMinusinWPF.ImagewithLabelShow"
-             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
-             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:local="clr-namespace:LabelMinusinWPF"
-             xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
+﻿<UserControl
+    x:Class="LabelMinusinWPF.ImagewithLabelShow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
+    xmlns:local="clr-namespace:LabelMinusinWPF"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    d:DesignHeight="450"
+    d:DesignWidth="800"
+    mc:Ignorable="d">
     <UserControl.Resources>
-        <local:ImageRelativePositionConverter x:Key="PosConverter"/>
+        <local:ImageRelativePositionConverter x:Key="PosConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <Style TargetType="StackPanel">
+            <Setter Property="Orientation" Value="Horizontal" />
+        </Style>
     </UserControl.Resources>
-    <Grid Background="SeaShell">
-        <!-- 图片 -->
-        <Image x:Name="TargetImage" 
-               Source="{Binding ImageSource}"/>
 
-        <!-- 标记层 -->
-        <ItemsControl x:Name="LabelItemsControl"
-                      ItemsSource="{Binding ActiveLabels}"
-                      Width="{Binding ActualWidth, ElementName=TargetImage}"
-                      Height="{Binding ActualHeight, ElementName=TargetImage}"
-                      MouseLeftButtonDown="LabelItemsControl_MouseLeftButtonDown"
-                      MouseMove="LabelItemsControl_MouseMove"
-                      MouseLeftButtonUp="LabelItemsControl_MouseLeftButtonUp">
+    <Grid
+        x:Name="ViewportGrid"
+        Background="Transparent"
+        ClipToBounds="True"
+        MouseLeftButtonDown="Viewport_MouseLeftDown"
+        MouseLeftButtonUp="Viewport_MouseLeftUp"
+        MouseMove="Viewport_MouseMove"
+        MouseWheel="Viewport_MouseWheel">
 
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <Canvas Background="Transparent"/>
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
+        <Grid x:Name="ContentGrid" Background="SeaShell">
+            <Grid.RenderTransform>
+                <TransformGroup>
+                    <ScaleTransform x:Name="MyScaleTransform" />
+                    <TranslateTransform x:Name="MyTranslateTransform" />
+                </TransformGroup>
+            </Grid.RenderTransform>
+            <!-- 图片 -->
+            <Image x:Name="TargetImage" Source="{Binding ImageSource}" />
 
-            <!-- 定位 -->
-            <ItemsControl.ItemContainerStyle>
-                <Style TargetType="ContentPresenter">
-                    <Setter Property="Canvas.Left">
-                        <Setter.Value>
-                            <MultiBinding Converter="{StaticResource PosConverter}" ConverterParameter="X">
-                                <Binding Path="X"/>
-                                <Binding ElementName="TargetImage"/>
-                            </MultiBinding>
-                        </Setter.Value>
-                    </Setter>
-                    <Setter Property="Canvas.Top">
-                        <Setter.Value>
-                            <MultiBinding Converter="{StaticResource PosConverter}" ConverterParameter="Y">
-                                <Binding Path="Y"/>
-                                <Binding ElementName="TargetImage"/>
-                            </MultiBinding>
-                        </Setter.Value>
-                    </Setter>
-                    <Setter Property="Margin" Value="-10,-10,0,0"/>
-                </Style>
-            </ItemsControl.ItemContainerStyle>
+            <!-- 标记层 -->
+            <ItemsControl
+                x:Name="LabelItemsControl"
+                Width="{Binding ActualWidth, ElementName=TargetImage}"
+                Height="{Binding ActualHeight, ElementName=TargetImage}"
+                ItemsSource="{Binding ActiveLabels}"
+                MouseMove="LabelItemsControl_MouseMove"
+                MouseLeftButtonUp="LabelItemsControl_MouseLeftUp">
 
-            <!-- 标记内容 -->
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <Canvas Background="Transparent" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
 
-                        <!-- 点 -->
-                        <Border Width="20" Height="20" Background="Red" CornerRadius="10" VerticalAlignment="Top"
-                                MouseLeftButtonDown="Label_LeftMouseDown"
-                                MouseRightButtonDown="Label_RightMouseDown"
-                                Visibility="{Binding IsIndexVisible, 
-                                 RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, 
-                                 Converter={StaticResource BoolToVis}}">
+                <!-- 定位 -->
+                <ItemsControl.ItemContainerStyle>
+                    <Style TargetType="ContentPresenter">
+                        <Setter Property="Canvas.Left">
+                            <Setter.Value>
+                                <MultiBinding Converter="{StaticResource PosConverter}" ConverterParameter="X">
+                                    <Binding Path="X" />
+                                    <Binding ElementName="TargetImage" />
+                                    <Binding ElementName="TargetImage" Path="ActualWidth" />
+                                    <Binding ElementName="TargetImage" Path="ActualHeight" />
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="Canvas.Top">
+                            <Setter.Value>
+                                <MultiBinding Converter="{StaticResource PosConverter}" ConverterParameter="Y">
+                                    <Binding Path="Y" />
+                                    <Binding ElementName="TargetImage" />
+                                    <Binding ElementName="TargetImage" Path="ActualWidth" />
+                                    <Binding ElementName="TargetImage" Path="ActualHeight" />
+                                </MultiBinding>
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="Margin" Value="-10,-10,0,0" />
+                    </Style>
+                </ItemsControl.ItemContainerStyle>
 
-                            <TextBlock Text="{Binding Index}" Foreground="White" FontWeight="Bold" 
-                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <!-- 文字 -->
-                        <Border Background="#80000000" CornerRadius="2" Margin="4,0,0,0" Padding="4,2"
-                                Visibility="{Binding IsTextVisible, 
-                                 RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, 
-                                 Converter={StaticResource BoolToVis}}">
-                            <TextBlock Text="{Binding Text}" Foreground="White" FontSize="12"/>
-                        </Border>
-                    </StackPanel>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
+                <!-- 标记内容 -->
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Horizontal">
+                            <!-- 点 -->
+                            <Border
+                                Width="20"
+                                Height="20"
+                                VerticalAlignment="Top"
+                                Background="Red"
+                                CornerRadius="10"
+                                MouseLeftButtonDown="LabelNode_LeftMouseDown"
+                                MouseRightButtonDown="LabelNode_RightMouseDown"
+                                Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, Converter={StaticResource BoolToVis}}">
 
-        </ItemsControl>
+                                <TextBlock
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    FontWeight="Bold"
+                                    Foreground="White"
+                                    Text="{Binding Index}" />
+                            </Border>
+                            <!-- 文字 -->
+                            <Grid>
+                                <Border
+                                    x:Name="DisplayBorder"
+                                    Margin="4,0,0,0"
+                                    Padding="4,2"
+                                    Background="#80000000"
+                                    CornerRadius="2"
+                                    MouseLeftButtonDown="LabelText_MouseLeftDown"
+                                    Visibility="{Binding IsTextVisible, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, Converter={StaticResource BoolToVis}}">
+                                    <TextBlock Foreground="White" Text="{Binding Text}" />
+                                </Border>
+                                <TextBox
+                                    x:Name="EditTextBox"
+                                    Background="White"
+                                    Foreground="Black"
+                                    Visibility="Collapsed"
+                                    AcceptsReturn="True"
+                                    TextWrapping="Wrap"
+                                    KeyDown="LabelEdit_KeyDown"
+                                    LostFocus="LabelEdit_LostFocus"
+                                    Text="{Binding Text, UpdateSourceTrigger=PropertyChanged, Delay=10000}" />
+                            </Grid>
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+
+            </ItemsControl>
+        </Grid>
     </Grid>
 </UserControl>

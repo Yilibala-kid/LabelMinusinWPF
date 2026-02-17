@@ -1,5 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Windows;
@@ -12,24 +11,16 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-namespace LabelMinusinWPF
+namespace LabelMinusinWPF.SelfControls
 {
     /// <summary>
-    /// ImageReview.xaml 的交互逻辑
+    /// ImageViewerContainer.xaml 的交互逻辑
     /// </summary>
-    public partial class ImageReView : UserControl
+    public partial class ImageViewerContainer : UserControl
     {
-
-        public ImageReView()
+        public ImageViewerContainer()
         {
             InitializeComponent();
         }
-
-
-
-
-
-        public event EventHandler ExitClicked;
-        private void ExitBtn_Click(object sender, RoutedEventArgs e) => ExitClicked?.Invoke(this, EventArgs.Empty);
     }
 }

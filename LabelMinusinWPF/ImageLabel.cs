@@ -10,6 +10,7 @@ namespace LabelMinusinWPF
 {
     public partial class ImageLabel : ObservableObject
     {
+        #region 基本属性
         [ObservableProperty] private int _index;
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsModified))] // Text 变了，IsModified 也要刷新
@@ -23,6 +24,12 @@ namespace LabelMinusinWPF
         [NotifyPropertyChangedFor(nameof(X), nameof(Y))]
         private Point _position = new(0, 0);
 
+        #endregion
+
+
+
+
+        #region UI 相关属性
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsModified))]
         private bool _isDeleted = false;
@@ -32,7 +39,21 @@ namespace LabelMinusinWPF
         private bool _isModified = false;
         public bool IsModified => _isModified || IsDeleted;
 
-        [ObservableProperty] private bool _isEditing;
+        //[ObservableProperty] private bool _isEditing;
+        //[ObservableProperty]
+        //[NotifyPropertyChangedFor(nameof(ZIndex))]
+        //private bool _isSelected;
+        //[ObservableProperty] private int _zIndex = 1;
+
+        //partial void OnIsSelectedChanged(bool value)
+        //{
+        //    // 选中时层级最高(999)，未选中时层级为普通(1)
+        //    ZIndex = value ? 999 : 1;
+        //}
+        #endregion
+
+
+
         #region 快捷坐标访问
         public double X { get => Position.X; set => Position = Position with { X = Math.Clamp(value, 0, 1) }; }
         public double Y { get => Position.Y; set => Position = Position with { Y = Math.Clamp(value, 0, 1) }; }

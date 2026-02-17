@@ -51,90 +51,27 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-        #region 图片缩放与平移与截图
-        private bool _isPanning = false; // 改名，避免与标签拖拽的 _isDragging 混淆
-        private Point _lastMousePosition;
-
-
-        // --- 缩放逻辑 (鼠标滚轮) ---
-        private void ImageParent_MouseWheel(object sender, MouseWheelEventArgs e)
+        #region 底栏图片控制
+        // 适应视图
+        private void FitToPage_Click(object sender, RoutedEventArgs e)
         {
-            var element = ImageParent;
-            Point position = e.GetPosition(element);
-
-            // 计算缩放比例
-            double scaleFactor = e.Delta > 0 ? 1.1 : 0.9;
-            double newScale = ImageScale.ScaleX * scaleFactor;
-
-            // 限制缩放范围（0.1倍到10倍）
-            if (newScale < 0.1 || newScale > 10) return;
-
-            // 这一步是实现“以鼠标指向点为中心缩放”的核心算法
-            double relativeX = position.X - ImageTranslate.X;
-            double relativeY = position.Y - ImageTranslate.Y;
-
-            ImageTranslate.X -= relativeX * (scaleFactor - 1);
-            ImageTranslate.Y -= relativeY * (scaleFactor - 1);
-
-            ImageScale.ScaleX = newScale;
-            ImageScale.ScaleY = newScale;
+            PicView.FitToView();
         }
 
-        // --- 平移逻辑 (鼠标中键或左键) ---
-        // 1. 正常的按下逻辑
-        private void ImageParent_MouseDown(object sender, MouseButtonEventArgs e)
+        // 适应宽度
+        private void FitWidth_Click(object sender, RoutedEventArgs e)
         {
-            // 如果点到了标签点，子控件会 Handle 事件，这里就不会触发
-            if (e.ChangedButton == MouseButton.Left || e.ChangedButton == MouseButton.Middle)
-            {
-                StartPanning(e.GetPosition(ImageParent));
-            }
+            PicView.FitToWidth();
         }
 
-        // 2. 核心：封装开始平移的方法，供子控件“接力”调用
-        public void StartPanning(Point startPoint)
+        // 适应高度
+        private void FitHeight_Click(object sender, RoutedEventArgs e)
         {
-            _lastMousePosition = startPoint;
-            _isPanning = true;
-            ImageParent.CaptureMouse();
-            Mouse.OverrideCursor = Cursors.Hand;
+            PicView.FitToHeight();
         }
-        private void MyLabelControl_RequestDragImage(object sender, RequestDragImageEventArgs e)
-        {
-            // 将子控件传来的坐标转换成父控件 ImageParent 的坐标
-            Point parentPoint = PicView.TranslatePoint(e.MousePosition, ImageParent);
-
-            // 调用你之前写的平移启动逻辑
-            StartPanning(parentPoint);
-        }
-        // 3. 移动逻辑
-        private void ImageParent_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (_isPanning)
-            {
-                Point currentPosition = e.GetPosition(ImageParent);
-                Vector delta = currentPosition - _lastMousePosition;
-
-                ImageTranslate.X += delta.X;
-                ImageTranslate.Y += delta.Y;
-
-                _lastMousePosition = currentPosition;
-            }
-        }
-
-        // 4. 抬起逻辑
-        private void ImageParent_MouseUp(object sender, MouseButtonEventArgs e)
-        {
-            if (_isPanning)
-            {
-                _isPanning = false;
-                ImageParent.ReleaseMouseCapture();
-                Mouse.OverrideCursor = null;
-            }
-        }
-
 
         #endregion
+
 
         #region 截图功能
         private bool _isSnipping = false;
@@ -268,14 +205,6 @@ namespace LabelMinusinWPF
             }
         }
         #endregion
-        private void ResetView_Click(object sender, RoutedEventArgs e)
-        {
-            ImageScale.ScaleX = 1;
-            ImageScale.ScaleY = 1;
-
-            ImageTranslate.X = 0;
-            ImageTranslate.Y = 0;
-        }
         private void OpenImageReview_Click(object sender, RoutedEventArgs e)
         {
             FullScreenReview.Visibility = Visibility.Visible;

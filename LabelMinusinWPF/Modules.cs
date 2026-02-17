@@ -10,6 +10,7 @@ namespace LabelMinusinWPF
 {
     internal class Modules
     {
+        #region LabelPlus文本处理
         public static Dictionary<string, ImageInfo> ParseTextToLabels(string content, out string? sourceName)//文本解析
         {
             sourceName = null;
@@ -96,6 +97,90 @@ namespace LabelMinusinWPF
 
             return database;
         }
+        public enum ExportMode { Original, Current, Diff }
+        public static string LabelsToText(IEnumerable<ImageInfo> images, string? sourceName, ExportMode mode = ExportMode.Current)//文本导出
+        {
+            System.Text.StringBuilder sb = new();
+
+            var imageList = images.ToList();
+            if (imageList.Count == 0) return string.Empty;
+
+            // --- 1. 获取分组映射 (保持原逻辑) ---
+            var allGroups = images
+                    .SelectMany(img => img.Labels)
+                    .Select(l => l.Group).Distinct()
+                    .OrderBy(g => g == "框内" ? 0 : (g == "框外" ? 1 : 2)).ThenBy(g => g).ToList();
+            if (allGroups.Count == 0) { allGroups.Add("框内"); allGroups.Add("框外"); }
+            var groupToIdMap = allGroups.Select((g, i) => new { g, id = i + 1 }).ToDictionary(x => x.g, x => x.id);
+            // 写入头部
+            sb.AppendLine("1,0\n-\n" + string.Join("\n", allGroups) + "\n-\n");
+            sb.AppendLine($"关联文件:{sourceName}");// 如果 sourcePath 为空，则置空，否则写入路径
+            sb.AppendLine($"最后修改时间:{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n");
+            // --- 2. 遍历图片 ---
+            foreach (var imageInfo in imageList.OrderBy(img => img.ImageName))
+            {
+                bool shouldExportImage = true;
+
+                if (mode == ExportMode.Diff)
+                {
+                    shouldExportImage = imageInfo.Labels.Any(l => l.IsModified);
+                }
+
+                if (!shouldExportImage) continue;
+
+                string pureName = System.IO.Path.GetFileName(imageInfo.ImagePath ?? imageInfo.ImageName);
+                sb.AppendLine($">>>>>>>>[{pureName}]<<<<<<<<");
+
+                // --- 3. 遍历标注 ---
+                foreach (var label in imageInfo.Labels.OrderBy(l => l.Index))
+                {
+                    // --- 核心修改：根据模式过滤标签 ---
+                    if (mode == ExportMode.Diff)
+                    {
+                        // Diff 模式：只导出有变动的（包括已删除的和内容修改的）
+                        if (!label.IsModified) continue;
+                    }
+                    else
+                    {
+                        // 普通模式 (Current/Original)：绝对不导出已删除的标签
+                        if (label.IsDeleted) continue;
+                    }
+
+                    // 写入坐标和组信息
+                    int groupValue = groupToIdMap.ContainsKey(label.Group) ? groupToIdMap[label.Group] : 1;
+                    sb.AppendLine($"----------------[{label.Index}]----------------[{label.X:F3},{label.Y:F3},{groupValue}]");
+
+                    // --- 4. 写入文本内容 ---
+                    if (mode == ExportMode.Diff)
+                    {
+                        if (label.IsDeleted)
+                        {
+                            sb.AppendLine("【状态】：!!! 已删除 !!!");
+                            sb.AppendLine($"【原内容】：{label.OriginalText}");
+                        }
+                        else if (string.IsNullOrEmpty(label.OriginalText))
+                        {
+                            sb.AppendLine("【状态】：!!! 新增 !!!");
+                            sb.AppendLine($"【内容】：{label.Text}");
+                        }
+                        else
+                        {
+                            sb.AppendLine($"【OLD】\n{label.OriginalText}");
+                            sb.AppendLine($"【NEW】\n{label.Text}");
+                        }
+                    }
+                    else
+                    {
+                        // Current 模式写 Text，Original 模式写 OriginalText
+                        sb.AppendLine(mode == ExportMode.Original ? label.OriginalText : label.Text);
+                    }
+                    sb.AppendLine();
+                }
+                sb.AppendLine();
+            }
+            return sb.ToString();
+        }
+        #endregion
     }
     public class ArchiveHelper
     {
