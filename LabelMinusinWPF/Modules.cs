@@ -1,6 +1,8 @@
 ﻿using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -190,22 +192,25 @@ namespace LabelMinusinWPF
         /// <summary>
         /// 获取压缩包内所有图片的路径列表
         /// </summary>
-        public static List<string> GetImageEntries(string archivePath)
+        public static List<string> GetImagePath(string archivePath)
         {
-            var entryNames = new List<string>();
+            var fullPaths = new List<string>();
 
-            // ArchiveFactory 可以自动识别文件格式 (Zip, Rar, 7z, Tar...)
             using (var archive = ArchiveFactory.OpenArchive(File.OpenRead(archivePath)))
             {
                 foreach (var entry in archive.Entries)
                 {
+                    // 检查是否为图片且不是目录
                     if (!entry.IsDirectory && imageExtensions.Contains(Path.GetExtension(entry.Key).ToLower()))
                     {
-                        entryNames.Add(entry.Key); // entry.Key 是压缩包内的相对路径
+                        // 3. 将压缩包内的 Key 转换为本地物理路径
+                        // entry.Key 可能是 "subfolder/1.jpg"，Path.Combine 会自动处理斜杠
+                        string physicalPath = Path.GetFullPath(Path.Combine(archivePath, entry.Key));
+                        fullPaths.Add(physicalPath);
                     }
                 }
             }
-            return entryNames;
+            return fullPaths;
         }
         // 获取 .exe 下的 ArchiveTemp 文件夹路径
         private static readonly string TempFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ArchiveTemp");
@@ -309,4 +314,115 @@ namespace LabelMinusinWPF
             });
         }
     }
+
+    #region 撤销重做功能
+    // 命令接口
+    public interface IUndoCommand
+    {
+        void Execute();
+        void Undo();
+    }
+
+    public class UndoRedoManager
+    {
+        private readonly Stack<IUndoCommand> _undoStack = new();
+        private readonly Stack<IUndoCommand> _redoStack = new();
+
+        // 暴露状态
+        public bool CanUndo => _undoStack.Count > 0;
+        public bool CanRedo => _redoStack.Count > 0;
+        // 执行新命令
+        public void Execute(IUndoCommand command)
+        {
+            command.Execute();
+            _undoStack.Push(command);
+            _redoStack.Clear(); // 执行新操作后，清空重做栈
+        }
+
+        // 撤销
+        public void Undo()
+        {
+            if (_undoStack.Count > 0)
+            {
+                var command = _undoStack.Pop();
+                command.Undo();
+                _redoStack.Push(command);
+            }
+        }
+
+        // 重做
+        public void Redo()
+        {
+            if (_redoStack.Count > 0)
+            {
+                var command = _redoStack.Pop();
+                command.Execute();
+                _undoStack.Push(command);
+            }
+        }
+
+        public void Clear()
+        {
+            _undoStack.Clear();
+            _redoStack.Clear();
+        }
+    }
+
+
+    // 1. 新增命令
+    public class AddCommand(BindingList<ImageLabel> list, ImageLabel label) : IUndoCommand
+    {
+        public void Execute() { label.IsDeleted = false; list.Add(label);}
+        public void Undo() { label.IsDeleted = true; list.Remove(label);}
+    }
+
+    // 2. 删除命令
+    public class DeleteCommand(ImageLabel label) : IUndoCommand
+    {
+        public void Execute() { label.IsDeleted = true; }
+        public void Undo() { label.IsDeleted = false; }
+    }
+
+    // 3. 属性修改命令（快照模式）
+    public class UpdateLabelCommand : IUndoCommand
+    {
+        private readonly ImageLabel _target;
+        private readonly LabelSnapshot _oldState;
+        private readonly LabelSnapshot _newState;
+        private readonly Action _refreshAction;
+
+        public UpdateLabelCommand(ImageLabel target, LabelSnapshot oldState, Action refresh)
+        {
+            _target = target;
+            _oldState = oldState;
+            _newState = new LabelSnapshot(target); // 记录当前新状态
+            _refreshAction = refresh;
+        }
+
+        public void Execute() { _newState.RestoreTo(_target); _refreshAction(); }
+        public void Undo() { _oldState.RestoreTo(_target); _refreshAction(); }
+    }
+
+    // 用于记录 Label 状态的轻量级快照类
+    public class LabelSnapshot
+    {
+        public string Text { get; }
+        public string Group { get; }
+        public System.Windows.Point Position { get; }
+
+        public LabelSnapshot(ImageLabel label)
+        {
+            Text = label.Text;
+            Group = label.Group;
+            Position = label.Position;
+        }
+
+        public void RestoreTo(ImageLabel label)
+        {
+            label.Text = Text;
+            label.Group = Group;
+            label.Position = Position;
+        }
+    }
+    #endregion
 }

@@ -29,8 +29,8 @@
         <Grid x:Name="ContentGrid" Background="SeaShell">
             <Grid.RenderTransform>
                 <TransformGroup>
-                    <ScaleTransform x:Name="MyScaleTransform" />
-                    <TranslateTransform x:Name="MyTranslateTransform" />
+                    <ScaleTransform ScaleX="{Binding ZoomScale, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}}" ScaleY="{Binding ZoomScale, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}}" />
+                    <TranslateTransform X="{Binding OffsetX, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}}" Y="{Binding OffsetY, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}}" />
                 </TransformGroup>
             </Grid.RenderTransform>
             <!-- 图片 -->
@@ -103,7 +103,6 @@
                             <!-- 文字 -->
                             <Grid>
                                 <Border
-                                    x:Name="DisplayBorder"
                                     Margin="4,0,0,0"
                                     Padding="4,2"
                                     Background="#80000000"
@@ -112,8 +111,7 @@
                                     Visibility="{Binding IsTextVisible, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Foreground="White" Text="{Binding Text}" />
                                 </Border>
-                                <TextBox
-                                    x:Name="EditTextBox"
+                                <!--<TextBox
                                     Background="White"
                                     Foreground="Black"
                                     Visibility="Collapsed"
@@ -121,7 +119,7 @@
                                     TextWrapping="Wrap"
                                     KeyDown="LabelEdit_KeyDown"
                                     LostFocus="LabelEdit_LostFocus"
-                                    Text="{Binding Text, UpdateSourceTrigger=PropertyChanged, Delay=10000}" />
+                                    Text="{Binding Text, UpdateSourceTrigger=LostFocus}" />-->
                             </Grid>
                         </StackPanel>
                     </DataTemplate>
@@ -129,5 +127,21 @@
 
             </ItemsControl>
         </Grid>
+        <Canvas
+            x:Name="SnipCanvas"
+            Background="Transparent"
+            Visibility="Collapsed"
+            MouseLeftButtonDown="SnipCanvas_MouseLeftButtonDown"
+            MouseMove="SnipCanvas_MouseMove"
+            MouseLeftButtonUp="SnipCanvas_MouseLeftButtonUp">
+            <Rectangle
+                x:Name="SnipRectangle"
+                Stroke="DodgerBlue"
+                StrokeThickness="2"
+                StrokeDashArray="4 4"
+                Fill="#200078D7"
+                Visibility="Collapsed" />
+        </Canvas>
+
     </Grid>
 </UserControl>

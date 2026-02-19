@@ -38,10 +38,7 @@ namespace LabelMinusinWPF
         {
             _mouseDownPosition = _lastMousePosition = e.GetPosition(ViewportGrid);
 
-            if (ShowingImage != null)
-            {
-                ShowingImage.SelectedLabel = null;
-            }
+            ShowingImage?.SelectedLabel = null;
 
             ViewportGrid.CaptureMouse();
         }
@@ -57,8 +54,8 @@ namespace LabelMinusinWPF
             // 只有移动距离超过阈值才算拖动（防抖）
             if ((currentPos - _mouseDownPosition).Length > 2)
             {
-                if (!IsXLocked) MyTranslateTransform.X += delta.X;
-                if (!IsYLocked) MyTranslateTransform.Y += delta.Y;
+                if (!IsXLocked) this.OffsetX += delta.X;
+                if (!IsYLocked) this.OffsetY += delta.Y;
             }
             _lastMousePosition = currentPos;
         }
@@ -67,7 +64,7 @@ namespace LabelMinusinWPF
         private void Viewport_MouseLeftUp(object sender, MouseButtonEventArgs e)
         {
             // 如果鼠标按下和抬起的距离很短，且没有在拖动标签 -> 视为点击，新建标签
-            if ((e.GetPosition(ViewportGrid) - _mouseDownPosition).Length < 2)
+            if ((e.GetPosition(ViewportGrid) - _mouseDownPosition).Length < 2 && OnlySEE!=true)
             {
                 AddNewLabel(e.GetPosition(TargetImage)); // 直接传入相对于图片的坐标
             }
@@ -77,17 +74,36 @@ namespace LabelMinusinWPF
 
         private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)// 鼠标滚轮缩放
         {
-            var st = MyScaleTransform;
-            var tt = MyTranslateTransform;
+            // 1. 获取缩放比例
+            double zoomFactor = e.Delta > 0 ? 1.1 : 0.9;
 
-            double zoom = e.Delta > 0 ? 1.1 : 0.9;
-            Point relative = e.GetPosition(ContentGrid); // 鼠标相对于内容的中心点
+            // 2. 获取当前状态（从依赖属性取，而不是从 Transform 对象取）
+            double oldScale = this.ZoomScale;
+            double newScale = oldScale * zoomFactor;
 
-            // 简单的中心缩放公式
-            st.ScaleX *= zoom;
-            st.ScaleY *= zoom;
-            tt.X = relative.X * st.ScaleX / zoom * (1 - zoom) + tt.X; // 修正位移以保持鼠标下内容不动
-            tt.Y = relative.Y * st.ScaleY / zoom * (1 - zoom) + tt.Y;
+            // 限制缩放范围，防止缩到看不见或者内存爆炸
+            if (newScale < 0.1 || newScale > 30) return;
+
+            // 3. 计算“以鼠标为中心”的位移补偿
+            // 我们需要知道鼠标相对于 ViewportGrid（容器）的位置
+            Point mouseInViewport = e.GetPosition(ViewportGrid);
+
+            // 计算鼠标点相对于内容原点的“原始像素”坐标
+            // 公式：原始坐标 = (当前屏幕坐标 - 当前偏移) / 当前缩放
+            double absX = (mouseInViewport.X - this.OffsetX) / oldScale;
+            double absY = (mouseInViewport.Y - this.OffsetY) / oldScale;
+
+            // 4. 更新依赖属性
+            // 先改缩放
+            this.ZoomScale = newScale;
+
+            // 再更新位移：新位移 = 鼠标坐标 - (原始坐标 * 新缩放)
+            // 这样可以确保原始坐标那个点在缩放后依然重合在鼠标坐标上
+            this.OffsetX = mouseInViewport.X - (absX * newScale);
+            this.OffsetY = mouseInViewport.Y - (absY * newScale);
+
+            // 这一步非常重要：标记事件已处理，防止外层滚动条跟着动
+            e.Handled = true;
         }
         #endregion
 
@@ -144,9 +160,11 @@ namespace LabelMinusinWPF
         {
             if (sender is FrameworkElement { DataContext: ImageLabel label } && ShowingImage != null)
             {
-                label.IsDeleted = true;
-                if (ShowingImage.SelectedLabel == label) ShowingImage.SelectedLabel = null;
-                e.Handled = true;
+                ShowingImage.SelectedLabel = label;
+                if (ShowingImage.DeleteLabelCommand.CanExecute(label))
+                {
+                    ShowingImage.DeleteLabelCommand.Execute(label);
+                }
             }
         }
         #endregion
@@ -158,14 +176,17 @@ namespace LabelMinusinWPF
         {
             if (ShowingImage == null || TargetImage.ActualWidth == 0) return;
 
-            ShowingImage.Labels.Add(new ImageLabel
+            // 1. 计算归一化的百分比坐标
+            double xPercent = Math.Clamp(posInImage.X / TargetImage.ActualWidth, 0, 1);
+            double yPercent = Math.Clamp(posInImage.Y / TargetImage.ActualHeight, 0, 1);
+            Point normalizedPoint = new(xPercent, yPercent);
+
+            // 2. 调用新增命令
+            // 它会自动完成：记录撤回点 -> 加入列表 -> 自动编号 -> 自动选中
+            if (ShowingImage.AddLabelCommand.CanExecute(normalizedPoint))
             {
-                X = Math.Clamp(posInImage.X / TargetImage.ActualWidth, 0, 1),
-                Y = Math.Clamp(posInImage.Y / TargetImage.ActualHeight, 0, 1),
-                Index = ShowingImage.Labels.Count + 1,
-                Text = $"标签{ShowingImage.Labels.Count + 1}",
-            });
-            ShowingImage.SelectedLabel = ShowingImage.Labels.Last();
+                ShowingImage.AddLabelCommand.Execute(normalizedPoint);
+            }
         }
 
         #endregion
@@ -195,19 +216,6 @@ namespace LabelMinusinWPF
             }
             e.Handled = true; // 阻止冒泡到 Canvas 触发新建标签
         }
-        // 失去焦点时，自动切回显示模式
-        private void LabelEdit_LostFocus(object sender, RoutedEventArgs e)
-        {
-            var textBox = sender as TextBox;
-            var grid = textBox?.Parent as Grid;
-            var border = grid?.Children.OfType<Border>().FirstOrDefault();
-
-            if (border != null && textBox != null)
-            {
-                textBox.Visibility = Visibility.Collapsed;
-                border.Visibility = Visibility.Visible;
-            }
-        }
         private void LabelEdit_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape || (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control))
@@ -218,8 +226,119 @@ namespace LabelMinusinWPF
         }
         #endregion
 
+        #region 第四层：截图功能
+        private bool _isSnipping = false;
+        private Point _snipStartUI;    // 选框在 Canvas 上的起始点
+        private Point _snipStartImage; // 选框在图片逻辑坐标上的起始点
+
+        private void SnipCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isSnipping = true;
+            _snipStartUI = e.GetPosition(SnipCanvas);
+
+            // 关键：即使图片缩放了，GetPosition(TargetImage) 也会返回
+            // 相对于原始图片比例的逻辑坐标（由 WPF 渲染树自动计算）
+            _snipStartImage = e.GetPosition(TargetImage);
+
+            SnipRectangle.Visibility = Visibility.Visible;
+            Canvas.SetLeft(SnipRectangle, _snipStartUI.X);
+            Canvas.SetTop(SnipRectangle, _snipStartUI.Y);
+            SnipRectangle.Width = 0;
+            SnipRectangle.Height = 0;
+
+            SnipCanvas.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void SnipCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isSnipping) return;
+
+            Point currentUI = e.GetPosition(SnipCanvas);
+
+            // 计算 UI 矩形位置和大小（支持反向拉框）
+            double x = Math.Min(_snipStartUI.X, currentUI.X);
+            double y = Math.Min(_snipStartUI.Y, currentUI.Y);
+            double w = Math.Abs(_snipStartUI.X - currentUI.X);
+            double h = Math.Abs(_snipStartUI.Y - currentUI.Y);
+
+            Canvas.SetLeft(SnipRectangle, x);
+            Canvas.SetTop(SnipRectangle, y);
+            SnipRectangle.Width = w;
+            SnipRectangle.Height = h;
+        }
+
+        private void SnipCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_isSnipping) return;
+            _isSnipping = false;
+            SnipCanvas.ReleaseMouseCapture();
+            SnipRectangle.Visibility = Visibility.Collapsed;
+
+            Point snipEndImage = e.GetPosition(TargetImage);
+
+            // 计算在图片上的逻辑区域 Rect
+            Rect logicRect = new Rect(
+                Math.Min(_snipStartImage.X, snipEndImage.X),
+                Math.Min(_snipStartImage.Y, snipEndImage.Y),
+                Math.Abs(_snipStartImage.X - snipEndImage.X),
+                Math.Abs(_snipStartImage.Y - snipEndImage.Y)
+            );
+
+            if (logicRect.Width > 2 && logicRect.Height > 2)
+            {
+                if (IsSyncRequired)
+                {
+                    // 场景 A：同步模式
+                    // 仅抛出事件，由父窗口统一处理左右两张图的合并和剪贴板操作
+                    Snipped?.Invoke(this, logicRect);
+                }
+                else
+                {
+                    // 场景 B：独立模式
+                    // 直接执行本地高清裁剪并存入剪贴板
+                    var myBmp = CaptureOriginalBitmapRegion(logicRect);
+                    if (myBmp != null)
+                    {
+                        Clipboard.SetImage(myBmp);
+                    }
+                }
+            }
+        }
+
+        private BitmapSource? CaptureOriginalBitmapRegion(Rect logicRect)
+        {
+            if (TargetImage.Source is not BitmapSource bitmapSource) return null;
+
+            // 计算比例：原始像素宽 / 控件当前显示的宽
+            // 注意：ActualWidth 是控件在界面上的逻辑大小
+            double ratioX = bitmapSource.PixelWidth / TargetImage.ActualWidth;
+            double ratioY = bitmapSource.PixelHeight / TargetImage.ActualHeight;
+
+            // 映射到真实像素坐标
+            int pxX = (int)(logicRect.X * ratioX);
+            int pxY = (int)(logicRect.Y * ratioY);
+            int pxW = (int)(logicRect.Width * ratioX);
+            int pxH = (int)(logicRect.Height * ratioY);
+
+            // 边界安全检查
+            pxX = Math.Max(0, Math.Min(pxX, bitmapSource.PixelWidth));
+            pxY = Math.Max(0, Math.Min(pxY, bitmapSource.PixelHeight));
+            pxW = Math.Min(pxW, bitmapSource.PixelWidth - pxX);
+            pxH = Math.Min(pxH, bitmapSource.PixelHeight - pxY);
+
+            if (pxW <= 0 || pxH <= 0) return null;
+
+            try
+            {
+                // 从原始 Bitmap 直接切割，不经过 RenderTargetBitmap，保证 100% 清晰
+                return new CroppedBitmap(bitmapSource, new Int32Rect(pxX, pxY, pxW, pxH));
+            }
+            catch { return null; }
+        }
+        #endregion
+
         #region 暴露给外部的状态属性/公开控制方法
-       
         public bool IsXLocked { get; set; } = false;
         public bool IsYLocked { get; set; } = false;
 
@@ -237,9 +356,11 @@ namespace LabelMinusinWPF
                 "Height" => sY,
                 _ => Math.Min(sX, sY)
             };
+            this.ZoomScale = scale;
 
-            MyScaleTransform.ScaleX = MyScaleTransform.ScaleY = scale;
-            MyTranslateTransform.X = MyTranslateTransform.Y = 0; // 归零位移，左上角对齐
+            // 计算位移（让图片居中显示，而不是死板地贴在左上角）如果你只想贴在左上角，直接设为 0 即可
+            this.OffsetX = (ViewportGrid.ActualWidth - (TargetImage.ActualWidth * scale)) / 2;
+            this.OffsetY = (ViewportGrid.ActualHeight - (TargetImage.ActualHeight * scale)) / 2;
         }
 
         // 保持原来的接口，只是转发调用
@@ -250,6 +371,90 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 外部显示控制/自设参数
+        // 截图模式开关
+        public bool IsScreenShotMode
+        {
+            get { return (bool)GetValue(IsScreenShotModeProperty); }
+            set { SetValue(IsScreenShotModeProperty, value); }
+        }
+        public static readonly DependencyProperty IsScreenShotModeProperty =
+            DependencyProperty.Register("IsScreenShotMode", typeof(bool), typeof(ImagewithLabelShow), 
+                new PropertyMetadata(false, OnScreenShotModeChanged));
+
+        private static void OnScreenShotModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (ImagewithLabelShow)d;
+            bool isModeOn = (bool)e.NewValue;
+
+            control.SnipCanvas.Visibility = isModeOn ? Visibility.Visible : Visibility.Collapsed;
+            control.ViewportGrid.Cursor = isModeOn ? Cursors.Cross : Cursors.Arrow;
+        }
+        // 当截图完成时，通知外部（父窗口）
+        public event EventHandler<Rect>? Snipped;
+
+        // 供外部调用，用于实现“同步”裁剪相同区域
+        public BitmapSource? GetImageRegion(Rect logicRect)
+        {
+            return CaptureOriginalBitmapRegion(logicRect);
+        }
+        // 是否需要同步模式（true则通知外部，false则直接存剪贴板）
+        public bool IsSyncRequired
+        {
+            get { return (bool)GetValue(IsSyncRequiredProperty); }
+            set { SetValue(IsSyncRequiredProperty, value); }
+        }
+
+        public static readonly DependencyProperty IsSyncRequiredProperty =
+            DependencyProperty.Register("IsSyncRequired", typeof(bool), typeof(ImagewithLabelShow), new PropertyMetadata(false));
+
+
+
+
+
+        public static readonly DependencyProperty ZoomScaleProperty =
+                DependencyProperty.Register("ZoomScale", typeof(double), typeof(ImagewithLabelShow),
+                    new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+        public double ZoomScale
+        {
+            get => (double)GetValue(ZoomScaleProperty);
+            set => SetValue(ZoomScaleProperty, value);
+        }
+
+        // 2. X 轴平移依赖属性 (默认值为 0)
+        public static readonly DependencyProperty OffsetXProperty =
+            DependencyProperty.Register("OffsetX", typeof(double), typeof(ImagewithLabelShow),
+                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+        public double OffsetX
+        {
+            get => (double)GetValue(OffsetXProperty);
+            set => SetValue(OffsetXProperty, value);
+        }
+
+        // 3. Y 轴平移依赖属性
+        public static readonly DependencyProperty OffsetYProperty =
+            DependencyProperty.Register("OffsetY", typeof(double), typeof(ImagewithLabelShow),
+                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+        public double OffsetY
+        {
+            get => (double)GetValue(OffsetYProperty);
+            set => SetValue(OffsetYProperty, value);
+        }
+        public bool OnlySEE
+        {
+            get => (bool)GetValue(OnlySEEProperty);
+            set => SetValue(OnlySEEProperty, value);
+        }
+
+        public static readonly DependencyProperty OnlySEEProperty =
+            DependencyProperty.Register(
+                nameof(OnlySEE),
+                typeof(bool),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(true)
+            );
         public bool IsTextVisible
         {
             get => (bool)GetValue(IsTextVisibleProperty);

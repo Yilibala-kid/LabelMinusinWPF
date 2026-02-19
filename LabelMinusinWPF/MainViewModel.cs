@@ -157,8 +157,8 @@ namespace LabelMinusinWPF
 
         // 压缩包模式：ImagePath 存的是【EntryName】（如 "pics/1.jpg"）
         public static List<ImageInfo> ScanZip(string zipPath) =>
-            [.. ArchiveHelper.GetImageEntries(zipPath)
-            .Select(name => new ImageInfo { ImagePath = name })]; // 同样只需给 Path
+            [.. ArchiveHelper.GetImagePath(zipPath)
+            .Select(f => new ImageInfo { ImagePath = f })]; // 同样只需给 Path
 
         public static (ProjectContext Context, List<ImageInfo> Images) LoadProjectFromTxt(string txtFilePath)
         {
@@ -193,7 +193,7 @@ namespace LabelMinusinWPF
     #endregion
 
     #region 消息通知
-    public partial class MainViewModel : ObservableObject
+    public partial class MainViewModel
     {
         // 定义消息队列
         [ObservableProperty]
@@ -202,9 +202,8 @@ namespace LabelMinusinWPF
         public MainViewModel()
         {
             // 实例化队列
-            MainMessageQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(3));
+            MainMessageQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(2));
         }
-
     }
     #endregion
 
@@ -345,9 +344,8 @@ namespace LabelMinusinWPF
             {
                 try
                 {
-                    // TXT 模式下，isCreateMode 通常无效，因为是打开现有项目
-                    var result = ProjectService.LoadProjectFromTxt(firstPath);
-                    LoadProjectData(result.Context, result.Images, $"已加载翻译：{result.Context.TxtName}");
+                    var (context, images) = ProjectService.LoadProjectFromTxt(firstPath);
+                    LoadProjectData(context, images, $"已加载翻译：{context.TxtName}");
                 }
                 catch (Exception ex)
                 {

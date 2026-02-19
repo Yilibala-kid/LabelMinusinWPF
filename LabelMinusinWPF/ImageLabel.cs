@@ -31,6 +31,8 @@ namespace LabelMinusinWPF
 
         #region UI 相关属性
         [ObservableProperty]
+        private bool _isEditing;
+        [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(IsModified))]
         private bool _isDeleted = false;
 
@@ -38,18 +40,6 @@ namespace LabelMinusinWPF
 
         private bool _isModified = false;
         public bool IsModified => _isModified || IsDeleted;
-
-        //[ObservableProperty] private bool _isEditing;
-        //[ObservableProperty]
-        //[NotifyPropertyChangedFor(nameof(ZIndex))]
-        //private bool _isSelected;
-        //[ObservableProperty] private int _zIndex = 1;
-
-        //partial void OnIsSelectedChanged(bool value)
-        //{
-        //    // 选中时层级最高(999)，未选中时层级为普通(1)
-        //    ZIndex = value ? 999 : 1;
-        //}
         #endregion
 
 
