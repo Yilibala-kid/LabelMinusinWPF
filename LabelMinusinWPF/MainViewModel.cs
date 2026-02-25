@@ -142,7 +142,21 @@ namespace LabelMinusinWPF
 
         public bool IsArchiveMode => !string.IsNullOrEmpty(ZipName);
 
-        public string DisplayTitle => $"LabelMinus - {TxtPath ?? "未命名"} 【{(IsArchiveMode ? $"关联:{ZipName}" : "文件夹")}】";
+        public string DisplayTitle
+        {
+            get
+            {
+                // 如果没有基础路径，说明还没加载项目，直接返回简短标题
+                if (string.IsNullOrEmpty(BaseFolderPath))
+                    return "LabelMinus";
+
+                // 否则显示完整标题
+                string pathInfo = !string.IsNullOrEmpty(TxtName) ? TxtPath : "未命名";
+                string modeInfo = IsArchiveMode ? $"关联:{ZipName}" : "文件夹";
+
+                return $"LabelMinus - {pathInfo} 【{modeInfo}】";
+            }
+        }
     }
     public static class ProjectService
     {
@@ -222,14 +236,14 @@ namespace LabelMinusinWPF
         [RelayCommand]
         private void NewZipTranslation() // 新建压缩包翻译
         {
-            string? zipPath = DialogService.OpenFile("压缩文件|*.zip;*.7z;*.rar");
+            string? zipPath = DialogService.OpenFile("压缩文件|*.zip;*.7z;*.rar","选择要新建翻译的压缩包");
             if (!string.IsNullOrEmpty(zipPath)) OpenResourceByPath([zipPath], true);
         }
 
         [RelayCommand]
         private void OpenTranslation() // 打开现有 Txt
         {
-            string? txtPath = DialogService.OpenFile("文本文件|*.txt");
+            string? txtPath = DialogService.OpenFile("文本文件|*.txt","打开已有翻译");
             if (!string.IsNullOrEmpty(txtPath)) OpenResourceByPath([txtPath], false);
         }
 
@@ -243,11 +257,26 @@ namespace LabelMinusinWPF
         [RelayCommand]
         private void OpenImageOrZip() // 仅预览图片/压缩包
         {
-            string[]? filepaths = DialogService.OpenFiles("支持的文件|*.zip;*.7z;*.rar;*.jpg;*.png;*.bmp");
+            string[]? filepaths = DialogService.OpenFiles("支持的文件|*.zip;*.7z;*.rar;*.jpg;*.png;*.bmp", "选择要预览的图片（多张）或压缩包（单个）");
             if (filepaths != null && filepaths.Length > 0)
             {
                 OpenResourceByPath(filepaths, false);
             }
+        }
+        [RelayCommand]
+        private void OpenImage() // 仅预览图片
+        {
+            string[]? filepaths = DialogService.OpenFiles("支持的文件|*.jpg;*.png;*.bmp", "选择要预览的图片（多张）");
+            if (filepaths != null && filepaths.Length > 0)
+            {
+                OpenResourceByPath(filepaths, false);
+            }
+        }
+        [RelayCommand]
+        private void OpenZip() // 仅预览压缩包
+        {
+            string? zipPath = DialogService.OpenFile("压缩文件|*.zip;*.7z;*.rar", "选择要预览的压缩包");
+            if (!string.IsNullOrEmpty(zipPath)) OpenResourceByPath([zipPath], false);
         }
         private bool CanSave() => CurrentProject != ProjectContext.Empty;
         [RelayCommand(CanExecute = nameof(CanSave))]
@@ -451,15 +480,15 @@ namespace LabelMinusinWPF
                 return dialog.ShowDialog() == true ? dialog.FolderName : null;
             }
 
-            public static string[]? OpenFiles(string filter)
+            public static string[]? OpenFiles(string filter, string description)
             {
-                var dialog = new OpenFileDialog { Filter = filter, Multiselect = true };
+                var dialog = new OpenFileDialog { Filter = filter, Multiselect = true ,Title = description };
                 return dialog.ShowDialog() == true ? dialog.FileNames : null;
             }
 
-            public static string? OpenFile(string filter, bool multiselect = false)
+            public static string? OpenFile(string filter, string description, bool multiselect = false)
             {
-                var dialog = new OpenFileDialog { Filter = filter, Multiselect = multiselect };
+                var dialog = new OpenFileDialog { Filter = filter, Multiselect = multiselect , Title = description };
                 return dialog.ShowDialog() == true ? dialog.FileName : null;
             }
 

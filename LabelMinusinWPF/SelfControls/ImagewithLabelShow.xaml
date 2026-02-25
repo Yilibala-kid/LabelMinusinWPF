@@ -26,7 +26,7 @@
         MouseMove="Viewport_MouseMove"
         MouseWheel="Viewport_MouseWheel">
 
-        <Grid x:Name="ContentGrid" Background="SeaShell">
+        <Grid x:Name="ContentGrid" Background="Transparent">
             <Grid.RenderTransform>
                 <TransformGroup>
                     <ScaleTransform ScaleX="{Binding ZoomScale, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}}" ScaleY="{Binding ZoomScale, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}}" />
@@ -93,12 +93,7 @@
                                 MouseRightButtonDown="LabelNode_RightMouseDown"
                                 Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, Converter={StaticResource BoolToVis}}">
 
-                                <TextBlock
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    FontWeight="Bold"
-                                    Foreground="White"
-                                    Text="{Binding Index}" />
+                                <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="White" Text="{Binding Index}" />
                             </Border>
                             <!-- 文字 -->
                             <Grid>

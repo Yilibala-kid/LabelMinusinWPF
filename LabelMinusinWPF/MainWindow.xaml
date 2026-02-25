@@ -18,11 +18,7 @@
         <KeyBinding Key="O" Modifiers="Control+Shift" Command="{Binding OpenImageOrZipCommand}" />
         <KeyBinding Key="O" Modifiers="Control+Alt" Command="{Binding OpenImageFolderCommand}" />
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveTranslationCommand}" />
-        <KeyBinding
-            Key="S"
-            Modifiers="Control+Shift"
-            Command="{Binding SaveTranslationCommand}"
-            CommandParameter="As" />
+        <KeyBinding Key="S" Modifiers="Control+Shift" Command="{Binding SaveTranslationCommand}" CommandParameter="As" />
         <KeyBinding Key="F" Modifiers="Control" Command="{Binding OpenNowFolderCommand}" />
         <KeyBinding Key="Z" Modifiers="Ctrl" Command="{Binding SelectedImage.UndoCommand}" />
         <KeyBinding Key="Y" Modifiers="Ctrl" Command="{Binding SelectedImage.RedoCommand}" />
@@ -33,6 +29,9 @@
             <Setter Property="Orientation" Value="Horizontal" />
         </Style>
         <local:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
+        <Style TargetType="Grid">
+            <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}" />
+        </Style>
     </Window.Resources>
     <Window.DataContext>
         <local:MainViewModel />
@@ -140,16 +139,8 @@
                     <MenuItem Header="次要参数" IsCheckable="True" />
                     <MenuItem Header="列表序号" IsCheckable="True" IsChecked="True" />
                     <MenuItem Header="列表组别" IsCheckable="True" IsChecked="True" />
-                    <MenuItem
-                        x:Name="PicShowIndex"
-                        Header="图片序号"
-                        IsCheckable="True"
-                        IsChecked="{Binding IsPictureIndexVisible}" />
-                    <MenuItem
-                        x:Name="PicShowText"
-                        Header="图片文本"
-                        IsCheckable="True"
-                        IsChecked="{Binding IsPictureTextVisible}" />
+                    <MenuItem x:Name="PicShowIndex" Header="图片序号" IsCheckable="True" IsChecked="{Binding IsPictureIndexVisible}" />
+                    <MenuItem x:Name="PicShowText" Header="图片文本" IsCheckable="True" IsChecked="{Binding IsPictureTextVisible}" />
 
                     <Separator />
 
@@ -192,14 +183,14 @@
             <!-- 顶栏 -->
 
             <!-- 主界面 -->
-            <Grid ShowGridLines="False" ToolBar.OverflowMode="Never">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="5" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <!-- 左侧图片与底栏 -->
-                <Border Grid.Column="0" Background="{DynamicResource MaterialDesignPaper}">
+                <Border Grid.Column="0">
                     <!-- 工具栏覆盖住 -->
                     <materialDesign:DrawerHost x:Name="ImageAreaDrawer">
                         <materialDesign:DrawerHost.LeftDrawerContent>
@@ -208,9 +199,9 @@
                                 <Button Command="{x:Static materialDesign:DrawerHost.CloseDrawerCommand}" Content="关闭工具栏" />
                             </StackPanel>
                         </materialDesign:DrawerHost.LeftDrawerContent>
-                        <!-- 图片 -->
                         <DockPanel>
-                            <Border Height="35" DockPanel.Dock="Top" Background="{DynamicResource MaterialDesignPaper}">
+                            <!--模式栏-->
+                            <Border Height="35" DockPanel.Dock="Top">
                                 <Grid Margin="10,0">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
@@ -251,9 +242,9 @@
                                             Content="识别"
                                             ToolTip="内容识别" />
 
-                                        <StackPanel>
-                                            <StackPanel.Style>
-                                                <Style TargetType="StackPanel">
+                                        <ComboBox Width="150" Height="35" Margin="10,0,0,0" materialDesign:HintAssist.Hint="选择网站">
+                                            <ComboBox.Style>
+                                                <Style TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
                                                     <Setter Property="Visibility" Value="Collapsed" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding CurrentMode}" Value="{x:Static local:AppMode.OCR}">
@@ -261,59 +252,42 @@
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
-                                            </StackPanel.Style>
-
-                                            <ComboBox
-                                                Width="150"
-                                                Height="35"
-                                                Margin="10,0,0,0"
-                                                materialDesign:HintAssist.Hint="选择网站">
-                                                <ComboBoxItem Content="百度" />
-                                                <ComboBoxItem Content="谷歌" />
-                                                <ComboBoxItem Content="必应" />
-                                            </ComboBox>
-                                        </StackPanel>
+                                            </ComboBox.Style>
+                                            <ComboBoxItem Content="百度" />
+                                            <ComboBoxItem Content="谷歌" />
+                                            <ComboBoxItem Content="必应" />
+                                        </ComboBox>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="2">
-                                        <Button
-                                            Style="{StaticResource IconButtonStyle}"
-                                            Click="OpenImageReview_Click"
-                                            Tag="Compare"
-                                            Content="图校"
-                                            ToolTip="图片对比" />
+                                        <Button Style="{StaticResource IconButtonStyle}" Click="OpenImageReview_Click" Tag="Compare" Content="图校" ToolTip="图片对比" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
-                            <ToolBar Height="36" DockPanel.Dock="Bottom">
-                                <Button Padding="4" ToolTip="适应视图" Click="FitToPage_Click">
-                                    <materialDesign:PackIcon Kind="FitToPage" />
-                                </Button>
-                                <Button Padding="4" ToolTip="适应宽度" Click="FitWidth_Click">
-                                    <materialDesign:PackIcon Kind="ArrowExpandHorizontal" />
-                                </Button>
-                                <Button Padding="4" ToolTip="适应高度" Click="FitHeight_Click">
-                                    <materialDesign:PackIcon Kind="ArrowExpandVertical" />
-                                </Button>
+                            <!-- 底栏功能 -->
+                            <ToolBar DockPanel.Dock="Bottom">
+                                <ToolBar.Resources>
+                                    <Style x:Key="{x:Static ToolBar.ButtonStyleKey}" TargetType="Button" BasedOn="{StaticResource IconButtonStyle}">
+                                        <Setter Property="Padding" Value="4" />
+                                    </Style>
 
-                                <ToggleButton
-                                    Padding="4"
-                                    Style="{StaticResource IconToggleButtonStyle}"
-                                    Tag="ArrowHorizontalLock"
-                                    IsChecked="{Binding IsYLocked, ElementName=PicView, Mode=TwoWay}"
-                                    ToolTip="横向移动" />
+                                    <Style x:Key="{x:Static ToolBar.ToggleButtonStyleKey}" TargetType="ToggleButton" BasedOn="{StaticResource IconToggleButtonStyle}">
+                                        <Setter Property="Padding" Value="4" />
+                                    </Style>
+                                </ToolBar.Resources>
+                                <Button Tag="FitToPage" ToolTip="适应视图" Click="FitToPage_Click" />
 
-                                <ToggleButton
-                                    Padding="4"
-                                    Style="{StaticResource IconToggleButtonStyle}"
-                                    Tag="ArrowVerticalLock"
-                                    IsChecked="{Binding IsXLocked, ElementName=PicView, Mode=TwoWay}"
-                                    ToolTip="纵向移动" />
+                                <Button Tag="ArrowExpandHorizontal" ToolTip="适应宽度" Click="FitWidth_Click" />
+
+                                <Button Tag="ArrowExpandVertical" ToolTip="适应高度" Click="FitHeight_Click" />
+
+                                <ToggleButton Tag="ArrowHorizontalLock" IsChecked="{Binding IsYLocked, ElementName=PicView, Mode=TwoWay}" ToolTip="横向移动" />
+
+                                <ToggleButton Tag="ArrowVerticalLock" IsChecked="{Binding IsXLocked, ElementName=PicView, Mode=TwoWay}" ToolTip="纵向移动" />
 
                                 <Separator />
-                                <StackPanel Margin="5,0">
-                                    <materialDesign:PackIcon Margin="0,0,10,0" VerticalAlignment="Center" Kind="ImageMultiple" />
-                                    <ComboBox
+                                <Button Tag="ImageMultiple" ToolTip="修改图片集" />
+                                <ComboBox
                                         Width="200"
                                         VerticalAlignment="Center"
                                         materialDesign:HintAssist.Hint="选择图片"
@@ -321,22 +295,10 @@
                                         SelectedItem="{Binding SelectedImage}"
                                         DisplayMemberPath="ImageName"
                                         FontSize="12" />
-                                </StackPanel>
-                                <StackPanel>
-                                    <Button Padding="4" ToolTip="上一张" Command="{Binding PreviousImageCommand}">
-                                        <materialDesign:PackIcon Kind="ArrowUp" />
-                                    </Button>
-                                    <Button Padding="4" ToolTip="下一张" Command="{Binding NextImageCommand}">
-                                        <materialDesign:PackIcon Kind="ArrowDown" />
-                                    </Button>
-                                </StackPanel>
+                                <Button Tag="ArrowUp" ToolTip="上一张" Command="{Binding PreviousImageCommand}" />
+                                <Button Tag="ArrowDown" ToolTip="下一张" Command="{Binding NextImageCommand}" />
                                 <Separator />
-                                <Button
-                                    Style="{StaticResource IconButtonStyle}"
-                                    Command="{Binding OpenNowFolderCommand}"
-                                    Tag="FolderMultipleImage"
-                                    Content="文件夹"
-                                    ToolTip="打开工作文件夹" />
+                                <Button Command="{Binding OpenNowFolderCommand}" Tag="FolderMultipleImage" Content="文件夹" ToolTip="打开工作文件夹" />
                             </ToolBar>
                             <!-- 图片！！！！！ -->
                             <Grid x:Name="ImageParent" ClipToBounds="True">
@@ -353,29 +315,26 @@
                         </DockPanel>
                     </materialDesign:DrawerHost>
                 </Border>
-
-                <GridSplitter
-                    Grid.Column="1"
-                    Width="5"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch" />
+                <GridSplitter Grid.Column="1" Width="5" Background="RoyalBlue" ResizeBehavior="PreviousAndNext" />
                 <!-- 右侧列表与文本 -->
-                <Grid Grid.Column="2" Background="RoyalBlue">
+                <Grid Grid.Column="2" Margin="10">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="3*" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <DataGrid
-                        x:Name="LabelDataGrid"
-                        Margin="4"
+                        x:Name="LabelDataGrid"                        
                         Style="{StaticResource MaterialDesignDataGrid}"
                         ItemsSource="{Binding SelectedImage.ActiveLabels}"
                         SelectedItem="{Binding SelectedImage.SelectedLabel, Mode=TwoWay}"
+                        BorderBrush="RoyalBlue"
+                        BorderThickness="2"
                         AutoGenerateColumns="False"
                         CanUserAddRows="False"
+                        CanUserDeleteRows="False"
                         SelectionMode="Single"
                         GridLinesVisibility="Horizontal"
-                        HeadersVisibility="Column">
+                        HeadersVisibility="None">
                         <DataGrid.RowStyle>
                             <Style TargetType="DataGridRow" BasedOn="{StaticResource MaterialDesignDataGridRow}">
                                 <Style.Triggers>
@@ -385,18 +344,8 @@
                                 </Style.Triggers>
                             </Style>
                         </DataGrid.RowStyle>
-                        <DataGrid.ColumnHeaderStyle>
-                            <Style TargetType="{x:Type DataGridColumnHeader}" BasedOn="{StaticResource MaterialDesignDataGridColumnHeader}">
-                                <Setter Property="HorizontalContentAlignment" Value="Center" />
-                                <Setter Property="FontWeight" Value="Bold" />
-                            </Style>
-                        </DataGrid.ColumnHeaderStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn
-                                Width="60"
-                                Header="序号"
-                                Binding="{Binding Index}"
-                                IsReadOnly="True">
+                            <DataGridTextColumn Width="60" Header="序号" Binding="{Binding Index}" IsReadOnly="True">
                                 <DataGridTextColumn.ElementStyle>
                                     <Style TargetType="TextBlock">
                                         <Setter Property="HorizontalAlignment" Value="Center" />
@@ -415,8 +364,6 @@
                                 <DataGridTemplateColumn.CellEditingTemplate>
                                     <DataTemplate>
                                         <TextBox
-                                            Padding="2"
-                                            VerticalContentAlignment="Top"
                                             Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
                                             TextWrapping="Wrap"
                                             AcceptsReturn="True"
@@ -428,12 +375,20 @@
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTextColumn Width="60" Header="组" Binding="{Binding Group}" />
+                            <DataGridTextColumn Width="60" Header="组" Binding="{Binding Group}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="HorizontalAlignment" Value="Center" />
+                                        <Setter Property="VerticalAlignment" Value="Center" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                     <!-- 文本框 -->
                     <TextBox
                         Grid.Row="1"
+                        Margin="0,10,0,0"
                         HorizontalContentAlignment="Left"
                         VerticalContentAlignment="Top"
                         Text="{Binding SelectedImage.SelectedLabel.Text, UpdateSourceTrigger=PropertyChanged}"
@@ -441,27 +396,16 @@
                         Background="{DynamicResource MaterialDesignPaper}"
                         Foreground="{DynamicResource MaterialDesignBody}"
                         FontSize="16"
-                        TextAlignment="Left" />
+                        TextAlignment="Left" 
+                        materialDesign:HintAssist.Hint="{Binding SelectedImage.SelectedLabel.Index}"
+                        materialDesign:HintAssist.FontFamily="微软雅黑"/>
+                    
                 </Grid>
             </Grid>
         </DockPanel>
         <!-- 图校界面 -->
-        <local:ImageReView
-            x:Name="FullScreenReview"
-            Grid.ColumnSpan="2"
-            Visibility="Collapsed"
-            ExitClicked="FullScreenReview_ExitClicked" />
+        <local:ImageReView x:Name="FullScreenReview" Grid.ColumnSpan="2" Visibility="Collapsed" ExitClicked="FullScreenReview_ExitClicked" />
         <!-- 在底部显示消息 -->
-        <materialDesign:Snackbar
-            x:Name="MessageShow"
-            MaxWidth="1600"
-            HorizontalAlignment="Center"
-            VerticalAlignment="Bottom"
-            Background="RoyalBlue"
-            Foreground="White"
-            FontWeight="Black"
-            FontFamily="微软雅黑"
-            FontSize="14"
-            MessageQueue="{Binding MainMessageQueue}" />
+        <materialDesign:Snackbar x:Name="MessageShow" MaxWidth="1600" MessageQueue="{Binding MainMessageQueue}" />
     </Grid>
 </Window>

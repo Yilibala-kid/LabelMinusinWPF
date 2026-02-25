@@ -56,9 +56,6 @@ namespace LabelMinusinWPF
                         // 内部路径：01-1.png
                         string entryKey = ImagePath.Substring(index + foundExt.Length);
 
-                        // 调试输出：检查解析是否正确
-                        //System.Diagnostics.Debug.WriteLine($"[Archive] Zip: {realZipPath} | Entry: {entryKey}");
-
                         byte[]? data = ArchiveHelper.ExtractFileToBytes(realZipPath, entryKey);
                         return data != null ? LoadFromBytes(data) : null;
                     }

@@ -6,6 +6,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:local="clr-namespace:LabelMinusinWPF"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+    xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     d:DesignHeight="800"
     d:DesignWidth="1200"
     Background="{DynamicResource MaterialDesignPaper}"
@@ -23,6 +24,18 @@
     <UserControl.DataContext>
         <local:ImageReviewVM />
     </UserControl.DataContext>
+    <UserControl.InputBindings>
+        <KeyBinding Key="Left" Command="{Binding PreviousImageCommand}" />
+        <KeyBinding Key="Right" Command="{Binding NextImageCommand}" />
+        <KeyBinding Key="A" Command="{Binding PreviousImageCommand}" />
+        <KeyBinding Key="D" Command="{Binding NextImageCommand}" />
+        <KeyBinding Key="R" Command="{Binding ResetSyncCommand}" />
+        <KeyBinding Key="R" Modifiers="Control" Command="{Binding ResetLayoutCommand}" />
+        <KeyBinding Key="G" Command="{Binding ToggleModeCommand}" />
+        <KeyBinding Key="C" Command="{Binding SwapImagesCommand}" />
+        <KeyBinding Key="P" Command="{Binding ClearImagesCommand}" />
+        <KeyBinding Key="F1" Command="{Binding ToggleTopDrawerCommand}" />
+    </UserControl.InputBindings>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -33,56 +46,38 @@
         <Grid Grid.Row="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="32*" />
-                <ColumnDefinition Width="325*" />
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="357*" />
+                <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
 
             <!-- 更换图片 -->
-            <Button
-                Grid.Column="0"
-                Margin="2,2,2,2"
-                Padding="8,4"
-                ToolTip="更换当前图片&#x0A;(不影响图集)"
-                Click="LeftChangePic_Click">
-                <materialDesign:PackIcon Kind="FileImage" />
+            <Button Grid.Column="0" Padding="8,4" ToolTip="更换当前图片&#x0A;(不影响图集)" Click="LeftChangePic_Click">
+                <materialDesign:PackIcon Kind="FileImageOutline" />
             </Button>
 
-            <UniformGrid
-                Grid.Column="1"
-                Grid.ColumnSpan="2"
-                Margin="5,0,5,0"
-                Rows="1"
-                Columns="2">
+            <StackPanel Grid.Column="1" HorizontalAlignment="Left">
                 <!-- 选择图片/压缩包 -->
-                <Button
-                    Style="{StaticResource IconButtonStyle}"
-                    Tag="ImageMultiple"
-                    Content="选择图片/压缩包"
-                    ToolTip="支持多选图片或单个压缩包"
-                    Command="{Binding LeftImageVM.OpenImageOrZipCommand}" />
-                <!-- 选择文件夹 -->
-                <Button
-                    Style="{StaticResource IconButtonStyle}"
-                    Tag="FolderOpen"
-                    Content="选择文件夹"
-                    ToolTip="文件夹中的所有图片"
-                    Command="{Binding LeftImageVM.OpenImageFolderCommand}" />
-            </UniformGrid>
+                <Button Style="{StaticResource IconButtonStyle}" Tag="ImageMultiple" ToolTip="多选图片" Command="{Binding LeftImageVM.OpenImageCommand}" />
+                <Button Style="{StaticResource IconButtonStyle}" Tag="FolderZip" ToolTip="选择压缩包" Command="{Binding LeftImageVM.OpenZipCommand}" />
+                <Button Style="{StaticResource IconButtonStyle}" Tag="FolderOpen" ToolTip="选择文件夹中的所有图片" Command="{Binding LeftImageVM.OpenImageFolderCommand}" />
 
-            <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                <!-- 选择图片/压缩包 -->
+
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" VerticalAlignment="Center">
                 <!-- 截图 -->
                 <ToggleButton
                     x:Name="DualScreenShot"
                     Width="100"
-                    HorizontalAlignment="Left"
                     Style="{StaticResource IconToggleButtonStyle}"
                     Tag="Camera"
                     Content="截图(Q)"
                     ToolTip="截图自动复制到剪贴板"
                     IsChecked="{Binding IsScreenShotEnabled}" />
+
                 <ComboBox
                     x:Name="DualNameCombobox"
                     Width="180"
@@ -91,112 +86,204 @@
                     SelectedItem="{Binding SelectedMergedName}"
                     ToolTip="选择图片 (并在左右两侧同步显示)" />
                 <!-- 上一张 -->
-                <Button ToolTip="上一张" Command="{Binding PreviousImageCommand}">
+                <Button Padding="0,0" ToolTip="上一张" Command="{Binding PreviousImageCommand}">
                     <materialDesign:PackIcon Width="30" Height="30" Kind="ArrowUp" />
                 </Button>
                 <!-- 下一张 -->
-                <Button ToolTip="下一张" Command="{Binding NextImageCommand}">
+                <Button Padding="0,0" ToolTip="下一张" Command="{Binding NextImageCommand}">
                     <materialDesign:PackIcon Width="30" Height="30" Kind="ArrowDown" />
                 </Button>
+                <ToggleButton x:Name="ImageReviewMenu" Style="{StaticResource IconToggleButtonStyle}" Tag="Menu" ToolTip="菜单" IsChecked="{Binding IsMenuOpen}" />
             </StackPanel>
 
-            <UniformGrid
-                Grid.Column="4"
-                Margin="5,0,5,0"
-                Rows="1"
-                Columns="2">
+            <StackPanel Grid.Column="3" HorizontalAlignment="Right">
                 <!-- 选择文件夹 -->
-                <Button
-                    Style="{StaticResource IconButtonStyle}"
-                    Tag="FolderOpen"
-                    Content="选择文件夹"
-                    ToolTip="文件夹中的所有图片"
-                    Command="{Binding RightImageVM.OpenImageFolderCommand}" />
+                <Button Style="{StaticResource IconButtonStyle}" Tag="FolderOpen" ToolTip="选择文件夹中的所有图片" Command="{Binding RightImageVM.OpenImageFolderCommand}" />
+                <Button Style="{StaticResource IconButtonStyle}" Tag="FolderZip" ToolTip="选择压缩包" Command="{Binding RightImageVM.OpenZipCommand}" />
                 <!-- 选择图片/压缩包 -->
-                <Button
-                    Style="{StaticResource IconButtonStyle}"
-                    Tag="ImageMultiple"
-                    Content="选择图片/压缩包"
-                    ToolTip="支持多选图片或单个压缩包"
-                    Command="{Binding RightImageVM.OpenImageOrZipCommand}" />
+                <Button Style="{StaticResource IconButtonStyle}" Tag="ImageMultiple" ToolTip="多选图片" Command="{Binding RightImageVM.OpenImageCommand}" />
 
-            </UniformGrid>
+            </StackPanel>
 
             <!-- 更换图片 -->
-            <Button
-                Grid.Column="5"
-                Margin="2,2,2,2"
-                Padding="8,4"
-                ToolTip="更换当前图片&#x0A;(不影响图集)"
-                Click="RightChangePic_Click">
+            <Button Grid.Column="4" Padding="8,4" ToolTip="更换当前图片&#x0A;(不影响图集)" Click="RightChangePic_Click">
                 <StackPanel Orientation="Horizontal">
-                    <materialDesign:PackIcon Kind="FileImage" />
+                    <materialDesign:PackIcon Kind="FileImageOutline" />
                 </StackPanel>
             </Button>
         </Grid>
+        <materialDesign:DrawerHost Grid.Row="1" IsTopDrawerOpen="{Binding IsMenuOpen}" OpenMode="Modal">
+            <!-- 工具栏 -->
+            <materialDesign:DrawerHost.TopDrawerContent>
+                <Grid Height="35" Background="{DynamicResource MaterialDesignPaper}">
+                    <StackPanel HorizontalAlignment="Center">
+                        <ToggleButton
+                            x:Name="ModeToggle"
+                            Style="{StaticResource IconToggleButtonStyle}"
+                            Content="单图校对"
+                            Tag="compare"
+                            ToolTip="单/双图校对&#x0A;建议打开同步显示"
+                            IsChecked="{Binding IsDualReViewEnabled}" />
+                        <Button
+                            x:Name="ResetSplitter"
+                            Style="{StaticResource IconButtonStyle}"
+                            Tag="ArrowSplitVertical"
+                            Content="重置分割线布局"
+                            ToolTip="重置布局"
+                            Command="{Binding ResetLayoutCommand}" />
+                        <!-- 打开截图文件夹 -->
+                        <Button Style="{StaticResource IconButtonStyle}" Tag="FolderImage" Content="截图文件夹" ToolTip="存放所有截图，关闭程序后清空" Click="OpenScreenshotFolder_Click" />
+                        <materialDesign:PopupBox>
+                            <materialDesign:PopupBox.ToggleContent>
+                                <materialDesign:PackIcon Foreground="RoyalBlue" Kind="Information" />
+                            </materialDesign:PopupBox.ToggleContent>
+                            <materialDesign:PopupBox.PopupContent>
+                                <Grid Margin="5">
+                                    <Grid.Resources>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="FontSize" Value="12" />
+                                        </Style>
+                                    </Grid.Resources>
+                                    <StackPanel Orientation="Vertical">
+                                        <TextBlock Text="快捷键：" FontWeight="Bold" />
+                                        <TextBlock Text="按住Q:截图" />
+                                        <TextBlock Text="G:切换单/双图校对" />
+                                        <TextBlock Text="C:交换左右图片" />
+                                        <TextBlock Text="P:清空图片" />
+                                        <TextBlock Text="←/A:上一张" />
+                                        <TextBlock Text="→/D:下一张" />
+                                        <TextBlock Text="R:重置视图" />
+                                        <TextBlock Text="Ctrl+R:重置分割线" />
+                                        <TextBlock Text="F1:打开/关闭菜单" />
+                                        <TextBlock Text="截图编辑" FontWeight="Bold" />
+                                        <TextBlock Text="左键：画标记" />
+                                        <TextBlock Text="右键：清除该次标记" />
+                                    </StackPanel>
+                                </Grid>
+                            </materialDesign:PopupBox.PopupContent>
+                        </materialDesign:PopupBox>
 
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="5" />
-                <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
-            <!-- 左侧图片 -->
-            <local:ImagewithLabelShow
-                x:Name="LeftPicView"
-                Grid.Column="0"
-                DataContext="{Binding LeftImageVM.SelectedImage}"
-                IsIndexVisible="False"
-                IsTextVisible="False"
-                OnlySEE="True"
-                ZoomScale="{Binding DataContext.LeftZoom, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
-                OffsetX="{Binding DataContext.LeftOffsetX, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
-                OffsetY="{Binding DataContext.LeftOffsetY, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
-                IsScreenShotMode="{Binding IsChecked, ElementName=DualScreenShot}"
-                IsSyncRequired="True" />
+                    </StackPanel>
+                    <StackPanel Margin="0,0,10,0" HorizontalAlignment="Right">
+                        <ToggleButton
+                            Width="40"
+                            VerticalAlignment="Center"
+                            Cursor="Hand"
+                            ToolTip="切换深色模式"
+                            Checked="DarkMode_Checked"
+                            Unchecked="DarkMode_Unchecked">
+                            <materialDesign:ToggleButtonAssist.OnContent>
+                                <materialDesign:PackIcon Kind="WeatherNight" />
+                            </materialDesign:ToggleButtonAssist.OnContent>
+                            <materialDesign:PackIcon Kind="WeatherSunny" />
+                        </ToggleButton>
+                    </StackPanel>
+                </Grid>
+            </materialDesign:DrawerHost.TopDrawerContent>
+            <!-- 图片对比区域 -->
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="{Binding LeftColumnWidth, Mode=TwoWay}" />
+                    <ColumnDefinition Width="5" />
+                    <ColumnDefinition Width="{Binding RightColumnWidth, Mode=TwoWay}" />
+                </Grid.ColumnDefinitions>
 
+                <local:ImagewithLabelShow
+                    x:Name="RightPicView"
+                    DataContext="{Binding RightImageVM.SelectedImage}"
+                    IsIndexVisible="False"
+                    IsTextVisible="False"
+                    OnlySEE="True"
+                    ZoomScale="{Binding DataContext.RightZoom, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
+                    OffsetX="{Binding DataContext.RightOffsetX, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
+                    OffsetY="{Binding DataContext.RightOffsetY, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
+                    IsScreenShotMode="{Binding IsChecked, ElementName=DualScreenShot}"
+                    IsSyncRequired="True"
+                    AllowDrop="True"
+                    Drop="OnFileDrop"
+                    DragOver="OnDragOver"
+                    DragEnter="OnDragEnter">
+                    <local:ImagewithLabelShow.Style>
+                        <Style TargetType="local:ImagewithLabelShow">
+                            <Setter Property="Grid.Column" Value="2" />
+                            <Setter Property="Grid.ColumnSpan" Value="1" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChecked, ElementName=ModeToggle}" Value="True">
+                                    <Setter Property="Grid.Column" Value="0" />
+                                    <Setter Property="Grid.ColumnSpan" Value="3" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </local:ImagewithLabelShow.Style>
+                </local:ImagewithLabelShow>
 
-            <!--<GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch">
-                <GridSplitter.Template>
-                    <ControlTemplate TargetType="GridSplitter">
-                        <Grid Background="{TemplateBinding Background}">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Ellipse
-                                    Width="2"
-                                    Height="2"
-                                    Margin="0,2"
-                                    Fill="White" />
-                                <Ellipse
-                                    Width="2"
-                                    Height="2"
-                                    Margin="0,2"
-                                    Fill="White" />
-                                <Ellipse
-                                    Width="2"
-                                    Height="2"
-                                    Margin="0,2"
-                                    Fill="White" />
-                            </StackPanel>
-                        </Grid>
-                    </ControlTemplate>
-                </GridSplitter.Template>
-            </GridSplitter>-->
-            <!-- 右侧图片 -->
-            <local:ImagewithLabelShow
-                x:Name="RightPicView"
-                Grid.Column="2"
-                DataContext="{Binding RightImageVM.SelectedImage}"
-                IsIndexVisible="False"
-                IsTextVisible="False"
-                OnlySEE="True"
-                ZoomScale="{Binding DataContext.RightZoom, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
-                OffsetX="{Binding DataContext.RightOffsetX, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
-                OffsetY="{Binding DataContext.RightOffsetY, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
-                IsScreenShotMode="{Binding IsChecked, ElementName=DualScreenShot}"
-                IsSyncRequired="True" />
+                <Grid Grid.Column="0">
+                    <Grid.Style>
+                        <Style TargetType="Grid">
+                            <Setter Property="ClipToBounds" Value="False" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChecked, ElementName=ModeToggle}" Value="True">
+                                    <Setter Property="ClipToBounds" Value="True" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
 
-        </Grid>
+                    <local:ImagewithLabelShow
+                        x:Name="LeftPicView"
+                        DataContext="{Binding LeftImageVM.SelectedImage}"
+                        IsIndexVisible="False"
+                        IsTextVisible="False"
+                        OnlySEE="True"
+                        ZoomScale="{Binding DataContext.LeftZoom, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
+                        OffsetX="{Binding DataContext.LeftOffsetX, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
+                        OffsetY="{Binding DataContext.LeftOffsetY, RelativeSource={RelativeSource AncestorType=Grid}, Mode=TwoWay}"
+                        IsScreenShotMode="{Binding IsChecked, ElementName=DualScreenShot}"
+                        IsSyncRequired="True"
+                        AllowDrop="True"
+                        Drop="OnFileDrop"
+                        DragOver="OnDragOver"
+                        DragEnter="OnDragEnter">
+                        <local:ImagewithLabelShow.Style>
+                            <Style TargetType="local:ImagewithLabelShow">
+                                <Setter Property="Width" Value="NaN" />
+                                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsChecked, ElementName=ModeToggle}" Value="True">
+                                        <Setter Property="HorizontalAlignment" Value="Left" />
+                                        <Setter Property="Width" Value="{Binding ActualWidth, ElementName=RightPicView}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </local:ImagewithLabelShow.Style>
+                    </local:ImagewithLabelShow>
+                </Grid>
 
+                <GridSplitter
+                    Grid.Column="1"
+                    Width="6"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Stretch"
+                    Background="RoyalBlue"
+                    Cursor="SizeWE">
+                    <GridSplitter.Template>
+                        <ControlTemplate TargetType="GridSplitter">
+                            <Grid Background="{TemplateBinding Background}">
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <Ellipse Width="3" Height="3" Margin="0,2" Fill="White" />
+                                    <Ellipse Width="3" Height="3" Margin="0,2" Fill="White" />
+                                    <Ellipse Width="3" Height="3" Margin="0,2" Fill="White" />
+                                </StackPanel>
+                            </Grid>
+                        </ControlTemplate>
+                    </GridSplitter.Template>
+                </GridSplitter>
+                <!-- 两个消息显示 -->
+                <materialDesign:Snackbar x:Name="MessageShow1" Grid.Column="0" MessageQueue="{Binding LeftImageVM.MainMessageQueue}" />
+
+                <materialDesign:Snackbar x:Name="MessageShow2" Grid.Column="2" MessageQueue="{Binding RightImageVM.MainMessageQueue}" />
+            </Grid>
+        </materialDesign:DrawerHost>
         <Grid Grid.Row="2" Margin="5">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
@@ -208,19 +295,7 @@
 
             <!-- 适应屏幕 -->
             <StackPanel Grid.Column="0">
-                <Button
-                    Style="{StaticResource IconButtonStyle}"
-                    Tag="FitToPage"
-                    Content="适应屏幕"
-                    ToolTip="恢复视图"
-                    Command="{Binding ResetSyncCommand}" />
-                <!-- 打开截图文件夹 -->
-                <Button
-                    Style="{StaticResource IconButtonStyle}"
-                    Tag="FolderImage"
-                    Content="截图文件夹"
-                    ToolTip="存放所有截图，关闭程序后清空"
-                    Click="OpenScreenshotFolder_Click" />
+                <Button Style="{StaticResource IconButtonStyle}" Tag="FitToPage" Content="适应屏幕" ToolTip="恢复视图" Command="{Binding ResetSyncCommand}" />
             </StackPanel>
 
 
@@ -254,11 +329,7 @@
                                 <Image x:Name="EditImage" Stretch="Uniform" />
                                 <InkCanvas x:Name="InkEditor" Background="Transparent" EditingMode="Ink">
                                     <InkCanvas.DefaultDrawingAttributes>
-                                        <DrawingAttributes
-                                            Width="5"
-                                            Height="5"
-                                            FitToCurve="True"
-                                            Color="Red" />
+                                        <DrawingAttributes Width="5" Height="5" FitToCurve="True" Color="Red" />
                                     </InkCanvas.DefaultDrawingAttributes>
                                 </InkCanvas>
                             </Grid>
@@ -301,10 +372,11 @@
                     Background="PaleVioletRed"
                     Foreground="White"
                     Tag="Close"
-                    Content="退出图校"
+                    Content=""
                     ToolTip="不会清空当前图片"
                     Click="ExitBtn_Click" />
             </StackPanel>
         </Grid>
     </Grid>
+
 </UserControl>

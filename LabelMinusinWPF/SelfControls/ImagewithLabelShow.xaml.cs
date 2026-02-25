@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Dynamic;
 using System.Globalization;
 using System.Reflection.Emit;
@@ -257,15 +258,10 @@ namespace LabelMinusinWPF
             Point currentUI = e.GetPosition(SnipCanvas);
 
             // 计算 UI 矩形位置和大小（支持反向拉框）
-            double x = Math.Min(_snipStartUI.X, currentUI.X);
-            double y = Math.Min(_snipStartUI.Y, currentUI.Y);
-            double w = Math.Abs(_snipStartUI.X - currentUI.X);
-            double h = Math.Abs(_snipStartUI.Y - currentUI.Y);
-
-            Canvas.SetLeft(SnipRectangle, x);
-            Canvas.SetTop(SnipRectangle, y);
-            SnipRectangle.Width = w;
-            SnipRectangle.Height = h;
+            Canvas.SetLeft(SnipRectangle, Math.Min(_snipStartUI.X, currentUI.X));
+            Canvas.SetTop(SnipRectangle, Math.Min(_snipStartUI.Y, currentUI.Y));
+            SnipRectangle.Width = Math.Abs(_snipStartUI.X - currentUI.X);
+            SnipRectangle.Height = Math.Abs(_snipStartUI.Y - currentUI.Y);
         }
 
         private void SnipCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -277,61 +273,53 @@ namespace LabelMinusinWPF
 
             Point snipEndImage = e.GetPosition(TargetImage);
 
-            // 计算在图片上的逻辑区域 Rect
-            Rect logicRect = new Rect(
-                Math.Min(_snipStartImage.X, snipEndImage.X),
-                Math.Min(_snipStartImage.Y, snipEndImage.Y),
-                Math.Abs(_snipStartImage.X - snipEndImage.X),
-                Math.Abs(_snipStartImage.Y - snipEndImage.Y)
+            // 关键修改 1：计算【归一化矩形 (0.0~1.0)】，彻底解决不同控件大小截图不同步的问题！
+            double imgW = TargetImage.ActualWidth;
+            double imgH = TargetImage.ActualHeight;
+
+            if (imgW == 0 || imgH == 0) return;
+
+            Rect normRect = new Rect(
+                Math.Min(_snipStartImage.X, snipEndImage.X) / imgW,
+                Math.Min(_snipStartImage.Y, snipEndImage.Y) / imgH,
+                Math.Abs(_snipStartImage.X - snipEndImage.X) / imgW,
+                Math.Abs(_snipStartImage.Y - snipEndImage.Y) / imgH
             );
 
-            if (logicRect.Width > 2 && logicRect.Height > 2)
+            // 过滤掉无效的微小点击
+            if (normRect.Width > 0.01 && normRect.Height > 0.01)
             {
                 if (IsSyncRequired)
                 {
-                    // 场景 A：同步模式
-                    // 仅抛出事件，由父窗口统一处理左右两张图的合并和剪贴板操作
-                    Snipped?.Invoke(this, logicRect);
+                    // 抛出归一化矩形，父窗口收到后可以直接转给另一个 ImagewithLabelShow
+                    Snipped?.Invoke(this, normRect);
                 }
                 else
                 {
-                    // 场景 B：独立模式
-                    // 直接执行本地高清裁剪并存入剪贴板
-                    var myBmp = CaptureOriginalBitmapRegion(logicRect);
-                    if (myBmp != null)
-                    {
-                        Clipboard.SetImage(myBmp);
-                    }
+                    var myBmp = CaptureOriginalBitmapRegion(normRect);
+                    if (myBmp != null) Clipboard.SetImage(myBmp);
                 }
             }
         }
 
-        private BitmapSource? CaptureOriginalBitmapRegion(Rect logicRect)
+        private BitmapSource? CaptureOriginalBitmapRegion(Rect normRect)
         {
             if (TargetImage.Source is not BitmapSource bitmapSource) return null;
 
-            // 计算比例：原始像素宽 / 控件当前显示的宽
-            // 注意：ActualWidth 是控件在界面上的逻辑大小
-            double ratioX = bitmapSource.PixelWidth / TargetImage.ActualWidth;
-            double ratioY = bitmapSource.PixelHeight / TargetImage.ActualHeight;
+            // 映射到真实像素坐标 (直接用归一化比例乘真实像素，免去繁杂的 UI 坐标系转换)
+            int pxX = (int)(normRect.X * bitmapSource.PixelWidth);
+            int pxY = (int)(normRect.Y * bitmapSource.PixelHeight);
+            int pxW = (int)(normRect.Width * bitmapSource.PixelWidth);
+            int pxH = (int)(normRect.Height * bitmapSource.PixelHeight);
 
-            // 映射到真实像素坐标
-            int pxX = (int)(logicRect.X * ratioX);
-            int pxY = (int)(logicRect.Y * ratioY);
-            int pxW = (int)(logicRect.Width * ratioX);
-            int pxH = (int)(logicRect.Height * ratioY);
-
-            // 边界安全检查
-            pxX = Math.Max(0, Math.Min(pxX, bitmapSource.PixelWidth));
-            pxY = Math.Max(0, Math.Min(pxY, bitmapSource.PixelHeight));
-            pxW = Math.Min(pxW, bitmapSource.PixelWidth - pxX);
-            pxH = Math.Min(pxH, bitmapSource.PixelHeight - pxY);
-
-            if (pxW <= 0 || pxH <= 0) return null;
+            // 边界安全检查，使用 Math.Clamp 简化代码
+            pxX = Math.Clamp(pxX, 0, bitmapSource.PixelWidth);
+            pxY = Math.Clamp(pxY, 0, bitmapSource.PixelHeight);
+            pxW = Math.Clamp(pxW, 1, bitmapSource.PixelWidth - pxX);
+            pxH = Math.Clamp(pxH, 1, bitmapSource.PixelHeight - pxY);
 
             try
             {
-                // 从原始 Bitmap 直接切割，不经过 RenderTargetBitmap，保证 100% 清晰
                 return new CroppedBitmap(bitmapSource, new Int32Rect(pxX, pxY, pxW, pxH));
             }
             catch { return null; }
@@ -357,10 +345,10 @@ namespace LabelMinusinWPF
                 _ => Math.Min(sX, sY)
             };
             this.ZoomScale = scale;
-
+            Point pos = TargetImage.TranslatePoint(new Point(0, 0), ContentGrid);
             // 计算位移（让图片居中显示，而不是死板地贴在左上角）如果你只想贴在左上角，直接设为 0 即可
-            this.OffsetX = (ViewportGrid.ActualWidth - (TargetImage.ActualWidth * scale)) / 2;
-            this.OffsetY = (ViewportGrid.ActualHeight - (TargetImage.ActualHeight * scale)) / 2;
+            this.OffsetX = (ViewportGrid.ActualWidth - (TargetImage.ActualWidth * scale)) / 2- pos.X * scale;
+            this.OffsetY = (ViewportGrid.ActualHeight - (TargetImage.ActualHeight * scale)) / 2-pos.Y * scale;
         }
 
         // 保持原来的接口，只是转发调用
@@ -371,77 +359,61 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 外部显示控制/自设参数
+        // 当截图完成时，通知外部（父窗口）
+        public event EventHandler<Rect>? Snipped;
         // 截图模式开关
         public bool IsScreenShotMode
         {
-            get { return (bool)GetValue(IsScreenShotModeProperty); }
-            set { SetValue(IsScreenShotModeProperty, value); }
+            get => (bool)GetValue(IsScreenShotModeProperty);
+            set => SetValue(IsScreenShotModeProperty, value);
         }
         public static readonly DependencyProperty IsScreenShotModeProperty =
-            DependencyProperty.Register("IsScreenShotMode", typeof(bool), typeof(ImagewithLabelShow), 
-                new PropertyMetadata(false, OnScreenShotModeChanged));
-
-        private static void OnScreenShotModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            var control = (ImagewithLabelShow)d;
-            bool isModeOn = (bool)e.NewValue;
-
-            control.SnipCanvas.Visibility = isModeOn ? Visibility.Visible : Visibility.Collapsed;
-            control.ViewportGrid.Cursor = isModeOn ? Cursors.Cross : Cursors.Arrow;
-        }
-        // 当截图完成时，通知外部（父窗口）
-        public event EventHandler<Rect>? Snipped;
-
+            DependencyProperty.Register(nameof(IsScreenShotMode), typeof(bool), typeof(ImagewithLabelShow),
+                new PropertyMetadata(false, (d, e) => {
+                    if (d is ImagewithLabelShow ctrl && e.NewValue is bool isOn)
+                    {
+                        ctrl.SnipCanvas.Visibility = isOn ? Visibility.Visible : Visibility.Collapsed;
+                        ctrl.ViewportGrid.Cursor = isOn ? Cursors.Cross : Cursors.Arrow;
+                    }
+                }));
         // 供外部调用，用于实现“同步”裁剪相同区域
-        public BitmapSource? GetImageRegion(Rect logicRect)
-        {
-            return CaptureOriginalBitmapRegion(logicRect);
-        }
+        public BitmapSource? GetImageRegion(Rect normRect) => CaptureOriginalBitmapRegion(normRect);
         // 是否需要同步模式（true则通知外部，false则直接存剪贴板）
         public bool IsSyncRequired
         {
-            get { return (bool)GetValue(IsSyncRequiredProperty); }
-            set { SetValue(IsSyncRequiredProperty, value); }
+            get => (bool)GetValue(IsSyncRequiredProperty);
+            set => SetValue(IsSyncRequiredProperty, value);
         }
-
         public static readonly DependencyProperty IsSyncRequiredProperty =
-            DependencyProperty.Register("IsSyncRequired", typeof(bool), typeof(ImagewithLabelShow), new PropertyMetadata(false));
+            DependencyProperty.Register(nameof(IsSyncRequired), typeof(bool), typeof(ImagewithLabelShow), new PropertyMetadata(false));
 
 
 
 
-
-        public static readonly DependencyProperty ZoomScaleProperty =
-                DependencyProperty.Register("ZoomScale", typeof(double), typeof(ImagewithLabelShow),
-                    new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
         public double ZoomScale
         {
             get => (double)GetValue(ZoomScaleProperty);
             set => SetValue(ZoomScaleProperty, value);
         }
-
-        // 2. X 轴平移依赖属性 (默认值为 0)
-        public static readonly DependencyProperty OffsetXProperty =
-            DependencyProperty.Register("OffsetX", typeof(double), typeof(ImagewithLabelShow),
-                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+        public static readonly DependencyProperty ZoomScaleProperty =
+            DependencyProperty.Register(nameof(ZoomScale), typeof(double), typeof(ImagewithLabelShow), new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
         public double OffsetX
         {
             get => (double)GetValue(OffsetXProperty);
             set => SetValue(OffsetXProperty, value);
         }
-
-        // 3. Y 轴平移依赖属性
-        public static readonly DependencyProperty OffsetYProperty =
-            DependencyProperty.Register("OffsetY", typeof(double), typeof(ImagewithLabelShow),
-                new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+        public static readonly DependencyProperty OffsetXProperty =
+            DependencyProperty.Register(nameof(OffsetX), typeof(double), typeof(ImagewithLabelShow), new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
         public double OffsetY
         {
             get => (double)GetValue(OffsetYProperty);
             set => SetValue(OffsetYProperty, value);
         }
+        public static readonly DependencyProperty OffsetYProperty =
+            DependencyProperty.Register(nameof(OffsetY), typeof(double), typeof(ImagewithLabelShow), new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
         public bool OnlySEE
         {
             get => (bool)GetValue(OnlySEEProperty);

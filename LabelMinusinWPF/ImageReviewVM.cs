@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Drawing;
 using System.Globalization;
 using System.IO;
 using System.Reflection.Metadata;
@@ -22,7 +23,7 @@ using static LabelMinusinWPF.Modules;
 
 namespace LabelMinusinWPF
 {
-    public partial class ImageReviewVM: ObservableObject
+    public partial class ImageReviewVM : ObservableObject
     {
         [ObservableProperty]
         private MainViewModel _leftImageVM = new();
@@ -60,7 +61,7 @@ namespace LabelMinusinWPF
             RightImageVM.ImageList.ListChanged += ImageList_ListChanged;
         }
 
-        
+
         private void ImageList_ListChanged(object? sender, ListChangedEventArgs e)// 当任意一边的列表发生变化（加载图片/清空）时，重新计算并集
         {
             var leftNames = LeftImageVM.ImageList.Select(x => System.IO.Path.GetFileNameWithoutExtension(x.ImageName));
@@ -214,5 +215,31 @@ namespace LabelMinusinWPF
 
 
         [ObservableProperty] private bool _isScreenShotEnabled = false;
+        [ObservableProperty] private bool _isDualReViewEnabled = false;
+        [ObservableProperty]
+        private bool _isMenuOpen = false;
+        [ObservableProperty]
+        private GridLength _leftColumnWidth = new(1, GridUnitType.Star);
+
+        [ObservableProperty]
+        private GridLength _rightColumnWidth = new(1, GridUnitType.Star);
+
+        [RelayCommand]
+        private void ResetLayout()
+        {
+            LeftColumnWidth = new GridLength(1, GridUnitType.Star);
+            RightColumnWidth = new GridLength(1, GridUnitType.Star);
+        }
+        [RelayCommand]
+        private void ToggleTopDrawer()
+        {
+            IsMenuOpen = !IsMenuOpen;
+        }
+        [RelayCommand]
+        private void ToggleMode()
+        {
+            IsDualReViewEnabled = !IsDualReViewEnabled;
+            if (IsDualReViewEnabled) IsSyncEnabled = true;
+        }
     }
 }

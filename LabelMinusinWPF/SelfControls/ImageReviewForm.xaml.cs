@@ -1,5 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using ControlzEx.Standard;
+using MaterialDesignThemes.Wpf;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -49,9 +51,53 @@ namespace LabelMinusinWPF
             {
                 InkEditor.Strokes.Clear();
             };
+            this.Loaded += ImageReView_Loaded;
+        }
+        # region Q键控制截图
+        private void ImageReView_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 找到承载此控件的窗口
+            var window = Window.GetWindow(this);
+            if (window != null)
+            {
+                // 使用 Preview 事件，因为它在子控件（包括 Popup）处理之前触发
+                window.PreviewKeyDown += Window_PreviewKeyDown;
+                window.PreviewKeyUp += Window_PreviewKeyUp;
+            }
         }
 
-        #region 同步截图
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // 检查按键是否为 Q
+            if (e.Key == Key.Q && !e.IsRepeat)
+            {
+                // 排除输入框干扰
+                if (FocusManager.GetFocusedElement(Window.GetWindow(this)) is TextBox) return;
+
+                var vm = this.DataContext as ImageReviewVM;
+                if (vm != null)
+                {
+                    vm.IsScreenShotEnabled = true;
+                    // e.Handled = true; // 如果不想让 Q 键继续传递给 InkCanvas，可以取消注释
+                }
+            }
+        }
+
+        private void Window_PreviewKeyUp(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Q)
+            {
+                var vm = this.DataContext as ImageReviewVM;
+                if (vm != null)
+                {
+                    vm.IsScreenShotEnabled = false;
+                }
+            }
+        }
+        #endregion 
+
+
+        #region 一起截图
         // 在构造函数或 Loaded 事件中绑定
 
 
@@ -80,7 +126,7 @@ namespace LabelMinusinWPF
             double mainH = Math.Max(leftSource?.PixelHeight ?? 0, rightSource?.PixelHeight ?? 0);
 
             // 动态计算页脚高度 (12%, 最小60, 最大150)
-            double footerH = Math.Clamp(mainH * 0.12, 60, 150);
+            double footerH = Math.Clamp(mainH * 0.12, 10, 150);
 
             double canvasW = mainW;
             double canvasH = mainH + footerH;
@@ -118,17 +164,38 @@ namespace LabelMinusinWPF
                 dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(255, 245, 238)), null,
                                  new Rect(0, mainH, canvasW, footerH));
 
-                // 绘制页脚文字 (动态计算字号)
+                // 1. 基础字号设定（保持你原有的逻辑作为上限）
+                double fontSize = footerH * 0.7; // 稍微调小比例，留出上下边距
+
+                // 2. 创建一个初步的 FormattedText 用于测量宽度
                 FormattedText ft = new FormattedText(
                     $"▲ {footerText}",
                     System.Globalization.CultureInfo.CurrentCulture,
                     FlowDirection.LeftToRight,
                     new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
-                    footerH * 0.8, // 字体大小设为页脚高度的一半
+                    fontSize,
                     Brushes.RoyalBlue,
                     VisualTreeHelper.GetDpi(visual).PixelsPerDip);
 
-                // 文字居中对齐
+                // 3. 【关键修正】检查文字是否太宽。如果文字比画布宽（留出10%边距），则按比例缩小字号
+                double maxTextWidth = canvasW * 0.9; // 允许文字占用的最大宽度（90% 画布宽）
+                if (ft.Width > maxTextWidth)
+                {
+                    // 按宽度比例缩小字号
+                    fontSize = fontSize * (maxTextWidth / ft.Width);
+
+                    // 重新生成缩放后的文字
+                    ft = new FormattedText(
+                        $"▲ {footerText}",
+                        System.Globalization.CultureInfo.CurrentCulture,
+                        FlowDirection.LeftToRight,
+                        new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
+                        fontSize,
+                        Brushes.RoyalBlue,
+                        VisualTreeHelper.GetDpi(visual).PixelsPerDip);
+                }
+
+                // 4. 文字居中对齐绘制（逻辑不变）
                 Point textPos = new Point((canvasW - ft.Width) / 2, mainH + (footerH - ft.Height) / 2);
                 dc.DrawText(ft, textPos);
             }
@@ -247,6 +314,7 @@ namespace LabelMinusinWPF
             {
                 PreviewPopup.IsOpen = false;
                 InkEditor.Strokes.Clear(); // 清空，下次显示干净的
+                DualScreenShot.Focus();
             }
         }
 
@@ -288,7 +356,7 @@ namespace LabelMinusinWPF
 
         private void TempChangePic_Click(bool isLeft)
         {
-            string? PicPath = DialogService.OpenFile("图片文件|*.jpg;*.png;*.bmp;*.webp");
+            string? PicPath = DialogService.OpenFile("图片文件|*.jpg;*.png;*.bmp;*.webp","暂时替换当前图片");
             if (!string.IsNullOrEmpty(PicPath))
             {
                 try
@@ -338,5 +406,83 @@ namespace LabelMinusinWPF
                 UseShellExecute = true
             });
         }
+
+        #region 拖入文件显示
+        private void OnFileDrop(object sender, DragEventArgs e)
+        {
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
+                if (files.Length == 0) return;
+
+                // 1. 找到触发拖拽的控件
+                var targetView = sender as FrameworkElement;
+
+                // 2. 向上寻找包含 RightImageVM 的 DataContext (假设是在 MainViewModel 里)
+                // 或者直接从当前 View 的 DataContext 向上找
+                if (targetView?.Name == "RightPicView")
+                {
+                    // 假设这里的 Parent DataContext 就是你的 MainViewModel
+                    var mainVM = this.DataContext as ImageReviewVM;
+                    mainVM?.RightImageVM.OpenResourceByPath(files,false);
+                }
+                else if (targetView?.Name == "LeftPicView")
+                {
+                    var mainVM = this.DataContext as ImageReviewVM;
+                    mainVM?.LeftImageVM.OpenResourceByPath(files, false);
+                }
+            }
+        }
+        private void OnDragEnter(object sender, DragEventArgs e)
+        {
+            UpdateDragEffect(e);
+        }
+
+        private void OnDragOver(object sender, DragEventArgs e)
+        {
+            UpdateDragEffect(e);
+            // 必须设置 Handled 为 true，否则默认逻辑可能会覆盖你的设置
+            e.Handled = true;
+        }
+
+        private void UpdateDragEffect(DragEventArgs e)
+        {
+            // 检查拖进来的是不是文件
+            if (e.Data.GetDataPresent(DataFormats.FileDrop))
+            {
+                // 如果是文件，显示“复制”图标（那个带加号的指针）
+                e.Effects = DragDropEffects.Copy;
+            }
+            else
+            {
+                // 如果不是文件（比如拖的一段文字），显示“禁止”
+                e.Effects = DragDropEffects.None;
+            }
+        }
+        #endregion
+
+        #region 黑白模式
+        private static void ToggleDarkMode(bool isDark)
+        {
+            var paletteHelper = new PaletteHelper();
+            // 显式指定 MaterialDesignThemes.Wpf.ITheme 以防冲突
+            var theme = paletteHelper.GetTheme();
+
+            // 修改基础主题
+            theme.SetBaseTheme(isDark ? BaseTheme.Dark : BaseTheme.Light);
+
+            // 重新应用
+            paletteHelper.SetTheme(theme);
+        }
+        private void DarkMode_Checked(object sender, RoutedEventArgs e)
+        {
+            ToggleDarkMode(true);
+        }
+
+        private void DarkMode_Unchecked(object sender, RoutedEventArgs e)
+        {
+            ToggleDarkMode(false);
+        }
+        #endregion
     }
 }
