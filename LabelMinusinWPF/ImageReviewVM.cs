@@ -1,24 +1,10 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using ControlzEx.Standard;
-using MaterialDesignThemes.Wpf;
-using Microsoft.Win32;
-using SharpCompress.Archives;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Drawing;
-using System.Globalization;
 using System.IO;
-using System.Reflection.Metadata;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Windows;
-using System.Windows.Data;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Threading;
 using static LabelMinusinWPF.Modules;
 
 namespace LabelMinusinWPF
@@ -45,13 +31,10 @@ namespace LabelMinusinWPF
         {
             if (string.IsNullOrEmpty(value)) return;
 
-            // 封装一个查找逻辑：不管后缀，只看基名是否一致
-            Func<ImageInfo, bool> matchCriteria = img =>
-                System.IO.Path.GetFileNameWithoutExtension(img.ImageName).Equals(value, StringComparison.OrdinalIgnoreCase);
-
-            // 左右两侧同步选中
-            LeftImageVM.SelectedImage = LeftImageVM.ImageList.FirstOrDefault(matchCriteria);
-            RightImageVM.SelectedImage = RightImageVM.ImageList.FirstOrDefault(matchCriteria);
+            LeftImageVM.SelectedImage = LeftImageVM.ImageList.FirstOrDefault(img =>
+                Path.GetFileNameWithoutExtension(img.ImageName).Equals(value, StringComparison.OrdinalIgnoreCase));
+            RightImageVM.SelectedImage = RightImageVM.ImageList.FirstOrDefault(img =>
+                Path.GetFileNameWithoutExtension(img.ImageName).Equals(value, StringComparison.OrdinalIgnoreCase));
         }
 
         public ImageReviewVM()
@@ -61,31 +44,27 @@ namespace LabelMinusinWPF
             RightImageVM.ImageList.ListChanged += ImageList_ListChanged;
         }
 
-
-        private void ImageList_ListChanged(object? sender, ListChangedEventArgs e)// 当任意一边的列表发生变化（加载图片/清空）时，重新计算并集
+        // 当任意一边的列表发生变化（加载图片/清空）时，重新计算并集
+        private void ImageList_ListChanged(object? sender, ListChangedEventArgs e)
         {
-            var leftNames = LeftImageVM.ImageList.Select(x => System.IO.Path.GetFileNameWithoutExtension(x.ImageName));
-            var rightNames = RightImageVM.ImageList.Select(x => System.IO.Path.GetFileNameWithoutExtension(x.ImageName));
+            var leftNames = LeftImageVM.ImageList.Select(x => Path.GetFileNameWithoutExtension(x.ImageName));
+            var rightNames = RightImageVM.ImageList.Select(x => Path.GetFileNameWithoutExtension(x.ImageName));
 
-            // 取并集 -> 去重 -> 排序
+            // 取并集(已自动去重) -> 排序
             var union = leftNames.Union(rightNames)
-                                 .Distinct()
-                                 .OrderBy(n => n) // 建议按名称排序，方便查找
+                                 .OrderBy(n => n)
                                  .ToList();
 
             // 在 UI 线程更新集合
-            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            Application.Current.Dispatcher.Invoke(() =>
             {
                 AllImageNames.Clear();
                 foreach (var name in union)
-                {
                     AllImageNames.Add(name);
-                }
+
+                if (SelectedMergedName == null && AllImageNames.Count > 0)
+                    SelectedMergedName = AllImageNames[0];
             });
-            if (SelectedMergedName == null && AllImageNames.Count > 0)
-            {
-                SelectedMergedName = AllImageNames.FirstOrDefault();
-            }
         }
         #endregion
 
@@ -95,13 +74,9 @@ namespace LabelMinusinWPF
         [RelayCommand(CanExecute = nameof(CanGoToPrevious))]
         private void PreviousImage()
         {
-            if (string.IsNullOrEmpty(SelectedMergedName)) return;
-
-            int currentIndex = AllImageNames.IndexOf(SelectedMergedName);
+            int currentIndex = AllImageNames.IndexOf(SelectedMergedName!);
             if (currentIndex > 0)
-            {
                 SelectedMergedName = AllImageNames[currentIndex - 1];
-            }
         }
 
         private bool CanGoToPrevious()
@@ -111,13 +86,9 @@ namespace LabelMinusinWPF
         [RelayCommand(CanExecute = nameof(CanGoToNext))]
         private void NextImage()
         {
-            if (string.IsNullOrEmpty(SelectedMergedName)) return;
-
-            int currentIndex = AllImageNames.IndexOf(SelectedMergedName);
+            int currentIndex = AllImageNames.IndexOf(SelectedMergedName!);
             if (currentIndex < AllImageNames.Count - 1)
-            {
                 SelectedMergedName = AllImageNames[currentIndex + 1];
-            }
         }
 
         private bool CanGoToNext()
@@ -133,12 +104,21 @@ namespace LabelMinusinWPF
             (LeftImageVM, RightImageVM) = (RightImageVM, LeftImageVM);
         }
 
-        // 清空图片命令
+        // 清空图片命令（修复：重新订阅新 VM 的事件）
         [RelayCommand]
         private void ClearImages()
         {
+            LeftImageVM.ImageList.ListChanged -= ImageList_ListChanged;
+            RightImageVM.ImageList.ListChanged -= ImageList_ListChanged;
+
             LeftImageVM = new MainViewModel();
             RightImageVM = new MainViewModel();
+
+            LeftImageVM.ImageList.ListChanged += ImageList_ListChanged;
+            RightImageVM.ImageList.ListChanged += ImageList_ListChanged;
+
+            AllImageNames.Clear();
+            SelectedMergedName = null;
         }
         #endregion
 
@@ -168,10 +148,9 @@ namespace LabelMinusinWPF
         [ObservableProperty] private double _rightOffsetX = 0.0;
         [ObservableProperty] private double _rightOffsetY = 0.0;
 
-        // ================= 3. 核心同步逻辑 (极简版) =================
-        private bool _isUpdatingSync = false;
+        // ================= 3. 核心同步逻辑 =================
+        private bool _isUpdatingSync;
 
-        // 提取的通用锁机制：安全执行代码而不触发循环同步
         private void RunWithSyncLock(Action action)
         {
             _isUpdatingSync = true;
@@ -179,16 +158,12 @@ namespace LabelMinusinWPF
             _isUpdatingSync = false;
         }
 
-        // 提取的条件同步器
         private void Sync(Action syncAction)
         {
             if (IsSyncEnabled && !_isUpdatingSync)
-            {
                 RunWithSyncLock(syncAction);
-            }
         }
 
-        // 利用一行代码完成所有同步
         partial void OnLeftZoomChanged(double value) => Sync(() => RightZoom = value);
         partial void OnRightZoomChanged(double value) => Sync(() => LeftZoom = value);
 
@@ -212,17 +187,11 @@ namespace LabelMinusinWPF
 
         #endregion
 
-
-
-        [ObservableProperty] private bool _isScreenShotEnabled = false;
-        [ObservableProperty] private bool _isDualReViewEnabled = false;
-        [ObservableProperty]
-        private bool _isMenuOpen = false;
-        [ObservableProperty]
-        private GridLength _leftColumnWidth = new(1, GridUnitType.Star);
-
-        [ObservableProperty]
-        private GridLength _rightColumnWidth = new(1, GridUnitType.Star);
+        [ObservableProperty] private bool _isScreenShotEnabled;
+        [ObservableProperty] private bool _isDualReViewEnabled;
+        [ObservableProperty] private bool _isMenuOpen;
+        [ObservableProperty] private GridLength _leftColumnWidth = new(1, GridUnitType.Star);
+        [ObservableProperty] private GridLength _rightColumnWidth = new(1, GridUnitType.Star);
 
         [RelayCommand]
         private void ResetLayout()
@@ -230,11 +199,10 @@ namespace LabelMinusinWPF
             LeftColumnWidth = new GridLength(1, GridUnitType.Star);
             RightColumnWidth = new GridLength(1, GridUnitType.Star);
         }
+
         [RelayCommand]
-        private void ToggleTopDrawer()
-        {
-            IsMenuOpen = !IsMenuOpen;
-        }
+        private void ToggleTopDrawer() => IsMenuOpen = !IsMenuOpen;
+
         [RelayCommand]
         private void ToggleMode()
         {

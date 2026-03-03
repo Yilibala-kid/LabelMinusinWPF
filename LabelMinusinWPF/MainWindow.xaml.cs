@@ -14,6 +14,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
 
 namespace LabelMinusinWPF
 {
@@ -68,27 +70,42 @@ namespace LabelMinusinWPF
             }
         }
 
-        #region 黑白模式
-        private static void ToggleDarkMode(bool isDark)
+        #region 黑白模式控制
+        // 定义依赖属性
+        public static readonly DependencyProperty IsDarkModeProperty =
+            DependencyProperty.Register("IsDarkMode", typeof(bool), typeof(MainWindow),
+                new PropertyMetadata(false, OnDarkModeChanged));
+
+        public bool IsDarkMode
         {
+            get { return (bool)GetValue(IsDarkModeProperty); }
+            set { SetValue(IsDarkModeProperty, value); }
+        }
+
+        // 当属性改变时，自动触发主题切换
+        private static void OnDarkModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            bool isDark = (bool)e.NewValue;
             var paletteHelper = new PaletteHelper();
-            // 显式指定 MaterialDesignThemes.Wpf.ITheme 以防冲突
             var theme = paletteHelper.GetTheme();
-
-            // 修改基础主题
             theme.SetBaseTheme(isDark ? BaseTheme.Dark : BaseTheme.Light);
-
-            // 重新应用
             paletteHelper.SetTheme(theme);
+            // 同时更新标题栏颜色
+            if (d is MainWindow mainWindow)
+            {
+                mainWindow.UpdateTitleBarColor(isDark);
+            }
         }
-        private void DarkMode_Checked(object sender, RoutedEventArgs e)
-        {
-            ToggleDarkMode(true);
-        }
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
-        private void DarkMode_Unchecked(object sender, RoutedEventArgs e)
+        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+
+        private void UpdateTitleBarColor(bool isDark)
         {
-            ToggleDarkMode(false);
+            IntPtr hWnd = new WindowInteropHelper(this).Handle;
+            int darkMode = isDark ? 1 : 0;
+            DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, sizeof(int));
         }
         #endregion
 
@@ -115,11 +132,20 @@ namespace LabelMinusinWPF
 
         private void OpenImageReview_Click(object sender, RoutedEventArgs e)
         {
-            FullScreenReview.Visibility = Visibility.Visible;
+            // 直接操作状态，控件会自动显示
+            FullScreenReview.IsOpen = true;
         }
-        private void FullScreenReview_ExitClicked(object sender, EventArgs e)
+
+
+        private void DotStyleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            FullScreenReview.Visibility = Visibility.Collapsed;
+            // 确保组件已经加载
+            if (DotStyleSelector.SelectedItem is ComboBoxItem item && PicView != null)
+            {
+                string styleKey = item.Tag.ToString();
+                // 动态查找资源字典中的样式并赋值给图片控件
+                PicView.LabelDotStyle = (Style)FindResource(styleKey);
+            }
         }
     }
 

@@ -1,304 +1,438 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using MaterialDesignThemes.Wpf;
-using Microsoft.Win32;
-using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
-using System.Reflection.Metadata;
-using System.Runtime.CompilerServices;
-using System.Text;
 using System.Windows;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Threading;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using MaterialDesignThemes.Wpf;
+using Microsoft.Win32;
 using static LabelMinusinWPF.Modules;
+
 namespace LabelMinusinWPF
 {
-    //TODO:目前ImageParent的伸缩会影响标记位置，需要改进
+    /// <summary>组别显示项：名称 + 对应颜色</summary>
+    public record GroupItem(string Name, SolidColorBrush Brush);
 
-    
+    /// <summary>
+    /// 主视图模型：管理图片列表、选中状态、模式切换等核心逻辑
+    /// </summary>
     public partial class MainViewModel : ObservableObject
     {
-        // --- 状态属性/数据源 ---
+        #region 初始化
+        /// <summary>底部 Snackbar 消息队列</summary>
+        [ObservableProperty]
+        private ISnackbarMessageQueue _mainMessageQueue;
+        public MainViewModel()
+        {
+            MainMessageQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(2));
+            ImageList.ListChanged += OnImageListChanged;
+        }
+
+        private readonly HashSet<ImageInfo> _hookedImages = [];
+
+        /// <summary>抑制组别刷新（批量操作、防循环触发时使用）</summary>
+        private bool _suppressGroupNotify;
+
+        private void OnImageListChanged(object? sender, ListChangedEventArgs e)
+        {
+            // 增删图片时同步 Labels 事件绑定
+            switch (e.ListChangedType)
+            {
+                case ListChangedType.ItemAdded:
+                    HookImage(ImageList[e.NewIndex]);
+                    break;
+                case ListChangedType.ItemDeleted:
+                    // BindingList 已移除该项，通过差集找到并解绑
+                    foreach (var img in _hookedImages.Except(ImageList).ToList())
+                        UnhookImage(img);
+                    break;
+                case ListChangedType.Reset:
+                    UnhookAllImages();
+                    break;
+            }
+            NotifyGroupsChanged();
+        }
+
+        private void HookImage(ImageInfo img)
+        {
+            img.Labels.ListChanged -= OnLabelsChanged;
+            img.Labels.ListChanged += OnLabelsChanged;
+            _hookedImages.Add(img);
+        }
+
+        private void UnhookImage(ImageInfo img)
+        {
+            img.Labels.ListChanged -= OnLabelsChanged;
+            _hookedImages.Remove(img);
+        }
+
+        private void UnhookAllImages()
+        {
+            foreach (var img in _hookedImages)
+                img.Labels.ListChanged -= OnLabelsChanged;
+            _hookedImages.Clear();
+        }
+
+        private void OnLabelsChanged(object? sender, ListChangedEventArgs e) =>
+            NotifyGroupsChanged();
+        #endregion
+        // --- 项目上下文 ---
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(OpenNowFolderCommand))]
         [NotifyCanExecuteChangedFor(nameof(SaveTranslationCommand))]
         private ProjectContext _currentProject = ProjectContext.Empty;
-        public BindingList<ImageInfo> ImageList { get; } = [];
-        [ObservableProperty] private ImageInfo? _selectedImage;
-        #region 模式选择
 
+        /// <summary>当前加载的图片列表（使用 BindingList 以支持 ListChanged 事件）</summary>
+        public BindingList<ImageInfo> ImageList { get; } = [];
+
+        /// <summary>当前选中的图片</summary>
+        [ObservableProperty]
+        private ImageInfo? _selectedImage;
+
+        #region 组别汇总
+        // 初始化时就带上默认值
+        private List<GroupItem> _allGroupsCache =
+        [
+            new GroupItem("框内", GroupBrushes[0]),
+            new GroupItem("框外", GroupBrushes[1]),
+        ];
+        public IReadOnlyList<GroupItem> AllGroups => _allGroupsCache;
+
+        private void RebuildGroupsCache()
+        {
+            // 定义必须存在的组
+            string[] defaultGroups = ["框内", "框外"];
+
+            _allGroupsCache = ImageList
+                .SelectMany(img => img.Labels.Select(l => l.Group)) // 提取所有已存在的组名
+                .Concat(defaultGroups)                             // 强制注入“框内”“框外”
+                .Where(g => !string.IsNullOrWhiteSpace(g))
+                .Distinct()                                        // 去重
+                .OrderBy(g => g == "框内" ? 0 : (g == "框外" ? 1 : 2))
+                .ThenBy(g => g)
+                .Select((g, i) => new GroupItem(g, GroupBrushes[i % GroupBrushes.Length]))
+                .ToList();
+
+            // 同步每个标签的组别颜色（逻辑保持不变）
+            var brushMap = _allGroupsCache.ToDictionary(g => g.Name, g => g.Brush);
+            foreach (var img in ImageList)
+            {
+                foreach (var label in img.Labels)
+                {
+                    if (brushMap.TryGetValue(label.Group, out var brush))
+                        label.GroupBrush = brush;
+                }
+            }
+        }
+
+        private static readonly SolidColorBrush[] GroupBrushes = CreateGroupBrushes();
+
+        private static SolidColorBrush[] CreateGroupBrushes()
+        {
+            Color[] colors =
+            [
+                Color.FromRgb(234, 67, 53),
+                Color.FromRgb(66, 133, 244),
+                Color.FromRgb(52, 168, 83),
+                Color.FromRgb(251, 188, 4),
+                Color.FromRgb(171, 71, 188),
+                Color.FromRgb(0, 172, 193),
+                Color.FromRgb(255, 112, 67),
+                Color.FromRgb(141, 110, 99),
+            ];
+            return colors
+                .Select(c =>
+                {
+                    var b = new SolidColorBrush(c);
+                    b.Freeze();
+                    return b;
+                })
+                .ToArray();
+        }
+
+        [ObservableProperty]
+        private string? _selectedGroupName = "框内";
+
+        partial void OnSelectedGroupNameChanged(string? value)
+        {
+            if (_suppressGroupNotify || string.IsNullOrEmpty(value) || SelectedImage == null)
+                return;
+
+            SelectedImage.ActiveGroup = value;
+            if (SelectedImage.SelectedLabel is { } label && label.Group != value)
+            {
+                // 修改 label.Group 会触发 OnLabelsChanged → NotifyGroupsChanged，
+                // 用 _suppressGroupNotify 阻断级联，之后手动刷新一次
+                _suppressGroupNotify = true;
+                try
+                {
+                    label.Group = value;
+                }
+                finally
+                {
+                    _suppressGroupNotify = false;
+                }
+                NotifyGroupsChanged();
+            }
+        }
+
+        private void NotifyGroupsChanged()
+        {
+            if (_suppressGroupNotify)
+                return;
+
+            var savedGroup = SelectedGroupName;
+
+            // 重建缓存期间抑制 ListBox 选中项变化引起的回写
+            _suppressGroupNotify = true;
+            try
+            {
+                RebuildGroupsCache();
+                OnPropertyChanged(nameof(AllGroups));
+            }
+            finally
+            {
+                _suppressGroupNotify = false;
+            }
+
+            // 恢复选中状态
+            var names = _allGroupsCache.ConvertAll(g => g.Name);
+            SelectedGroupName = names.Contains(savedGroup)
+                ? savedGroup
+                : names.FirstOrDefault() ?? "框内";
+        }
         #endregion
 
-        #region 菜单栏部分参数
-        // 控制序号显示
+        #region 菜单栏：显示控制
+        /// <summary>是否显示图片序号标签</summary>
         [ObservableProperty]
         private bool _isPictureIndexVisible = true;
 
-        // 控制文本显示
+        /// <summary>是否显示图片文本标签</summary>
         [ObservableProperty]
         private bool _isPictureTextVisible = true;
         #endregion
 
-        #region 底栏/图片浏览
+        #region 底栏：图片切换
         [RelayCommand(CanExecute = nameof(CanGoToPrevious))]
         public void PreviousImage()
         {
-            if (ImageList == null || ImageList.Count <= 1 || SelectedImage == null) return;
-
-            int currentIndex = ImageList.IndexOf(SelectedImage);
+            int currentIndex = ImageList.IndexOf(SelectedImage!);
             if (currentIndex > 0)
-            {
                 SelectedImage = ImageList[currentIndex - 1];
-            }
         }
-        private bool CanGoToPrevious() => ImageList != null && SelectedImage != null && ImageList.IndexOf(SelectedImage) > 0;
+
+        private bool CanGoToPrevious() =>
+            SelectedImage != null && ImageList.IndexOf(SelectedImage) > 0;
+
         [RelayCommand(CanExecute = nameof(CanGoToNext))]
         public void NextImage()
         {
-            if (ImageList == null || ImageList.Count <= 1 || SelectedImage == null) return;
-
-            int currentIndex = ImageList.IndexOf(SelectedImage);
+            int currentIndex = ImageList.IndexOf(SelectedImage!);
             if (currentIndex < ImageList.Count - 1)
-            {
                 SelectedImage = ImageList[currentIndex + 1];
-            }
         }
-        private bool CanGoToNext() =>ImageList != null && SelectedImage != null && ImageList.IndexOf(SelectedImage) < ImageList.Count - 1;
+
+        private bool CanGoToNext() =>
+            SelectedImage != null && ImageList.IndexOf(SelectedImage) < ImageList.Count - 1;
+
+        private ImageInfo? _watchedImage;
+
+        /// <summary>选中图片变更时：刷新按钮状态、监听 SelectedLabel 以同步组别</summary>
         partial void OnSelectedImageChanged(ImageInfo? value)
         {
+            if (_watchedImage != null)
+                _watchedImage.PropertyChanged -= OnImageSelectedLabelChanged;
+            _watchedImage = value;
+            if (value != null)
+            {
+                value.PropertyChanged += OnImageSelectedLabelChanged;
+                if (value.SelectedLabel != null)
+                    SelectedGroupName = value.SelectedLabel.Group;
+            }
+
             PreviousImageCommand.NotifyCanExecuteChanged();
             NextImageCommand.NotifyCanExecuteChanged();
         }
 
+        /// <summary>当前图片的 SelectedLabel 变更时，同步高亮到对应组别</summary>
+        private void OnImageSelectedLabelChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (
+                e.PropertyName == nameof(ImageInfo.SelectedLabel)
+                && sender is ImageInfo img
+                && img.SelectedLabel != null
+            )
+                SelectedGroupName = img.SelectedLabel.Group;
+        }
         #endregion
     }
+
     #region 模式选择
-    public enum AppMode { See, LabelDo, OCR }
+    /// <summary>应用工作模式</summary>
+    public enum AppMode
+    {
+        See,
+        LabelDo,
+        OCR,
+    }
+
     public partial class MainViewModel
     {
         [ObservableProperty]
-        private AppMode _currentMode = AppMode.LabelDo; // 默认值
-        partial void OnCurrentModeChanged(AppMode value)// 一个钩子方法，当 CurrentMode 发生改变时会自动被调用
+        private AppMode _currentMode = AppMode.LabelDo;
+
+        /// <summary>模式切换时更新界面元素的可见性</summary>
+        partial void OnCurrentModeChanged(AppMode value)
         {
             switch (value)
             {
                 case AppMode.See:
+                case AppMode.OCR:
                     IsPictureIndexVisible = false;
                     IsPictureTextVisible = false;
                     break;
                 case AppMode.LabelDo:
                     IsPictureIndexVisible = true;
-                    IsPictureTextVisible = false;
-                    break;
-                case AppMode.OCR:
-                    // 处理 OCR 模式下的逻辑
-                    // 例如: IsPictureIndexVisible = false;
-                    IsPictureIndexVisible = false;
-                    IsPictureTextVisible = false;
+                    IsPictureTextVisible = true;
                     break;
             }
         }
     }
+
+    /// <summary>枚举与布尔值的双向转换器，用于 RadioButton 绑定 AppMode</summary>
     public class EnumToBooleanConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
             if (value == null || parameter == null)
                 return false;
-
-            // 检查当前 ViewModel 的值是否等于 ConverterParameter 传入的值
             return value.Equals(parameter);
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(
+            object value,
+            Type targetType,
+            object parameter,
+            CultureInfo culture
+        )
         {
-            // 当 UI 选中 (IsChecked = true) 时，将 ConverterParameter 的值回写给 ViewModel
             return (bool)value ? parameter : Binding.DoNothing;
         }
     }
-
     #endregion
 
-
-    #region 文件
-    public record ProjectContext(
-        string BaseFolderPath = "",
-        string? TxtName = null,
-        string? ZipName = null)
-    {
-        // 静态工厂：利用 record 的构造函数
-        public static ProjectContext Empty => new();
-
-        // 计算属性：使用 => 简写
-        public string TxtPath => !string.IsNullOrEmpty(TxtName) ? Path.Combine(BaseFolderPath, TxtName) : "";
-        public string ZipPath => !string.IsNullOrEmpty(ZipName) ? Path.Combine(BaseFolderPath, ZipName) : "";
-
-        public bool IsArchiveMode => !string.IsNullOrEmpty(ZipName);
-
-        public string DisplayTitle
-        {
-            get
-            {
-                // 如果没有基础路径，说明还没加载项目，直接返回简短标题
-                if (string.IsNullOrEmpty(BaseFolderPath))
-                    return "LabelMinus";
-
-                // 否则显示完整标题
-                string pathInfo = !string.IsNullOrEmpty(TxtName) ? TxtPath : "未命名";
-                string modeInfo = IsArchiveMode ? $"关联:{ZipName}" : "文件夹";
-
-                return $"LabelMinus - {pathInfo} 【{modeInfo}】";
-            }
-        }
-    }
-    public static class ProjectService
-    {
-        public static readonly string[] ImageExtensions = [".jpg", ".png", ".bmp", ".webp"];
-        public static readonly string[] ZipExtensions = [".7z", ".zip", ".rar"];
-
-        // 文件夹模式：ImagePath 存的是【绝对路径】
-        public static List<ImageInfo> ScanFolder(string path) =>
-            [.. Directory.EnumerateFiles(path)
-            .Where(f => ImageExtensions.Contains(Path.GetExtension(f).ToLower()))
-            .Select(f => new ImageInfo { ImagePath = f })]; // 只需给 Path，Name 自动生成
-
-        // 压缩包模式：ImagePath 存的是【EntryName】（如 "pics/1.jpg"）
-        public static List<ImageInfo> ScanZip(string zipPath) =>
-            [.. ArchiveHelper.GetImagePath(zipPath)
-            .Select(f => new ImageInfo { ImagePath = f })]; // 同样只需给 Path
-
-        public static (ProjectContext Context, List<ImageInfo> Images) LoadProjectFromTxt(string txtFilePath)
-        {
-            string content = File.ReadAllText(txtFilePath);
-            string baseFolder = Path.GetDirectoryName(txtFilePath) ?? "";
-
-            // 1. 调用你现有的解析函数
-            var database = Modules.ParseTextToLabels(content, out string? zipName);
-
-            // 2. 创建 Context
-            var context = new ProjectContext(baseFolder, Path.GetFileName(txtFilePath), zipName);
-
-            // 3. 核心补全逻辑：将解析出来的图片名转为真实的 ImagePath
-            foreach (var item in database)
-            {
-                var imgInfo = item.Value;
-                if (context.IsArchiveMode)
-                {
-                    // 压缩包模式：ImagePath 存的是 EntryName（解析出来的就是）
-                    imgInfo.ImagePath = item.Key;
-                }
-                else
-                {
-                    // 文件夹模式：ImagePath 需要拼接绝对路径
-                    imgInfo.ImagePath = Path.Combine(baseFolder, item.Key);
-                }
-            }
-
-            return (context, [.. database.Values]);
-        }
-    }
-    #endregion
-
-    #region 消息通知
+    #region 文件处理
     public partial class MainViewModel
     {
-        // 定义消息队列
-        [ObservableProperty]
-        private ISnackbarMessageQueue _mainMessageQueue;
+        #region 菜单命令：新建 / 打开 / 保存
 
-        public MainViewModel()
-        {
-            // 实例化队列
-            MainMessageQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(2));
-        }
-    }
-    #endregion
-
-    #region 文件处理Partial
-    public partial class MainViewModel
-    {
-        //CurrentProject和ImageList在上面
-        #region 菜单命令：新建与打开与保存
+        /// <summary>新建文件夹翻译</summary>
         [RelayCommand]
-        private void NewFolderTranslation() // 新建文件夹翻译
+        private void NewFolderTranslation()
         {
             string? folder = DialogService.OpenFolder("选择要新建翻译的文件夹");
-            if (!string.IsNullOrEmpty(folder)) OpenResourceByPath([folder], true);
+            if (!string.IsNullOrEmpty(folder))
+                OpenResourceByPath([folder], true);
         }
 
+        /// <summary>新建压缩包翻译</summary>
         [RelayCommand]
-        private void NewZipTranslation() // 新建压缩包翻译
+        private void NewZipTranslation()
         {
-            string? zipPath = DialogService.OpenFile("压缩文件|*.zip;*.7z;*.rar","选择要新建翻译的压缩包");
-            if (!string.IsNullOrEmpty(zipPath)) OpenResourceByPath([zipPath], true);
+            string? zipPath = DialogService.OpenFile(
+                "压缩文件|*.zip;*.7z;*.rar",
+                "选择要新建翻译的压缩包"
+            );
+            if (!string.IsNullOrEmpty(zipPath))
+                OpenResourceByPath([zipPath], true);
         }
 
+        /// <summary>打开已有的翻译 txt 文件</summary>
         [RelayCommand]
-        private void OpenTranslation() // 打开现有 Txt
+        private void OpenTranslation()
         {
-            string? txtPath = DialogService.OpenFile("文本文件|*.txt","打开已有翻译");
-            if (!string.IsNullOrEmpty(txtPath)) OpenResourceByPath([txtPath], false);
+            string? txtPath = DialogService.OpenFile("文本文件|*.txt", "打开已有翻译");
+            if (!string.IsNullOrEmpty(txtPath))
+                OpenResourceByPath([txtPath], false);
         }
 
+        /// <summary>仅预览文件夹中的图片</summary>
         [RelayCommand]
-        private void OpenImageFolder() // 仅预览文件夹
+        private void OpenImageFolder()
         {
             string? folder = DialogService.OpenFolder("选择要预览的文件夹");
-            if (!string.IsNullOrEmpty(folder)) OpenResourceByPath([folder], false);
+            if (!string.IsNullOrEmpty(folder))
+                OpenResourceByPath([folder], false);
         }
 
+        /// <summary>仅预览图片或压缩包</summary>
         [RelayCommand]
-        private void OpenImageOrZip() // 仅预览图片/压缩包
+        private void OpenImageOrZip()
         {
-            string[]? filepaths = DialogService.OpenFiles("支持的文件|*.zip;*.7z;*.rar;*.jpg;*.png;*.bmp", "选择要预览的图片（多张）或压缩包（单个）");
-            if (filepaths != null && filepaths.Length > 0)
-            {
+            string[]? filepaths = DialogService.OpenFiles(
+                "支持的文件|*.zip;*.7z;*.rar;*.jpg;*.png;*.bmp",
+                "选择要预览的图片（多张）或压缩包（单个）"
+            );
+            if (filepaths is { Length: > 0 })
                 OpenResourceByPath(filepaths, false);
-            }
         }
+
+        /// <summary>仅预览图片</summary>
         [RelayCommand]
-        private void OpenImage() // 仅预览图片
+        private void OpenImage()
         {
-            string[]? filepaths = DialogService.OpenFiles("支持的文件|*.jpg;*.png;*.bmp", "选择要预览的图片（多张）");
-            if (filepaths != null && filepaths.Length > 0)
-            {
+            string[]? filepaths = DialogService.OpenFiles(
+                "支持的文件|*.jpg;*.png;*.bmp",
+                "选择要预览的图片（多张）"
+            );
+            if (filepaths is { Length: > 0 })
                 OpenResourceByPath(filepaths, false);
-            }
         }
+
+        /// <summary>仅预览压缩包</summary>
         [RelayCommand]
-        private void OpenZip() // 仅预览压缩包
+        private void OpenZip()
         {
-            string? zipPath = DialogService.OpenFile("压缩文件|*.zip;*.7z;*.rar", "选择要预览的压缩包");
-            if (!string.IsNullOrEmpty(zipPath)) OpenResourceByPath([zipPath], false);
+            string? zipPath = DialogService.OpenFile(
+                "压缩文件|*.zip;*.7z;*.rar",
+                "选择要预览的压缩包"
+            );
+            if (!string.IsNullOrEmpty(zipPath))
+                OpenResourceByPath([zipPath], false);
         }
+
         private bool CanSave() => CurrentProject != ProjectContext.Empty;
+
+        /// <summary>保存翻译（mode 为 "As" 时另存为）</summary>
         [RelayCommand(CanExecute = nameof(CanSave))]
         private void SaveTranslation(string? mode)
         {
-            bool isSaveAs = mode is string s && s == "As";
-
-            string? targetPath = isSaveAs ? null : CurrentProject.TxtPath;
-            DoSave(targetPath);
+            bool isSaveAs = mode is "As";
+            DoSave(isSaveAs ? null : CurrentProject.TxtPath);
         }
+
+        /// <summary>在资源管理器中打开当前项目所在文件夹</summary>
         [RelayCommand(CanExecute = nameof(CanSave))]
         private void OpenNowFolder()
-        {             
+        {
             string pathToOpen = CurrentProject.BaseFolderPath;
             if (!string.IsNullOrEmpty(pathToOpen) && Directory.Exists(pathToOpen))
             {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = pathToOpen,
-                    UseShellExecute = true,
-                    Verb = "open"
-                });
+                Process.Start(
+                    new ProcessStartInfo
+                    {
+                        FileName = pathToOpen,
+                        UseShellExecute = true,
+                        Verb = "open",
+                    }
+                );
             }
             else
             {
@@ -307,69 +441,93 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-
         //TODO：似乎有文件会被直接覆盖的bug，比如万一用户选了一个已经存在的txt路径作为新建翻译的目标路径，这时候会直接覆盖掉原来的txt文件，应该在保存的时候加个判断，如果文件已经存在了就提示用户是否覆盖
+
         #region 核心函数：加载与保存
-        private void LoadProjectData(ProjectContext context, List<ImageInfo> images, string successMsg)//统一处理数据加载
+
+        /// <summary>
+        /// 统一数据加载入口：更新上下文、填充图片列表、选中首张图片
+        /// </summary>
+        private void LoadProjectData(
+            ProjectContext context,
+            List<ImageInfo> images,
+            string successMsg
+        )
         {
+            // 确保在 UI 线程执行（支持从后台线程调用）
             if (!Application.Current.Dispatcher.CheckAccess())
             {
-                Application.Current.Dispatcher.Invoke(() => LoadProjectData(context, images, successMsg));
+                Application.Current.Dispatcher.Invoke(() =>
+                    LoadProjectData(context, images, successMsg)
+                );
                 return;
             }
+
             if (images.Count == 0)
             {
                 MainMessageQueue.Enqueue("该路径下未找到支持的图片文件");
                 return;
             }
 
-            // 1. 更新上下文
             CurrentProject = context;
 
-            // 2. 更新列表
-            ImageList.Clear();
-            foreach (var img in images) ImageList.Add(img);
+            // 批量操作：抑制每次 Add 触发的 NotifyGroupsChanged，最后统一刷新一次
+            _suppressGroupNotify = true;
+            try
+            {
+                ImageList.Clear();
+                foreach (var img in images)
+                    ImageList.Add(img);
+            }
+            finally
+            {
+                _suppressGroupNotify = false;
+            }
+            NotifyGroupsChanged();
 
-            // 3. 选中第一张
             SelectedImage = ImageList.FirstOrDefault();
-
             MainMessageQueue.Enqueue($"{successMsg} (已加载 {images.Count} 张图片)");
         }
-        /// <param name="paths">文件/文件夹路径数组</param>
-        /// <param name="isCreateMode">是否为新建模式（决定是否自动生成保存文件名）</param>
-        /// // 在 MainViewModel 类内部或外部定义
-        public void OpenResourceByPath(string[]? paths, bool isCreateMode)// 统一资源入口：根据路径自动识别类型并加载
+
+        /// <summary>
+        /// 统一资源入口：根据路径自动识别资源类型（图片/txt/压缩包/文件夹）并加载
+        /// </summary>
+        /// <param name="paths">文件或文件夹路径数组</param>
+        /// <param name="isCreateMode">true=新建模式（自动生成保存文件名），false=预览/打开模式</param>
+        public void OpenResourceByPath(string[]? paths, bool isCreateMode)
         {
-            if (paths == null || paths.Length == 0) return;
+            if (paths is not { Length: > 0 })
+                return;
 
             string firstPath = paths[0];
-            string ext = Path.GetExtension(firstPath).ToLower();
+            string ext = Path.GetExtension(firstPath);
 
-            // --- 1. 优先处理图片组 (多选图片 或 单张图片) ---
-            // 逻辑：只要输入中包含支持的图片，就视为“查看/编辑这些特定图片”模式
+            // --- 1. 图片组：只要输入中包含支持的图片，就直接加载这些图片 ---
             var imageFiles = paths
-                .Where(p => File.Exists(p) && ProjectService.ImageExtensions.Contains(Path.GetExtension(p).ToLower()))
+                .Where(p =>
+                    File.Exists(p) && ProjectService.ImageExtensions.Contains(Path.GetExtension(p))
+                )
                 .ToList();
 
             if (imageFiles.Count > 0)
             {
-                // 既然是直接选的图片，BaseFolderPath 就定为第一张图片所在的文件夹
                 string baseFolder = Path.GetDirectoryName(imageFiles[0]) ?? string.Empty;
-                // 构造 ImageInfo 列表
                 var images = imageFiles.Select(p => new ImageInfo { ImagePath = p }).ToList();
-                // 设定 Context
-                // 如果是新建模式，我们可以预设一个文件名（比如 "选定图片_翻译.txt"），否则为 null (纯预览)
                 string? defaultTxtName = isCreateMode ? "New_Translation.txt" : null;
-
                 var context = new ProjectContext(baseFolder, defaultTxtName, null);
 
-                LoadProjectData(context, images, isCreateMode ? "正在为一组图片创建翻译" : "正在预览选定图片");
-                if (isCreateMode) DoSave(context.TxtPath); // 新建模式下立即保存
+                LoadProjectData(
+                    context,
+                    images,
+                    isCreateMode ? "正在为一组图片创建翻译" : "正在预览选定图片"
+                );
+                if (isCreateMode)
+                    DoSave(context.TxtPath);
                 return;
             }
 
-            // --- 2. 处理翻译文档 (.txt) ---
-            if (ext == ".txt" && File.Exists(firstPath))
+            // --- 2. 翻译文档 (.txt) ---
+            if (ext.Equals(".txt", StringComparison.OrdinalIgnoreCase) && File.Exists(firstPath))
             {
                 try
                 {
@@ -383,28 +541,28 @@ namespace LabelMinusinWPF
                 return;
             }
 
-            // --- 3. 处理压缩包 (.zip, .rar, .7z) ---
+            // --- 3. 压缩包 (.zip, .rar, .7z) ---
             if (ProjectService.ZipExtensions.Contains(ext) && File.Exists(firstPath))
             {
                 try
                 {
-                    // 扫描压缩包内容
                     var images = ProjectService.ScanZip(firstPath);
-
                     string baseFolder = Path.GetDirectoryName(firstPath) ?? string.Empty;
                     string zipName = Path.GetFileName(firstPath);
-
-                    // 核心逻辑：新建模式自动生成 "xxx_翻译.txt"，预览模式则为 null
                     string? txtName = isCreateMode
                         ? Path.GetFileNameWithoutExtension(zipName) + "_翻译.txt"
                         : null;
-
                     var context = new ProjectContext(baseFolder, txtName, zipName);
 
-                    LoadProjectData(context, images, isCreateMode
-                        ? $"正在为压缩包【{zipName}】创建翻译"
-                        : $"正在预览压缩包：{zipName}");
-                    if (isCreateMode) DoSave(context.TxtPath); // 新建模式下立即保存
+                    LoadProjectData(
+                        context,
+                        images,
+                        isCreateMode
+                            ? $"正在为压缩包【{zipName}】创建翻译"
+                            : $"正在预览压缩包：{zipName}"
+                    );
+                    if (isCreateMode)
+                        DoSave(context.TxtPath);
                 }
                 catch (Exception ex)
                 {
@@ -413,29 +571,35 @@ namespace LabelMinusinWPF
                 return;
             }
 
-            // --- 4. 处理文件夹 ---
+            // --- 4. 文件夹 ---
             if (Directory.Exists(firstPath))
             {
-                // 扫描文件夹
                 var images = ProjectService.ScanFolder(firstPath);
-
-                // 新建模式默认叫 "新建翻译.txt"，预览模式 null
                 string? txtName = isCreateMode ? "新建翻译.txt" : null;
-
                 var context = new ProjectContext(firstPath, txtName, null);
 
-                LoadProjectData(context, images, isCreateMode
-                    ? $"正在为文件夹【{firstPath}】创建翻译"
-                    : $"正在预览文件夹：{firstPath}");
-                if (isCreateMode) DoSave(context.TxtPath); // 新建模式下立即保存
-                return;
+                LoadProjectData(
+                    context,
+                    images,
+                    isCreateMode
+                        ? $"正在为文件夹【{firstPath}】创建翻译"
+                        : $"正在预览文件夹：{firstPath}"
+                );
+                if (isCreateMode)
+                    DoSave(context.TxtPath);
             }
         }
+
+        /// <summary>
+        /// 执行保存：将当前图片列表导出为翻译文本并写入文件
+        /// </summary>
+        /// <param name="targetPath">保存路径，为 null 时弹出另存为对话框</param>
         private void DoSave(string? targetPath)
         {
-            if (ImageList.Count == 0) return;
+            if (ImageList.Count == 0)
+                return;
 
-            // 如果没有目标路径（新建模式 或 另存为），则请求路径
+            // 无目标路径时弹出保存对话框
             if (string.IsNullOrEmpty(targetPath))
             {
                 string defaultName = CurrentProject.IsArchiveMode
@@ -443,24 +607,25 @@ namespace LabelMinusinWPF
                     : "新建翻译.txt";
 
                 targetPath = DialogService.SaveFile("文本文件|*.txt", defaultName);
-                if (string.IsNullOrEmpty(targetPath)) return; // 用户取消
+                if (string.IsNullOrEmpty(targetPath))
+                    return;
             }
 
             try
             {
                 string outputText = Modules.LabelsToText(
-                                    ImageList, // 直接传集合
-                                    CurrentProject.ZipName,
-                                    ExportMode.Current
-                                );
+                    ImageList,
+                    CurrentProject.ZipName,
+                    ExportMode.Current
+                );
                 File.WriteAllText(targetPath, outputText);
 
-                // 2. 保存成功后，更新当前上下文（比如从“新建”变成了“具体文件”）
-                string newFolder = Path.GetDirectoryName(targetPath)!;
-                string newTxtName = Path.GetFileName(targetPath);
-
-                // Record 是不可变的，所以用 with 或者 new 创建新实例
-                CurrentProject = new ProjectContext(newFolder, newTxtName, CurrentProject.ZipName);
+                // 保存成功后更新上下文（record 不可变，需创建新实例）
+                CurrentProject = new ProjectContext(
+                    Path.GetDirectoryName(targetPath)!,
+                    Path.GetFileName(targetPath),
+                    CurrentProject.ZipName
+                );
 
                 MainMessageQueue.Enqueue($"已保存翻译到 {targetPath}");
             }
@@ -470,39 +635,6 @@ namespace LabelMinusinWPF
             }
         }
         #endregion
-
-        public class DialogService
-        {
-            public static string? OpenFolder(string description)
-            {
-                // .NET Core 3.0+ / .NET 5+ 推荐使用 OpenFolderDialog
-                var dialog = new OpenFolderDialog { Title = description };
-                return dialog.ShowDialog() == true ? dialog.FolderName : null;
-            }
-
-            public static string[]? OpenFiles(string filter, string description)
-            {
-                var dialog = new OpenFileDialog { Filter = filter, Multiselect = true ,Title = description };
-                return dialog.ShowDialog() == true ? dialog.FileNames : null;
-            }
-
-            public static string? OpenFile(string filter, string description, bool multiselect = false)
-            {
-                var dialog = new OpenFileDialog { Filter = filter, Multiselect = multiselect , Title = description };
-                return dialog.ShowDialog() == true ? dialog.FileName : null;
-            }
-
-            public static string? SaveFile(string filter, string defaultName)
-            {
-                var dialog = new SaveFileDialog { Filter = filter, FileName = defaultName };
-                return dialog.ShowDialog() == true ? dialog.FileName : null;
-            }
-
-            public static void ShowMessage(string message, bool isError)
-            {
-                MessageBox.Show(message, isError ? "错误" : "提示", MessageBoxButton.OK, isError ? MessageBoxImage.Error : MessageBoxImage.Information);
-            }
-        }
     }
     #endregion
 }

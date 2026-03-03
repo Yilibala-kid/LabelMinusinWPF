@@ -2,8 +2,9 @@
 using MahApps.Metro.Controls;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Windows.Media.Imaging;
 using System.Windows;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 
 namespace LabelMinusinWPF
@@ -37,6 +38,12 @@ namespace LabelMinusinWPF
         private bool _isDeleted = false;
 
         [ObservableProperty] private string _originalText = "";
+
+        /// <summary>当前标签是否被选中</summary>
+        [ObservableProperty] private bool _isSelected;
+
+        /// <summary>组别对应的画刷颜色（由 ViewModel 同步）</summary>
+        [ObservableProperty] private SolidColorBrush _groupBrush = Brushes.Red;
 
         private bool _isModified = false;
         public bool IsModified => _isModified || IsDeleted;

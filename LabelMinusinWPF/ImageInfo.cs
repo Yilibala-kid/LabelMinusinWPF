@@ -26,6 +26,8 @@ namespace LabelMinusinWPF
         public string ImageName => ZipEntryName ?? Path.GetFileName(ImagePath);
         // 图片包含的标签
         public BindingList<ImageLabel> Labels { get; } = [];
+        /// <summary>新建标签时使用的默认组别（由 MainViewModel 同步）</summary>
+        public string ActiveGroup { get; set; } = "框内";
         // 只读属性：获取未删除的标签列表
         public BindingList<ImageLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];
         // 当前选中的标注
@@ -160,6 +162,8 @@ namespace LabelMinusinWPF
         partial void OnSelectedLabelChanging(ImageLabel? value)
         {
             TryCommitCurrentSnapshot();
+            // 取消旧标签的选中状态
+            if (SelectedLabel != null) SelectedLabel.IsSelected = false;
         }
 
         // 当 SelectedLabel 改变完成后调用
@@ -167,6 +171,7 @@ namespace LabelMinusinWPF
         {
             if (value != null)
             {
+                value.IsSelected = true;
                 // 记录进入编辑状态时的初始快照
                 _labelSnapshot = new LabelSnapshot(value);
             }
@@ -197,6 +202,7 @@ namespace LabelMinusinWPF
             {
                 Index = nextIndex,
                 Text = "新标签",
+                Group = ActiveGroup,
                 Position = pos ?? new Point(0.5, 0.5)
             };
             History.Execute(new AddCommand(Labels, newLabel));

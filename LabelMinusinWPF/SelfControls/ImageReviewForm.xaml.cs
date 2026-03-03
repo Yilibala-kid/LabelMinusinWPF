@@ -350,9 +350,31 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-        public event EventHandler ExitClicked=delegate { };
-        private void ExitBtn_Click(object sender, RoutedEventArgs e) => ExitClicked?.Invoke(this, EventArgs.Empty);
 
+        #region 打开关闭图校
+        // 定义 IsOpen 依赖属性
+        public static readonly DependencyProperty IsOpenProperty =
+            DependencyProperty.Register("IsOpen", typeof(bool), typeof(ImageReView),
+                new PropertyMetadata(false, OnIsOpenChanged));
+
+        public bool IsOpen
+        {
+            get { return (bool)GetValue(IsOpenProperty); }
+            set { SetValue(IsOpenProperty, value); }
+        }
+
+        // IsOpen 发生变化时，自动控制自身的 Visibility
+        private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            var control = (ImageReView)d;
+            bool isOpen = (bool)e.NewValue;
+            control.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+        }
+        private void ExitBtn_Click(object sender, RoutedEventArgs e)
+        {
+            this.IsOpen = false;
+        }
+        #endregion
 
         private void TempChangePic_Click(bool isLeft)
         {
@@ -458,30 +480,6 @@ namespace LabelMinusinWPF
                 // 如果不是文件（比如拖的一段文字），显示“禁止”
                 e.Effects = DragDropEffects.None;
             }
-        }
-        #endregion
-
-        #region 黑白模式
-        private static void ToggleDarkMode(bool isDark)
-        {
-            var paletteHelper = new PaletteHelper();
-            // 显式指定 MaterialDesignThemes.Wpf.ITheme 以防冲突
-            var theme = paletteHelper.GetTheme();
-
-            // 修改基础主题
-            theme.SetBaseTheme(isDark ? BaseTheme.Dark : BaseTheme.Light);
-
-            // 重新应用
-            paletteHelper.SetTheme(theme);
-        }
-        private void DarkMode_Checked(object sender, RoutedEventArgs e)
-        {
-            ToggleDarkMode(true);
-        }
-
-        private void DarkMode_Unchecked(object sender, RoutedEventArgs e)
-        {
-            ToggleDarkMode(false);
         }
         #endregion
     }

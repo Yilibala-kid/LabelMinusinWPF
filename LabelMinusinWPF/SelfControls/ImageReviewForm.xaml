@@ -164,20 +164,7 @@
                         </materialDesign:PopupBox>
 
                     </StackPanel>
-                    <StackPanel Margin="0,0,10,0" HorizontalAlignment="Right">
-                        <ToggleButton
-                            Width="40"
-                            VerticalAlignment="Center"
-                            Cursor="Hand"
-                            ToolTip="切换深色模式"
-                            Checked="DarkMode_Checked"
-                            Unchecked="DarkMode_Unchecked">
-                            <materialDesign:ToggleButtonAssist.OnContent>
-                                <materialDesign:PackIcon Kind="WeatherNight" />
-                            </materialDesign:ToggleButtonAssist.OnContent>
-                            <materialDesign:PackIcon Kind="WeatherSunny" />
-                        </ToggleButton>
-                    </StackPanel>
+                    <StackPanel Margin="0,0,10,0" HorizontalAlignment="Right" />
                 </Grid>
             </materialDesign:DrawerHost.TopDrawerContent>
             <!-- 图片对比区域 -->
@@ -284,7 +271,7 @@
                 <materialDesign:Snackbar x:Name="MessageShow2" Grid.Column="2" MessageQueue="{Binding RightImageVM.MainMessageQueue}" />
             </Grid>
         </materialDesign:DrawerHost>
-        <Grid Grid.Row="2" Margin="5">
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -369,8 +356,6 @@
                     x:Name="ExitBtn"
                     HorizontalAlignment="Left"
                     Style="{StaticResource IconButtonStyle}"
-                    Background="PaleVioletRed"
-                    Foreground="White"
                     Tag="Close"
                     Content=""
                     ToolTip="不会清空当前图片"

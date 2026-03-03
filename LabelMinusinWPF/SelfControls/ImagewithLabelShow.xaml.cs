@@ -1,21 +1,12 @@
 ﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Dynamic;
 using System.Globalization;
-using System.Reflection.Emit;
-using System.Text;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using MahApps.Metro.Controls;
 
 namespace LabelMinusinWPF
 {
@@ -73,87 +64,124 @@ namespace LabelMinusinWPF
             _draggingLabel = null;
         }
 
-        private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)// 鼠标滚轮缩放
+        private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            // 1. 获取缩放比例
-            double zoomFactor = e.Delta > 0 ? 1.1 : 0.9;
+            // --- 新增逻辑：锁定状态下的平移处理 ---
+            // 如果横向或纵向被锁定，滚轮将变为平移操作
+            if (IsXLocked || IsYLocked)
+            {
+                double scrollSpeed = 0.5; // 平移速度系数，可根据手感调整
+                double delta = e.Delta * scrollSpeed;
 
-            // 2. 获取当前状态（从依赖属性取，而不是从 Transform 对象取）
+                if (IsXLocked && !IsYLocked)
+                {
+                    // 锁定横向时，滚轮控制纵向平移
+                    this.OffsetY += delta;
+                }
+                else if (IsYLocked && !IsXLocked)
+                {
+                    // 锁定纵向时，滚轮控制横向平移
+                    this.OffsetX += delta;
+                }
+                // 如果两者都锁定，你可以选择不操作，或者默认移动纵向
+
+                e.Handled = true;
+                return; // 跳过下方的缩放逻辑
+            }
+
+            // --- 原有的缩放逻辑 ---
+            double zoomFactor = e.Delta > 0 ? 1.1 : 0.9;
             double oldScale = this.ZoomScale;
             double newScale = oldScale * zoomFactor;
 
-            // 限制缩放范围，防止缩到看不见或者内存爆炸
             if (newScale < 0.1 || newScale > 30) return;
 
-            // 3. 计算“以鼠标为中心”的位移补偿
-            // 我们需要知道鼠标相对于 ViewportGrid（容器）的位置
             Point mouseInViewport = e.GetPosition(ViewportGrid);
 
-            // 计算鼠标点相对于内容原点的“原始像素”坐标
-            // 公式：原始坐标 = (当前屏幕坐标 - 当前偏移) / 当前缩放
+            // 计算缩放中心点补偿
             double absX = (mouseInViewport.X - this.OffsetX) / oldScale;
             double absY = (mouseInViewport.Y - this.OffsetY) / oldScale;
 
-            // 4. 更新依赖属性
-            // 先改缩放
             this.ZoomScale = newScale;
 
-            // 再更新位移：新位移 = 鼠标坐标 - (原始坐标 * 新缩放)
-            // 这样可以确保原始坐标那个点在缩放后依然重合在鼠标坐标上
             this.OffsetX = mouseInViewport.X - (absX * newScale);
             this.OffsetY = mouseInViewport.Y - (absY * newScale);
 
-            // 这一步非常重要：标记事件已处理，防止外层滚动条跟着动
             e.Handled = true;
         }
         #endregion
 
-
         #region 第二层：处理标签移动
         private void LabelItemsControl_MouseMove(object sender, MouseEventArgs e)
         {
-            // 如果没有捕获鼠标，什么都不做
-            if (!LabelItemsControl.IsMouseCaptured) return;
+            // 如果没捕获鼠标或没有拖拽对象，直接返回
+            if (!LabelItemsControl.IsMouseCaptured || _draggingLabel == null) return;
 
-            var currentPos = e.GetPosition(LabelItemsControl);
+            Point currentPos = e.GetPosition(LabelItemsControl);
 
-            // 正在拖拽标签
-            if (_draggingLabel != null)
+            // 【位移判定】只有当鼠标移动距离超过系统阈值（默认约4像素）时，才认为是在“拖拽”
+            if (!_isRealDragging)
             {
-                Point posInImage = e.GetPosition(TargetImage);
+                double diffX = Math.Abs(currentPos.X - _dragStartPoint.X);
+                double diffY = Math.Abs(currentPos.Y - _dragStartPoint.Y);
+
+                if (diffX > SystemParameters.MinimumHorizontalDragDistance ||
+                    diffY > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    _isRealDragging = true;
+                }
+            }
+
+            // 执行拖拽逻辑
+            if (_isRealDragging)
+            {
+                Point mousePosInImage = e.GetPosition(TargetImage);
 
                 if (TargetImage.ActualWidth > 0 && TargetImage.ActualHeight > 0)
                 {
-                    _draggingLabel.X = posInImage.X / TargetImage.ActualWidth;
-                    _draggingLabel.Y = posInImage.Y / TargetImage.ActualHeight;
+                    // 直接计算比例坐标 (0.0 到 1.0)
+                    double newX = mousePosInImage.X / TargetImage.ActualWidth;
+                    double newY = mousePosInImage.Y / TargetImage.ActualHeight;
+
+                    // 限制在图片内部，防止标签被拖没影了
+                    _draggingLabel.X = Math.Clamp(newX, 0, 1);
+                    _draggingLabel.Y = Math.Clamp(newY, 0, 1);
                 }
             }
-            _lastMousePosition = currentPos;
-            e.Handled = true; // 阻止事件冒泡，防止 ViewportGrid 误认为是拖动空白处
+
+            e.Handled = true;
         }
         private void LabelItemsControl_MouseLeftUp(object sender, MouseButtonEventArgs e)
         {
+            if (LabelItemsControl.IsMouseCaptured)
+            {
+                LabelItemsControl.ReleaseMouseCapture();
+            }
 
-            LabelItemsControl.ReleaseMouseCapture();
             _draggingLabel = null;
+            _isRealDragging = false;
             e.Handled = true;
         }
         #endregion
 
         #region 第三层(上)：标签选中与删除
         private ImageLabel? _draggingLabel; // 当前拖动的标签，非空即代表正在拖拽标签
+        private Point _dragStartPoint;      // 鼠标按下的起始点（用于判定位移）
+        private bool _isRealDragging;       // 是否真正开始移动的标志
         private void LabelNode_LeftMouseDown(object sender, MouseButtonEventArgs e)
         {
             if (sender is FrameworkElement elm && elm.DataContext is ImageLabel label && ShowingImage != null)
             {
-                _draggingLabel = label;
-
+                // 1. 正常选中
                 ShowingImage.SelectedLabel = label;
 
+                // 2. 准备拖拽信息
+                _draggingLabel = label;
+                _dragStartPoint = e.GetPosition(LabelItemsControl); // 以容器为基准记录起点
+                _isRealDragging = false;
+
+                // 3. 强制捕获鼠标，确保鼠标移出标签范围也能继续拖动
                 LabelItemsControl.CaptureMouse();
-
-                _lastMousePosition = e.GetPosition(ViewportGrid);
-
                 e.Handled = true;
             }
         }
@@ -192,38 +220,10 @@ namespace LabelMinusinWPF
 
         #endregion
 
-        #region 第三层(下)：文本框编辑相关
+        #region 第三层(下)：文本点击
         private void LabelText_MouseLeftDown(object sender, MouseButtonEventArgs e)
         {
-            // 双击判定
-            if (e.ClickCount == 2)
-            {
-                var border = sender as Border;
-                var grid = border?.Parent as Grid;
-
-                // 在 DataTemplate 内部查找对应的 TextBox
-                // 如果你用了 x:Name，也可以通过 grid.FindName 查找
-                var textBox = grid?.Children.OfType<TextBox>().FirstOrDefault();
-
-                if (border != null && textBox != null)
-                {
-                    border.Visibility = Visibility.Collapsed;
-                    textBox.Visibility = Visibility.Visible;
-
-                    // 必须延迟一点点 Focus，确保控件已渲染
-                    textBox.Focus();
-                    textBox.SelectAll();
-                }
-            }
             e.Handled = true; // 阻止冒泡到 Canvas 触发新建标签
-        }
-        private void LabelEdit_KeyDown(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.Escape || (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control))
-            {
-                // 强制让父容器获取焦点，从而触发 TextBox 的 LostFocus 事件
-                ViewportGrid.Focus();
-            }
         }
         #endregion
 
@@ -456,6 +456,34 @@ namespace LabelMinusinWPF
                 new PropertyMetadata(true)
             );
 
+        // --- 标签点样式（外部可自定义） ---
+        public Style LabelDotStyle
+        {
+            get => (Style)GetValue(LabelDotStyleProperty);
+            set => SetValue(LabelDotStyleProperty, value);
+        }
+        public static readonly DependencyProperty LabelDotStyleProperty =
+            DependencyProperty.Register(
+                nameof(LabelDotStyle),
+                typeof(Style),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(null)
+            );
+
+        // --- 标签文字样式（外部可自定义） ---
+        public Style LabelTextStyle
+        {
+            get => (Style)GetValue(LabelTextStyleProperty);
+            set => SetValue(LabelTextStyleProperty, value);
+        }
+        public static readonly DependencyProperty LabelTextStyleProperty =
+            DependencyProperty.Register(
+                nameof(LabelTextStyle),
+                typeof(Style),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(null)
+            );
+
         #endregion
     }
 
@@ -490,6 +518,17 @@ namespace LabelMinusinWPF
             object parameter,
             CultureInfo culture
         ) => null;
+    }
+    #endregion
+
+    #region 多布尔值转 Visibility
+    public class AllBoolToVisibilityConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+            => values.All(v => v is true) ? Visibility.Visible : Visibility.Collapsed;
+
+        public object[]? ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => null;
     }
     #endregion
 }

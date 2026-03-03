@@ -1,4 +1,5 @@
-﻿using SharpCompress.Archives;
+using Microsoft.Win32;
+using SharpCompress.Archives;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -10,59 +11,64 @@ using System.Windows;
 
 namespace LabelMinusinWPF
 {
+    /// <summary>
+    /// 核心模块：LabelPlus 格式的文本解析与导出
+    /// </summary>
     internal class Modules
     {
         #region LabelPlus文本处理
-        public static Dictionary<string, ImageInfo> ParseTextToLabels(string content, out string? sourceName)//文本解析
+
+        // 预编译正则（static readonly 保证只编译一次）
+        private static readonly Regex ImgRegex = new(@">>>>>>>>\[(.*?)\]<<<<<<<<", RegexOptions.Compiled);
+        private static readonly Regex MetaRegex = new(@"----------------\[(\d+)\]----------------\[([\d\.]+),([\d\.]+),(\d+)\]", RegexOptions.Compiled);
+
+        /// <summary>
+        /// 将 LabelPlus 格式的文本解析为 图片名→ImageInfo 字典
+        /// </summary>
+        /// <param name="content">文本内容</param>
+        /// <param name="sourceName">输出：关联的压缩包文件名（如果有）</param>
+        public static Dictionary<string, ImageInfo> ParseTextToLabels(string content, out string? sourceName)
         {
             sourceName = null;
             var database = new Dictionary<string, ImageInfo>();
-            var groupList = new List<string>(); // 存储从文件头读取到的动态分组
+            var groupList = new List<string>(); // 从文件头读取的动态分组
 
-            // 使用预编译正则，提高性能
-            var imgRegex = new Regex(@">>>>>>>>\[(.*?)\]<<<<<<<<", RegexOptions.Compiled);
-            var metaRegex = new Regex(@"----------------\[(\d+)\]----------------\[([\d\.]+),([\d\.]+),(\d+)\]", RegexOptions.Compiled);
-
-            string[] lines = content.Split(["\r\n", "\r", "\n" ], StringSplitOptions.None);
+            string[] lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
             string? currentImgName = null;
             ImageLabel? currentLabel = null;
-            int hyphenCount = 0; // 用于追踪我们处理到了第几个 "-" 分隔符
+            int hyphenCount = 0; // 追踪 "-" 分隔符出现次数，用于区分文件头各段
 
             foreach (string rawLine in lines)
             {
                 string line = rawLine.Trim();
                 if (string.IsNullOrEmpty(line)) continue;
-                // 1. 处理文件头分组
+
+                // 1. 文件头：用 "-" 分隔的段落
                 if (line == "-") { hyphenCount++; continue; }
                 if (hyphenCount == 1) { groupList.Add(line); continue; }
-                if (hyphenCount == 2 && currentImgName == null)// 在第二个 "-" 之后，图片标记出现之前，寻找路径信息
+
+                // 2. 第二个 "-" 之后、首个图片标记之前：提取关联文件信息
+                if (hyphenCount == 2 && currentImgName == null && line.StartsWith("关联文件:"))
                 {
-                    if (line.StartsWith("关联文件:"))
-                    {
-                        var path = line.Replace("关联文件:", "").Trim();
-                        sourceName = string.IsNullOrEmpty(path) ? null : path;
-                    }
+                    var path = line.Replace("关联文件:", "").Trim();
+                    sourceName = string.IsNullOrEmpty(path) ? null : path;
+                    continue;
                 }
-                // 2. 识别图片
-                var imgMatch = imgRegex.Match(line);
+
+                // 3. 图片标记行：>>>>>>>>[ imageName ]<<<<<<<<
+                var imgMatch = ImgRegex.Match(line);
                 if (imgMatch.Success)
                 {
                     currentImgName = imgMatch.Groups[1].Value;
-
-                    // 这里非常关键：ImageInfo 现在依赖 ImagePath！
-                    // 我们先创建一个临时的 ImageInfo，ImagePath 稍后在 ViewModel 里根据 BaseFolderPath 补全
                     database[currentImgName] = new ImageInfo { ImagePath = currentImgName };
                     currentLabel = null;
                     continue;
                 }
 
-                // --- 3. 识别标注元数据行 ---
-                var metaMatch = metaRegex.Match(line);
+                // 4. 标注元数据行：----------------[index]----------------[x,y,group]
+                var metaMatch = MetaRegex.Match(line);
                 if (metaMatch.Success && currentImgName != null)
                 {
-                    // 在处理新 Label 前，锁定上一个 Label 的原文
-                    currentLabel?.LoadBaseContent(currentLabel.Text);
-
                     int groupIdx = int.Parse(metaMatch.Groups[4].Value);
                     string groupName = (groupIdx > 0 && groupIdx <= groupList.Count)
                                        ? groupList[groupIdx - 1]
@@ -73,14 +79,13 @@ namespace LabelMinusinWPF
                         Index = int.Parse(metaMatch.Groups[1].Value),
                         Position = new Point(float.Parse(metaMatch.Groups[2].Value), float.Parse(metaMatch.Groups[3].Value)),
                         Group = groupName,
-                        Text = "" // 暂时为空，等待下方读取文本行
+                        Text = ""
                     };
                     database[currentImgName].Labels.Add(currentLabel);
                     continue;
                 }
 
-                // --- 4. 识别标注文本内容 ---
-                // 排除掉干扰行（如头部信息和分隔符）
+                // 5. 标注文本内容（多行累加）
                 if (currentLabel != null && hyphenCount >= 2)
                 {
                     currentLabel.Text = string.IsNullOrEmpty(currentLabel.Text)
@@ -88,68 +93,67 @@ namespace LabelMinusinWPF
                                         : currentLabel.Text + Environment.NewLine + line;
                 }
             }
+
+            // 解析完毕后，将当前 Text 锁定为 OriginalText
             foreach (var img in database.Values)
-            {
                 foreach (var lbl in img.Labels)
-                {
-                    // 将当前读到的 Text 正式转为 OriginalText，并重置 IsModified
                     lbl.LoadBaseContent(lbl.Text);
-                }
-            }
 
             return database;
         }
-        public enum ExportMode { Original, Current, Diff }
-        public static string LabelsToText(IEnumerable<ImageInfo> images, string? sourceName, ExportMode mode = ExportMode.Current)//文本导出
-        {
-            System.Text.StringBuilder sb = new();
 
+        public enum ExportMode { Original, Current, Diff }
+
+        /// <summary>
+        /// 将图片列表导出为 LabelPlus 格式文本
+        /// </summary>
+        /// <param name="images">图片集合</param>
+        /// <param name="sourceName">关联文件名（压缩包名），可为 null</param>
+        /// <param name="mode">导出模式：Original/Current/Diff</param>
+        public static string LabelsToText(IEnumerable<ImageInfo> images, string? sourceName, ExportMode mode = ExportMode.Current)
+        {
             var imageList = images.ToList();
             if (imageList.Count == 0) return string.Empty;
 
-            // --- 1. 获取分组映射 (保持原逻辑) ---
-            var allGroups = images
+            var sb = new StringBuilder();
+
+            // --- 1. 收集所有分组并建立 分组名→ID 映射 ---
+            var allGroups = imageList
                     .SelectMany(img => img.Labels)
                     .Select(l => l.Group).Distinct()
-                    .OrderBy(g => g == "框内" ? 0 : (g == "框外" ? 1 : 2)).ThenBy(g => g).ToList();
+                    .OrderBy(g => g == "框内" ? 0 : (g == "框外" ? 1 : 2))
+                    .ThenBy(g => g).ToList();
+
             if (allGroups.Count == 0) { allGroups.Add("框内"); allGroups.Add("框外"); }
-            var groupToIdMap = allGroups.Select((g, i) => new { g, id = i + 1 }).ToDictionary(x => x.g, x => x.id);
-            // 写入头部
+
+            var groupToIdMap = allGroups
+                .Select((g, i) => (Name: g, Id: i + 1))
+                .ToDictionary(x => x.Name, x => x.Id);
+
+            // --- 写入文件头 ---
             sb.AppendLine("1,0\n-\n" + string.Join("\n", allGroups) + "\n-\n");
-            sb.AppendLine($"关联文件:{sourceName}");// 如果 sourcePath 为空，则置空，否则写入路径
+            sb.AppendLine($"关联文件:{sourceName}");
             sb.AppendLine($"最后修改时间:{DateTime.Now:yyyy-MM-dd HH:mm:ss}\n");
+
             // --- 2. 遍历图片 ---
             foreach (var imageInfo in imageList.OrderBy(img => img.ImageName))
             {
-                bool shouldExportImage = true;
+                // Diff 模式：跳过无变动的图片
+                if (mode == ExportMode.Diff && !imageInfo.Labels.Any(l => l.IsModified))
+                    continue;
 
-                if (mode == ExportMode.Diff)
-                {
-                    shouldExportImage = imageInfo.Labels.Any(l => l.IsModified);
-                }
-
-                if (!shouldExportImage) continue;
-
-                string pureName = System.IO.Path.GetFileName(imageInfo.ImagePath ?? imageInfo.ImageName);
+                string pureName = Path.GetFileName(imageInfo.ImagePath ?? imageInfo.ImageName);
                 sb.AppendLine($">>>>>>>>[{pureName}]<<<<<<<<");
 
                 // --- 3. 遍历标注 ---
                 foreach (var label in imageInfo.Labels.OrderBy(l => l.Index))
                 {
-                    // --- 核心修改：根据模式过滤标签 ---
-                    if (mode == ExportMode.Diff)
-                    {
-                        // Diff 模式：只导出有变动的（包括已删除的和内容修改的）
-                        if (!label.IsModified) continue;
-                    }
-                    else
-                    {
-                        // 普通模式 (Current/Original)：绝对不导出已删除的标签
-                        if (label.IsDeleted) continue;
-                    }
+                    // 根据模式过滤标签
+                    if (mode == ExportMode.Diff && !label.IsModified) continue;
+                    if (mode != ExportMode.Diff && label.IsDeleted) continue;
 
-                    // 写入坐标和组信息
-                    int groupValue = groupToIdMap.ContainsKey(label.Group) ? groupToIdMap[label.Group] : 1;
+                    // 写入坐标和组信息（查不到分组时默认为 1）
+                    int groupValue = groupToIdMap.GetValueOrDefault(label.Group, 1);
                     sb.AppendLine($"----------------[{label.Index}]----------------[{label.X:F3},{label.Y:F3},{groupValue}]");
 
                     // --- 4. 写入文本内容 ---
@@ -173,7 +177,6 @@ namespace LabelMinusinWPF
                     }
                     else
                     {
-                        // Current 模式写 Text，Original 模式写 OriginalText
                         sb.AppendLine(mode == ExportMode.Original ? label.OriginalText : label.Text);
                     }
                     sb.AppendLine();
@@ -184,10 +187,18 @@ namespace LabelMinusinWPF
         }
         #endregion
     }
+
+    /// <summary>
+    /// 压缩包操作辅助类：图片路径提取、文件解压缓存、相邻图片预加载
+    /// </summary>
     public class ArchiveHelper
     {
-        // 定义支持的图片后缀
-        private static readonly HashSet<string> imageExtensions = [".jpg", ".jpeg", ".png", ".bmp", ".webp"];
+        /// <summary>支持的图片后缀（不区分大小写）</summary>
+        private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+            { ".jpg", ".jpeg", ".png", ".bmp", ".webp" };
+
+        /// <summary>解压缓存目录（位于 exe 同级 ArchiveTemp 文件夹下）</summary>
+        private static readonly string TempFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ArchiveTemp");
 
         /// <summary>
         /// 获取压缩包内所有图片的路径列表
@@ -196,169 +207,104 @@ namespace LabelMinusinWPF
         {
             var fullPaths = new List<string>();
 
-            using (var archive = ArchiveFactory.OpenArchive(File.OpenRead(archivePath)))
+            using var archive = ArchiveFactory.OpenArchive(archivePath);
+            foreach (var entry in archive.Entries)
             {
-                foreach (var entry in archive.Entries)
+                if (!entry.IsDirectory && ImageExtensions.Contains(Path.GetExtension(entry.Key)))
                 {
-                    // 检查是否为图片且不是目录
-                    if (!entry.IsDirectory && imageExtensions.Contains(Path.GetExtension(entry.Key).ToLower()))
-                    {
-                        // 3. 将压缩包内的 Key 转换为本地物理路径
-                        // entry.Key 可能是 "subfolder/1.jpg"，Path.Combine 会自动处理斜杠
-                        string physicalPath = Path.GetFullPath(Path.Combine(archivePath, entry.Key));
-                        fullPaths.Add(physicalPath);
-                    }
+                    string physicalPath = Path.GetFullPath(Path.Combine(archivePath, entry.Key));
+                    fullPaths.Add(physicalPath);
                 }
             }
             return fullPaths;
         }
-        // 获取 .exe 下的 ArchiveTemp 文件夹路径
-        private static readonly string TempFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ArchiveTemp");
 
+        /// <summary>
+        /// 从压缩包中提取指定文件为 byte[]（带磁盘缓存）
+        /// </summary>
         public static byte[]? ExtractFileToBytes(string archivePath, string fileName)
         {
             if (string.IsNullOrEmpty(archivePath) || string.IsNullOrEmpty(fileName)) return null;
 
-            // 为防止不同压缩包有同名文件导致冲突，建议在 Temp 下建立以压缩包名命名的子文件夹
+            // 以压缩包名建子文件夹，防止不同压缩包同名文件冲突
             string archiveName = Path.GetFileNameWithoutExtension(archivePath);
             string targetDir = Path.Combine(TempFolderPath, archiveName);
             string targetFilePath = Path.Combine(targetDir, fileName);
 
             try
             {
-                // 1. 检查物理缓存：如果文件已存在，直接读取
+                // 命中磁盘缓存，直接返回
                 if (File.Exists(targetFilePath))
-                {
                     return File.ReadAllBytes(targetFilePath);
-                }
 
-                // 2. 物理缓存不存在，执行解压
-                if (!Directory.Exists(targetDir)) Directory.CreateDirectory(targetDir);
+                // 缓存未命中，执行解压
+                Directory.CreateDirectory(targetDir);
 
                 using var archive = ArchiveFactory.OpenArchive(archivePath);
-
                 var entry = archive.Entries.FirstOrDefault(e =>
                     e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
                     e.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase));
 
                 if (entry != null && !entry.IsDirectory)
                 {
-                    // 解压并保存到磁盘
+                    // 先写入临时文件再重命名，确保 ReadAllBytes 不会读到未写完的文件
                     using (var fs = new FileStream(targetFilePath, FileMode.Create, FileAccess.Write))
                     {
                         entry.WriteTo(fs);
                     }
-                    // 注意：这里保留 fs 的块是为了确保 File.ReadAllBytes 执行前文件已关闭并释放
-
                     return File.ReadAllBytes(targetFilePath);
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"缓存读取或解压失败: {ex.Message}");
+                Debug.WriteLine($"缓存读取或解压失败: {ex.Message}");
             }
 
             return null;
         }
-        // 异步预加载相邻图片
-        public static async Task PrefetchNeighbors(string archivePath, List<string> allFileNames, int currentIndex)
-        {
-            // 定义预加载范围，比如前后各 1 张
-            int[] offsets = [1, -1, 2, -2];
-
-            await Task.Run(() =>
-            {
-                string archiveName = Path.GetFileNameWithoutExtension(archivePath);
-                string targetDir = Path.Combine(TempFolderPath, archiveName);
-
-                // 找出真正需要解压的文件名（过滤掉已经在磁盘上的）
-                var pendingFiles = offsets
-                    .Select(o => currentIndex + o)
-                    .Where(i => i >= 0 && i < allFileNames.Count)
-                    .Select(i => allFileNames[i])
-                    .Where(name => !File.Exists(Path.Combine(targetDir, name)))
-                    .ToList();
-
-                if (pendingFiles.Count == 0) return;
-
-                try
-                {
-                    // --- 关键优化：只打开一次压缩包 ---
-                    using var archive = ArchiveFactory.OpenArchive(archivePath);
-                    foreach (var fileName in pendingFiles)
-                    {
-                        var entry = archive.Entries.FirstOrDefault(e =>
-                            e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
-                            e.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase));
-
-                        if (entry != null && !entry.IsDirectory)
-                        {
-                            string targetFilePath = Path.Combine(targetDir, fileName);
-                            Directory.CreateDirectory(targetDir);
-
-                            // 使用临时扩展名防止其他线程误读未写完的文件
-                            string tempFile = targetFilePath + ".tmp";
-                            using (var fs = new FileStream(tempFile, FileMode.Create, FileAccess.Write))
-                            {
-                                entry.WriteTo(fs);
-                            }
-                            if (File.Exists(targetFilePath)) File.Delete(targetFilePath);
-                            File.Move(tempFile, targetFilePath);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"预加载批量解压失败: {ex.Message}");
-                }
-            });
-        }
+        
     }
 
     #region 撤销重做功能
-    // 命令接口
+
+    /// <summary>撤销/重做命令接口</summary>
     public interface IUndoCommand
     {
         void Execute();
         void Undo();
     }
 
+    /// <summary>撤销重做管理器：维护两个栈实现无限撤销/重做</summary>
     public class UndoRedoManager
     {
         private readonly Stack<IUndoCommand> _undoStack = new();
         private readonly Stack<IUndoCommand> _redoStack = new();
 
-        // 暴露状态
         public bool CanUndo => _undoStack.Count > 0;
         public bool CanRedo => _redoStack.Count > 0;
-        // 执行新命令
+
+        /// <summary>执行命令并压入撤销栈（清空重做栈）</summary>
         public void Execute(IUndoCommand command)
         {
             command.Execute();
             _undoStack.Push(command);
-            _redoStack.Clear(); // 执行新操作后，清空重做栈
+            _redoStack.Clear();
         }
 
-        // 撤销
         public void Undo()
         {
-            if (_undoStack.Count > 0)
-            {
-                var command = _undoStack.Pop();
-                command.Undo();
-                _redoStack.Push(command);
-            }
+            if (!CanUndo) return;
+            var command = _undoStack.Pop();
+            command.Undo();
+            _redoStack.Push(command);
         }
 
-        // 重做
         public void Redo()
         {
-            if (_redoStack.Count > 0)
-            {
-                var command = _redoStack.Pop();
-                command.Execute();
-                _undoStack.Push(command);
-            }
+            if (!CanRedo) return;
+            var command = _redoStack.Pop();
+            command.Execute();
+            _undoStack.Push(command);
         }
 
         public void Clear()
@@ -368,22 +314,21 @@ namespace LabelMinusinWPF
         }
     }
 
-
-    // 1. 新增命令
+    /// <summary>新增标注命令</summary>
     public class AddCommand(BindingList<ImageLabel> list, ImageLabel label) : IUndoCommand
     {
-        public void Execute() { label.IsDeleted = false; list.Add(label);}
-        public void Undo() { label.IsDeleted = true; list.Remove(label);}
+        public void Execute() { label.IsDeleted = false; list.Add(label); }
+        public void Undo() { label.IsDeleted = true; list.Remove(label); }
     }
 
-    // 2. 删除命令
+    /// <summary>删除标注命令（软删除）</summary>
     public class DeleteCommand(ImageLabel label) : IUndoCommand
     {
         public void Execute() { label.IsDeleted = true; }
         public void Undo() { label.IsDeleted = false; }
     }
 
-    // 3. 属性修改命令（快照模式）
+    /// <summary>标注属性修改命令（基于快照的撤销/重做）</summary>
     public class UpdateLabelCommand : IUndoCommand
     {
         private readonly ImageLabel _target;
@@ -395,7 +340,7 @@ namespace LabelMinusinWPF
         {
             _target = target;
             _oldState = oldState;
-            _newState = new LabelSnapshot(target); // 记录当前新状态
+            _newState = new LabelSnapshot(target);
             _refreshAction = refresh;
         }
 
@@ -403,12 +348,12 @@ namespace LabelMinusinWPF
         public void Undo() { _oldState.RestoreTo(_target); _refreshAction(); }
     }
 
-    // 用于记录 Label 状态的轻量级快照类
+    /// <summary>标注状态快照（记录 Text、Group、Position）</summary>
     public class LabelSnapshot
     {
         public string Text { get; }
         public string Group { get; }
-        public System.Windows.Point Position { get; }
+        public Point Position { get; }
 
         public LabelSnapshot(ImageLabel label)
         {
@@ -422,6 +367,120 @@ namespace LabelMinusinWPF
             label.Text = Text;
             label.Group = Group;
             label.Position = Position;
+        }
+    }
+    #endregion
+
+    #region 项目上下文与服务
+    /// <summary>文件对话框封装</summary>
+    public class DialogService
+    {
+        public static string? OpenFolder(string description)
+        {
+            var dialog = new OpenFolderDialog { Title = description };
+            return dialog.ShowDialog() == true ? dialog.FolderName : null;
+        }
+
+        public static string[]? OpenFiles(string filter, string description)
+        {
+            var dialog = new OpenFileDialog { Filter = filter, Multiselect = true, Title = description };
+            return dialog.ShowDialog() == true ? dialog.FileNames : null;
+        }
+
+        public static string? OpenFile(string filter, string description, bool multiselect = false)
+        {
+            var dialog = new OpenFileDialog { Filter = filter, Multiselect = multiselect, Title = description };
+            return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public static string? SaveFile(string filter, string defaultName)
+        {
+            var dialog = new SaveFileDialog { Filter = filter, FileName = defaultName };
+            return dialog.ShowDialog() == true ? dialog.FileName : null;
+        }
+
+        public static void ShowMessage(string message, bool isError)
+        {
+            MessageBox.Show(message, isError ? "错误" : "提示",
+                MessageBoxButton.OK, isError ? MessageBoxImage.Error : MessageBoxImage.Information);
+        }
+    }
+    /// <summary>
+    /// 项目上下文：记录当前加载的基础路径、翻译文件名、压缩包名等信息
+    /// </summary>
+    public record ProjectContext(
+        string BaseFolderPath = "",
+        string? TxtName = null,
+        string? ZipName = null)
+    {
+        public static ProjectContext Empty => new();
+
+        /// <summary>翻译文件完整路径</summary>
+        public string TxtPath => !string.IsNullOrEmpty(TxtName) ? Path.Combine(BaseFolderPath, TxtName) : "";
+
+        /// <summary>压缩包完整路径</summary>
+        public string ZipPath => !string.IsNullOrEmpty(ZipName) ? Path.Combine(BaseFolderPath, ZipName) : "";
+
+        /// <summary>是否为压缩包模式</summary>
+        public bool IsArchiveMode => !string.IsNullOrEmpty(ZipName);
+
+        /// <summary>窗口标题栏显示文本</summary>
+        public string DisplayTitle
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(BaseFolderPath))
+                    return "LabelMinus";
+
+                string pathInfo = !string.IsNullOrEmpty(TxtName) ? TxtPath : "未命名";
+                string modeInfo = IsArchiveMode ? $"关联:{ZipName}" : "文件夹";
+                return $"LabelMinus - {pathInfo} 【{modeInfo}】";
+            }
+        }
+    }
+
+    /// <summary>
+    /// 项目服务：负责扫描文件夹/压缩包中的图片，以及从 txt 文件加载项目数据
+    /// </summary>
+    public static class ProjectService
+    {
+        /// <summary>支持的图片扩展名（不区分大小写）</summary>
+        public static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+            { ".jpg", ".png", ".bmp", ".webp" };
+
+        /// <summary>支持的压缩包扩展名（不区分大小写）</summary>
+        public static readonly HashSet<string> ZipExtensions = new(StringComparer.OrdinalIgnoreCase)
+            { ".7z", ".zip", ".rar" };
+
+        /// <summary>扫描文件夹，返回所有支持格式的图片信息（ImagePath 为绝对路径）</summary>
+        public static List<ImageInfo> ScanFolder(string path) =>
+            [.. Directory.EnumerateFiles(path)
+                .Where(f => ImageExtensions.Contains(Path.GetExtension(f)))
+                .Select(f => new ImageInfo { ImagePath = f })];
+
+        /// <summary>扫描压缩包，返回所有图片信息（ImagePath 为 EntryName）</summary>
+        public static List<ImageInfo> ScanZip(string zipPath) =>
+            [.. ArchiveHelper.GetImagePath(zipPath)
+                .Select(f => new ImageInfo { ImagePath = f })];
+
+        /// <summary>从翻译 txt 文件加载项目上下文和图片列表</summary>
+        public static (ProjectContext Context, List<ImageInfo> Images) LoadProjectFromTxt(string txtFilePath)
+        {
+            string content = File.ReadAllText(txtFilePath);
+            string baseFolder = Path.GetDirectoryName(txtFilePath) ?? "";
+
+            var database = Modules.ParseTextToLabels(content, out string? zipName);
+            var context = new ProjectContext(baseFolder, Path.GetFileName(txtFilePath), zipName);
+
+            // 补全 ImagePath：压缩包模式用 EntryName，文件夹模式拼绝对路径
+            foreach (var item in database)
+            {
+                item.Value.ImagePath = context.IsArchiveMode
+                    ? item.Key
+                    : Path.Combine(baseFolder, item.Key);
+            }
+
+            return (context, [.. database.Values]);
         }
     }
     #endregion
