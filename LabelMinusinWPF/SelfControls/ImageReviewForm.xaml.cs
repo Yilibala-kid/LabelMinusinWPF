@@ -57,8 +57,6 @@ namespace LabelMinusinWPF
             };
             this.Loaded += ImageReView_Loaded;
 
-            // 绑定分割线事件
-            DualImageSplitter.MouseLeftButtonDown += DualImageSplitter_MouseLeftButtonDown;
         }
         # region Q键控制截图
         private void ImageReView_Loaded(object sender, RoutedEventArgs e)
@@ -68,26 +66,12 @@ namespace LabelMinusinWPF
             if (window != null)
             {
                 // 使用 Preview 事件，因为它在子控件（包括 Popup）处理之前触发
+                window.PreviewKeyDown -= Window_PreviewKeyDown;
+                window.PreviewKeyUp -= Window_PreviewKeyUp;
                 window.PreviewKeyDown += Window_PreviewKeyDown;
                 window.PreviewKeyUp += Window_PreviewKeyUp;
             }
 
-            // 监听ViewModel的IsScreenShotEnabled变化
-            if (this.DataContext is ImageReviewVM vm)
-            {
-                vm.PropertyChanged += (s, e) =>
-                {
-                    if (e.PropertyName == nameof(ImageReviewVM.IsScreenShotEnabled))
-                    {
-                        UpdateSplitterOpacity(vm.IsScreenShotEnabled);
-                    }
-                    else if (e.PropertyName == nameof(ImageReviewVM.IsDualReViewEnabled))
-                    {
-                        // 单图模式时自动启用拖动
-                        UpdateDragModeForSingleImageMode(vm.IsDualReViewEnabled);
-                    }
-                };
-            }
         }
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -95,14 +79,13 @@ namespace LabelMinusinWPF
             // 检查按键是否为 Q
             if (e.Key == Key.Q && !e.IsRepeat)
             {
-                // 排除输入框干扰
                 if (FocusManager.GetFocusedElement(Window.GetWindow(this)) is TextBox) return;
 
                 var vm = this.DataContext as ImageReviewVM;
                 if (vm != null)
                 {
                     vm.IsScreenShotEnabled = true;
-                    // e.Handled = true; // 如果不想让 Q 键继续传递给 InkCanvas，可以取消注释
+                    e.Handled = true; // 如果不想让 Q 键继续传递给 InkCanvas，可以取消注释
                 }
             }
         }
@@ -111,6 +94,7 @@ namespace LabelMinusinWPF
         {
             if (e.Key == Key.Q)
             {
+                
                 var vm = this.DataContext as ImageReviewVM;
                 if (vm != null)
                 {
@@ -118,60 +102,7 @@ namespace LabelMinusinWPF
                 }
             }
         }
-
-        private void UpdateSplitterOpacity(bool isScreenshotActive)
-        {
-            if (isScreenshotActive)
-            {
-                DualImageSplitter.Opacity = 0.5;
-                DualImageSplitter.IsEnabled = false;
-            }
-            else
-            {
-                DualImageSplitter.Opacity = 1.0;
-                DualImageSplitter.IsEnabled = true;
-            }
-        }
-
-        private void DualImageSplitter_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            // 切换拖动模式
-            _isDragModeEnabled = !_isDragModeEnabled;
-
-            // 更新视觉反馈
-            if (_isDragModeEnabled)
-            {
-                DualImageSplitter.Background = _activeSplitterBrush;
-            }
-            else
-            {
-                DualImageSplitter.Background = _defaultSplitterBrush;
-            }
-
-            // 标记事件已处理，防止GridSplitter默认行为
-            if (!_isDragModeEnabled)
-            {
-                e.Handled = true;
-            }
-        }
-
-        private void UpdateDragModeForSingleImageMode(bool isSingleImageMode)
-        {
-            if (isSingleImageMode)
-            {
-                // 单图模式：自动启用拖动
-                _isDragModeEnabled = true;
-                DualImageSplitter.Background = _activeSplitterBrush;
-            }
-            else
-            {
-                // 双图模式：禁用拖动
-                _isDragModeEnabled = false;
-                DualImageSplitter.Background = _defaultSplitterBrush;
-            }
-        }
-        #endregion 
-
+        #endregion
 
         #region 一起截图
         // 在构造函数或 Loaded 事件中绑定
@@ -452,6 +383,7 @@ namespace LabelMinusinWPF
         }
         #endregion
 
+        #region 简单功能
         private void TempChangePic_Click(bool isLeft)
         {
             string? PicPath = DialogService.OpenFile("图片文件|*.jpg;*.png;*.bmp;*.webp","暂时替换当前图片");
@@ -504,7 +436,7 @@ namespace LabelMinusinWPF
                 UseShellExecute = true
             });
         }
-
+        #endregion
         #region 拖入文件显示
         private void OnFileDrop(object sender, DragEventArgs e)
         {
