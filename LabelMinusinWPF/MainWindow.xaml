@@ -10,6 +10,9 @@
     Title="{Binding CurrentProject.DisplayTitle}"
     Width="1200"
     Height="800"
+    AllowDrop="True"
+    Drop="Window_Drop"
+    DragOver="Window_DragOver"
     mc:Ignorable="d">
     <Window.InputBindings>
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NewFolderTranslationCommand}" />
@@ -30,6 +33,8 @@
         </Style>
         <local:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <local:EnumToBooleanConverter x:Key="EnumToBool" />
         <Style TargetType="Grid">
             <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}" />
         </Style>
@@ -80,6 +85,10 @@
                     <Separator />
 
                     <MenuItem Header="打开当前文件夹" Command="{Binding OpenNowFolderCommand}" />
+
+                    <Separator />
+
+                    <MenuItem Header="清空工作区" Command="{Binding ClearWorkspaceCommand}" />
                 </MenuItem>
 
                 <!-- 2. 修改 -->
@@ -89,8 +98,8 @@
                     </MenuItem.Icon>
 
                     <!-- 来自 WinForms 版本的具体业务功能 -->
-                    <MenuItem Header="关联压缩包" />
-                    <MenuItem Header="调整图集" />
+                    <MenuItem Header="关联压缩包" Command="{Binding AssociateZipCommand}" />
+                    <MenuItem Header="调整图集" Command="{Binding AdjustImageSetCommand}" />
                     <MenuItem Header="组别" />
 
                     <Separator />
@@ -112,15 +121,9 @@
                     </MenuItem.Icon>
 
                     <!-- 来自 WinForms 版本的内容导出 -->
-                    <MenuItem Header="导出原翻译" />
-                    <MenuItem Header="导出现翻译" />
-                    <MenuItem Header="导出修改文档" />
-
-                    <Separator />
-
-                    <!-- 来自 WPF 版本的格式导出 -->
-                    <MenuItem Header="导出为TXT" />
-                    <MenuItem Header="导出为Excel" />
+                    <MenuItem Header="导出原翻译" Command="{Binding ExportOriginalCommand}" />
+                    <MenuItem Header="导出现翻译" Command="{Binding ExportCurrentCommand}" />
+                    <MenuItem Header="导出修改文档" Command="{Binding ExportDiffCommand}" />
                 </MenuItem>
 
                 <!-- 4. 显示 -->
@@ -130,24 +133,18 @@
                     </MenuItem.Icon>
 
                     <!-- 布局模式 -->
-                    <MenuItem Header="列表与文本框" IsCheckable="True" IsChecked="True" />
-                    <MenuItem Header="仅列表" IsCheckable="True" />
-                    <MenuItem Header="仅文本框" IsCheckable="True" />
-
+                    <MenuItem x:Name="OnlyPicMenuItem" Header="仅图片" IsCheckable="True" Tag="{x:Static local:DisplayMode.ImageOnly}" Click="OnLayoutModeClicked" />
+                    <MenuItem Header="列表与文本框" IsCheckable="True" IsChecked="True" Tag="{x:Static local:DisplayMode.ListAndTextBox}" Click="OnLayoutModeClicked" />
+                    <MenuItem Header="仅列表" IsCheckable="True" Tag="{x:Static local:DisplayMode.ListOnly}" Click="OnLayoutModeClicked" />
+                    <MenuItem Header="仅文本框" IsCheckable="True" Tag="{x:Static local:DisplayMode.TextBoxOnly}" Click="OnLayoutModeClicked" />
                     <Separator />
 
                     <!-- 视图选项 -->
-                    <MenuItem Header="列表序号" IsCheckable="True" IsChecked="True" />
-                    <MenuItem Header="列表组别" IsCheckable="True" IsChecked="True" />
+                    <MenuItem x:Name="GridShowIndex" Header="列表序号" IsCheckable="True" IsChecked="True" />
+                    <MenuItem x:Name="GridShowGroup" Header="列表组别" IsCheckable="True" IsChecked="True" />
                     <MenuItem x:Name="PicShowIndex" Header="图片序号" IsCheckable="True" IsChecked="{Binding IsPictureIndexVisible}" />
                     <MenuItem x:Name="PicShowText" Header="选中显示文本" IsCheckable="True" IsChecked="{Binding IsPictureTextVisible}" />
 
-                    <Separator />
-
-                    <!-- 缩放与全屏 (WPF) -->
-                    <MenuItem Header="全屏" />
-                    <MenuItem Header="放大" />
-                    <MenuItem Header="缩小" />
                 </MenuItem>
 
                 <!-- 5. 高级 -->
@@ -155,8 +152,7 @@
                     <MenuItem.Icon>
                         <materialDesign:PackIcon Kind="Cogs" />
                     </MenuItem.Icon>
-                    <MenuItem Header="设置" />
-                    <MenuItem Header="插件管理" />
+                    <MenuItem x:Name="RegisterMenu" Header="右键菜单注册" IsCheckable="True" Click="OnToggleContextMenu" ToolTip="勾选后可在文件右键菜单中使用LabelMinus打开文件" />
                 </MenuItem>
 
                 <!-- 6. 帮助 -->
@@ -179,9 +175,9 @@
             <!-- 主界面 -->
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="5" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition x:Name="LeftColumn" Width="1*" />
+                    <ColumnDefinition x:Name="MiddleColumn" Width="Auto" />
+                    <ColumnDefinition x:Name="RightColumn" Width="1*" />
                 </Grid.ColumnDefinitions>
                 <!-- 左侧图片与底栏 -->
                 <Border Grid.Column="0">
@@ -194,7 +190,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel>
+                                <StackPanel Grid.Column="0">
                                     <ToggleButton x:Name="DrawerTrigger" Style="{StaticResource IconToggleButtonStyle}" Tag="Menu" ToolTip="显示/隐藏工具箱" />
                                     <RadioButton
                                         x:Name="SEEMode"
@@ -219,11 +215,31 @@
                                         Tag="ImageSearch"
                                         Content="识别"
                                         ToolTip="内容识别" />
-                                    <ComboBox Width="150" Height="35" Margin="10,0,0,0" materialDesign:HintAssist.Hint="选择网站" Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}">
+                                    <ComboBox
+                                        Width="150"
+                                        Height="35"
+                                        Margin="10,0,0,0"
+                                        materialDesign:HintAssist.Hint="选择网站"
+                                        Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}"
+                                        SelectedItem="{Binding SelectedOcrWebsite}">
                                         <ComboBoxItem Content="百度" />
                                         <ComboBoxItem Content="谷歌" />
                                         <ComboBoxItem Content="必应" />
                                     </ComboBox>
+                                    <!-- 仅图片模式时显示组别栏 -->
+                                    <ListBox
+                                        VerticalAlignment="Center"
+                                        ItemsSource="{Binding AllGroups}"
+                                        SelectedValuePath="Name"
+                                        SelectedValue="{Binding SelectedGroupName, Mode=TwoWay}"
+                                        ItemContainerStyle="{StaticResource GroupBadgeItemStyle}"
+                                        Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}">
+                                        <ListBox.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <StackPanel Orientation="Horizontal" />
+                                            </ItemsPanelTemplate>
+                                        </ListBox.ItemsPanel>
+                                    </ListBox>
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
@@ -253,7 +269,7 @@
                             <ToggleButton Tag="ArrowVerticalLock" IsChecked="{Binding IsXLocked, ElementName=PicView, Mode=TwoWay}" ToolTip="纵向移动" />
 
                             <Separator />
-                            <Button Tag="ImageMultiple" ToolTip="修改图片集" />
+                            <Button Tag="ImageMultiple" ToolTip="修改图片集" Command="{Binding AdjustImageSetCommand}" />
                             <ComboBox
                                 Width="200"
                                 VerticalAlignment="Center"
@@ -276,20 +292,64 @@
                                     <Separator Margin="10,0" />
 
                                     <TextBlock Margin="16,16,16,4" Text="标签点样式" FontWeight="SemiBold" Opacity="0.8" />
-                                    <ComboBox x:Name="DotStyleSelector" Margin="16,0,16,16" SelectionChanged="DotStyleSelector_SelectionChanged" SelectedIndex="0">
+                                    <ComboBox x:Name="DotStyleSelector" Margin="16,0,16,8" SelectionChanged="DotStyleSelector_SelectionChanged" SelectedIndex="0">
                                         <ComboBoxItem Content="默认 (圆形)" Tag="DefaultDotStyle" />
                                         <ComboBoxItem Content="方形" Tag="SquareDotStyle" />
                                         <ComboBoxItem Content="透明 (无底色)" Tag="TransparentDotStyle" />
                                     </ComboBox>
 
+                                    <!-- 标签点样式预览 -->
+                                    <Border Height="40" Margin="16,0,16,16" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1" Background="{DynamicResource MaterialDesignPaper}">
+                                        <Ellipse
+                                            x:Name="DotPreview"
+                                            Width="20"
+                                            Height="20"
+                                            Fill="RoyalBlue"
+                                            Stroke="White"
+                                            StrokeThickness="2" />
+                                    </Border>
+
                                     <TextBlock Margin="16,16,16,4" Text="文字背景透明度" FontWeight="SemiBold" Opacity="0.8" />
                                     <Slider
-                                        Margin="16,0,16,16"
+                                        x:Name="OpacitySlider"
+                                        Margin="16,0,16,8"
                                         Minimum="0"
                                         Maximum="1"
                                         TickFrequency="0.1"
                                         IsSnapToTickEnabled="True"
                                         Value="{Binding TextBackgroundOpacity, ElementName=PicView, Mode=TwoWay}" />
+
+                                    <TextBlock Margin="16,0,16,4" Text="文字背景颜色" FontWeight="SemiBold" Opacity="0.8" />
+                                    <ComboBox x:Name="BackgroundColorSelector" Margin="16,0,16,8" SelectedIndex="0" SelectionChanged="BackgroundColorSelector_SelectionChanged">
+                                        <ComboBoxItem Content="白色" Tag="White" />
+                                        <ComboBoxItem Content="黑色" Tag="Black" />
+                                        <ComboBoxItem Content="蓝色" Tag="RoyalBlue" />
+                                    </ComboBox>
+
+                                    <TextBlock Margin="16,0,16,4" Text="文字颜色" FontWeight="SemiBold" Opacity="0.8" />
+                                    <ComboBox x:Name="ForegroundColorSelector" Margin="16,0,16,8" SelectedIndex="1" SelectionChanged="ForegroundColorSelector_SelectionChanged">
+                                        <ComboBoxItem Content="白色" Tag="White" />
+                                        <ComboBoxItem Content="黑色" Tag="Black" />
+                                        <ComboBoxItem Content="蓝色" Tag="RoyalBlue" />
+                                    </ComboBox>
+
+                                    <!-- 文字样式预览 -->
+                                    <Border Height="60" Margin="16,0,16,16" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1">
+                                        <TextBlock
+                                            x:Name="TextPreview"
+                                            Padding="8,4"
+                                            HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Text="预览文本"
+                                            FontSize="16">
+                                            <TextBlock.Background>
+                                                <SolidColorBrush x:Name="TextPreviewBackground" Opacity="{Binding Value, ElementName=OpacitySlider}" Color="White" />
+                                            </TextBlock.Background>
+                                            <TextBlock.Foreground>
+                                                <SolidColorBrush x:Name="TextPreviewForeground" Color="Black" />
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+                                    </Border>
 
                                     <Button Margin="16,32,16,16" Content="关闭工具栏" Command="{x:Static materialDesign:DrawerHost.CloseDrawerCommand}" />
                                 </StackPanel>
@@ -311,28 +371,32 @@
                         </materialDesign:DrawerHost>
                     </DockPanel>
                 </Border>
-                <GridSplitter Grid.Column="1" Width="5" Background="RoyalBlue" ResizeBehavior="PreviousAndNext" />
+                <GridSplitter x:Name="MiddleSplitter" Grid.Column="1" Width="5" Background="RoyalBlue" ResizeBehavior="PreviousAndNext" />
                 <!-- 右侧列表与文本 -->
                 <Grid Grid.Column="2">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="35" />
-                        <RowDefinition Height="3*" />
-                        <RowDefinition Height="*" />
+                        <RowDefinition x:Name="DataGridRow" Height="4*" />
+                        <RowDefinition x:Name="SplitterRow" Height="5" />
+                        <RowDefinition x:Name="TextBoxRow" Height="1*" />
                     </Grid.RowDefinitions>
                     <!-- 组别栏 -->
                     <ListBox
+                        x:Name="GroupListBox"
                         Grid.Row="0"
                         VerticalAlignment="Center"
                         ItemsSource="{Binding AllGroups}"
                         SelectedValuePath="Name"
                         SelectedValue="{Binding SelectedGroupName, Mode=TwoWay}"
-                        ItemContainerStyle="{StaticResource GroupBadgeItemStyle}">
+                        ItemContainerStyle="{StaticResource GroupBadgeItemStyle}"
+                        Visibility="{Binding IsImageOnlyMode, Converter={StaticResource InverseBoolToVisibility}}">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" />
                             </ItemsPanelTemplate>
                         </ListBox.ItemsPanel>
                     </ListBox>
+                    <!-- 列表 -->
                     <DataGrid
                         x:Name="LabelDataGrid"
                         Grid.Row="1"
@@ -357,8 +421,7 @@
                             </Style>
                         </DataGrid.RowStyle>
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="序号" Binding="{Binding Index}" IsReadOnly="True" ElementStyle="{StaticResource CenteredCellStyle}" />
-                            <!-- 高级文本编辑 -->
+                            <DataGridTextColumn Header="序号" Binding="{Binding Index}" IsReadOnly="True" ElementStyle="{StaticResource CenteredCellStyle}" Visibility="{Binding Source={x:Reference GridShowIndex}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}" />
                             <DataGridTemplateColumn Width="*" Header="内容">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -380,13 +443,14 @@
                                 </DataGridTemplateColumn.CellEditingTemplate>
                             </DataGridTemplateColumn>
 
-                            <DataGridTextColumn MinWidth="60" Header="组" Binding="{Binding Group}" ElementStyle="{StaticResource CenteredCellStyle}" />
+                            <DataGridTextColumn MinWidth="60" Header="组" Binding="{Binding Group}" ElementStyle="{StaticResource CenteredCellStyle}" Visibility="{Binding Source={x:Reference GridShowGroup}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}" />
                         </DataGrid.Columns>
                     </DataGrid>
+                    <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="RoyalBlue" ResizeBehavior="PreviousAndNext" />
                     <!-- 文本框 -->
                     <TextBox
-                        Grid.Row="2"
-                        Margin="0,5,0,0"
+                        x:Name="LabelTextBox"
+                        Grid.Row="3"
                         HorizontalContentAlignment="Left"
                         VerticalContentAlignment="Top"
                         materialDesign:HintAssist.Hint="{Binding SelectedImage.SelectedLabel.Index}"

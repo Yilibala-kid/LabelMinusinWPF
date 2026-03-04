@@ -247,6 +247,7 @@
                 </Grid>
 
                 <GridSplitter
+                    x:Name="DualImageSplitter"
                     Grid.Column="1"
                     Width="6"
                     HorizontalAlignment="Center"

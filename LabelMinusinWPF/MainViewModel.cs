@@ -13,12 +13,12 @@ using CommunityToolkit.Mvvm.Input;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using static LabelMinusinWPF.Modules;
+using LabelMinusinWPF.Utilities;
 
 namespace LabelMinusinWPF
 {
     /// <summary>组别显示项：名称 + 对应颜色</summary>
     public record GroupItem(string Name, SolidColorBrush Brush);
-
     /// <summary>
     /// 主视图模型：管理图片列表、选中状态、模式切换等核心逻辑
     /// </summary>
@@ -86,6 +86,12 @@ namespace LabelMinusinWPF
         [ObservableProperty]
         [NotifyCanExecuteChangedFor(nameof(OpenNowFolderCommand))]
         [NotifyCanExecuteChangedFor(nameof(SaveTranslationCommand))]
+        [NotifyCanExecuteChangedFor(nameof(AdjustImageSetCommand))]
+        [NotifyCanExecuteChangedFor(nameof(AssociateZipCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExportCurrentCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExportOriginalCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ExportDiffCommand))]
+        [NotifyCanExecuteChangedFor(nameof(ClearWorkspaceCommand))]
         private ProjectContext _currentProject = ProjectContext.Empty;
 
         /// <summary>当前加载的图片列表（使用 BindingList 以支持 ListChanged 事件）</summary>
@@ -210,13 +216,30 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 菜单栏：显示控制
-        /// <summary>是否显示图片序号标签</summary>
         [ObservableProperty]
         private bool _isPictureIndexVisible = true;
 
-        /// <summary>是否显示图片文本标签</summary>
         [ObservableProperty]
         private bool _isPictureTextVisible = true;
+        #endregion
+
+        #region OCR识别模式
+
+        [ObservableProperty]
+        private string _selectedOcrWebsite = "百度";
+
+        private static readonly Dictionary<string, string> _ocrWebsiteUrls = new()
+        {
+            ["百度"] = "https://graph.baidu.com/pcpage/index?tpl_from=pc",
+            ["谷歌"] = "https://lens.google.com/",
+            ["必应"] = "https://www.bing.com/visualsearch"
+        };
+
+        public string GetOcrWebsiteUrl(string websiteName)
+        {
+            return _ocrWebsiteUrls.TryGetValue(websiteName, out var url) ? url : _ocrWebsiteUrls["百度"];
+        }
+
         #endregion
 
         #region 底栏：图片切换
@@ -275,7 +298,7 @@ namespace LabelMinusinWPF
     }
 
     #region 模式选择
-    /// <summary>应用工作模式</summary>
+
     public enum AppMode
     {
         See,
@@ -306,26 +329,7 @@ namespace LabelMinusinWPF
         }
     }
 
-    /// <summary>枚举与布尔值的双向转换器，用于 RadioButton 绑定 AppMode</summary>
-    public class EnumToBooleanConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value == null || parameter == null)
-                return false;
-            return value.Equals(parameter);
-        }
 
-        public object ConvertBack(
-            object value,
-            Type targetType,
-            object parameter,
-            CultureInfo culture
-        )
-        {
-            return (bool)value ? parameter : Binding.DoNothing;
-        }
-    }
     #endregion
 
     #region 文件处理
@@ -415,7 +419,7 @@ namespace LabelMinusinWPF
         private void SaveTranslation(string? mode)
         {
             bool isSaveAs = mode is "As";
-            DoSave(isSaveAs ? null : CurrentProject.TxtPath);
+            DoSave(isSaveAs ? null : CurrentProject.TxtPath, ExportMode.Current, updateContext: true);
         }
 
         /// <summary>在资源管理器中打开当前项目所在文件夹</summary>
@@ -437,6 +441,220 @@ namespace LabelMinusinWPF
             else
             {
                 MainMessageQueue.Enqueue("当前项目没有有效的文件夹路径可打开");
+            }
+        }
+
+        /// <summary>清空工作区</summary>
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void ClearWorkspace()
+        {
+            // 检查是否有未保存的修改
+            if (HasUnsavedChanges())
+            {
+                var result = MessageBox.Show(
+                    "当前翻译有未保存的修改，是否保存？",
+                    "提示",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Question
+                );
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    SaveTranslation(null);
+                }
+                else if (result == MessageBoxResult.Cancel)
+                {
+                    return;
+                }
+            }
+
+            // 清空所有数据
+            _suppressGroupNotify = true;
+            try
+            {
+                ImageList.Clear();
+                SelectedImage = null;
+                CurrentProject = ProjectContext.Empty;
+            }
+            finally
+            {
+                _suppressGroupNotify = false;
+            }
+            NotifyGroupsChanged();
+
+            MainMessageQueue.Enqueue("工作区已清空");
+        }
+
+        /// <summary>检查是否有未保存的修改</summary>
+        public bool HasUnsavedChanges()
+        {
+            return ImageList.Any(img => img.Labels.Any(l => l.IsModified));
+        }
+
+        /// <summary>调整图集：选择当前工作文件夹或压缩包中需要包含的图片</summary>
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void AdjustImageSet()
+        {
+            List<ImageInfo> availableImages;
+
+            // 根据是否关联压缩包，获取可用图片列表
+            if (CurrentProject.IsArchiveMode && File.Exists(CurrentProject.ZipPath))
+            {
+                availableImages = ProjectService.ScanZip(CurrentProject.ZipPath);
+            }
+            else if (Directory.Exists(CurrentProject.BaseFolderPath))
+            {
+                availableImages = ProjectService.ScanFolder(CurrentProject.BaseFolderPath);
+            }
+            else
+            {
+                MainMessageQueue.Enqueue("无法找到有效的图片源");
+                return;
+            }
+
+            // 创建选择对话框
+            var dialog = new ImageSelectionDialog(availableImages, ImageList.ToList());
+            if (dialog.ShowDialog() == true)
+            {
+                var selectedImages = dialog.SelectedImages;
+
+                // 保留已有标注数据
+                var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
+
+                _suppressGroupNotify = true;
+                try
+                {
+                    ImageList.Clear();
+                    foreach (var img in selectedImages)
+                    {
+                        // 如果该图片之前有标注数据，恢复它
+                        if (existingData.TryGetValue(img.ImageName, out var existingImg))
+                        {
+                            ImageList.Add(existingImg);
+                        }
+                        else
+                        {
+                            ImageList.Add(img);
+                        }
+                    }
+                }
+                finally
+                {
+                    _suppressGroupNotify = false;
+                }
+                NotifyGroupsChanged();
+
+                SelectedImage = ImageList.FirstOrDefault();
+                MainMessageQueue.Enqueue($"已更新图集，当前包含 {ImageList.Count} 张图片");
+            }
+        }
+
+        /// <summary>关联压缩包：选择或取消关联压缩包</summary>
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void AssociateZip()
+        {
+            if (!Directory.Exists(CurrentProject.BaseFolderPath))
+            {
+                MainMessageQueue.Enqueue("当前项目没有有效的文件夹路径");
+                return;
+            }
+
+            // 获取当前文件夹中的所有压缩包
+            var zipFiles = Directory.GetFiles(CurrentProject.BaseFolderPath)
+                .Where(f => ProjectService.ZipExtensions.Contains(Path.GetExtension(f)))
+                .Select(f => Path.GetFileName(f))
+                .ToList();
+
+            if (zipFiles.Count == 0)
+            {
+                MainMessageQueue.Enqueue("当前文件夹中没有找到压缩包文件");
+                return;
+            }
+
+            // 创建选择对话框
+            var dialog = new ZipSelectionDialog(zipFiles, CurrentProject.ZipName);
+            if (dialog.ShowDialog() == true)
+            {
+                string? selectedZip = dialog.SelectedZip;
+
+                // 更新项目上下文
+                CurrentProject = new ProjectContext(
+                    CurrentProject.BaseFolderPath,
+                    CurrentProject.TxtName,
+                    selectedZip
+                );
+
+                // 重新加载图片列表
+                if (!string.IsNullOrEmpty(selectedZip))
+                {
+                    try
+                    {
+                        var zipImages = ProjectService.ScanZip(CurrentProject.ZipPath);
+                        var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
+
+                        _suppressGroupNotify = true;
+                        try
+                        {
+                            ImageList.Clear();
+                            foreach (var img in zipImages)
+                            {
+                                if (existingData.TryGetValue(img.ImageName, out var existingImg))
+                                {
+                                    existingImg.ImagePath = img.ImagePath;
+                                    ImageList.Add(existingImg);
+                                }
+                                else
+                                {
+                                    ImageList.Add(img);
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            _suppressGroupNotify = false;
+                        }
+                        NotifyGroupsChanged();
+
+                        SelectedImage = ImageList.FirstOrDefault();
+                        MainMessageQueue.Enqueue($"已关联压缩包：{selectedZip}");
+                    }
+                    catch (Exception ex)
+                    {
+                        MainMessageQueue.Enqueue($"加载压缩包失败: {ex.Message}");
+                    }
+                }
+                else
+                {
+                    // 取消关联，切换到文件夹模式
+                    var folderImages = ProjectService.ScanFolder(CurrentProject.BaseFolderPath);
+                    var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
+
+                    _suppressGroupNotify = true;
+                    try
+                    {
+                        ImageList.Clear();
+                        foreach (var img in folderImages)
+                        {
+                            if (existingData.TryGetValue(img.ImageName, out var existingImg))
+                            {
+                                existingImg.ImagePath = img.ImagePath;
+                                ImageList.Add(existingImg);
+                            }
+                            else
+                            {
+                                ImageList.Add(img);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _suppressGroupNotify = false;
+                    }
+                    NotifyGroupsChanged();
+
+                    SelectedImage = ImageList.FirstOrDefault();
+                    MainMessageQueue.Enqueue("已取消压缩包关联，切换到文件夹模式");
+                }
             }
         }
         #endregion
@@ -513,7 +731,7 @@ namespace LabelMinusinWPF
             {
                 string baseFolder = Path.GetDirectoryName(imageFiles[0]) ?? string.Empty;
                 var images = imageFiles.Select(p => new ImageInfo { ImagePath = p }).ToList();
-                string? defaultTxtName = isCreateMode ? "New_Translation.txt" : null;
+                string? defaultTxtName = isCreateMode ? FileSystemHelper.GenerateUniqueFileName(baseFolder, "New_Translation", ".txt") : null;
                 var context = new ProjectContext(baseFolder, defaultTxtName, null);
 
                 LoadProjectData(
@@ -522,7 +740,7 @@ namespace LabelMinusinWPF
                     isCreateMode ? "正在为一组图片创建翻译" : "正在预览选定图片"
                 );
                 if (isCreateMode)
-                    DoSave(context.TxtPath);
+                    DoSave(context.TxtPath, ExportMode.Current, updateContext: true);
                 return;
             }
 
@@ -562,7 +780,7 @@ namespace LabelMinusinWPF
                             : $"正在预览压缩包：{zipName}"
                     );
                     if (isCreateMode)
-                        DoSave(context.TxtPath);
+                        DoSave(context.TxtPath, ExportMode.Current, updateContext: true);
                 }
                 catch (Exception ex)
                 {
@@ -575,7 +793,7 @@ namespace LabelMinusinWPF
             if (Directory.Exists(firstPath))
             {
                 var images = ProjectService.ScanFolder(firstPath);
-                string? txtName = isCreateMode ? "新建翻译.txt" : null;
+                string? txtName = isCreateMode ? FileSystemHelper.GenerateUniqueFileName(firstPath, "新建翻译", ".txt") : null;
                 var context = new ProjectContext(firstPath, txtName, null);
 
                 LoadProjectData(
@@ -586,7 +804,7 @@ namespace LabelMinusinWPF
                         : $"正在预览文件夹：{firstPath}"
                 );
                 if (isCreateMode)
-                    DoSave(context.TxtPath);
+                    DoSave(context.TxtPath, ExportMode.Current, updateContext: true);
             }
         }
 
@@ -594,7 +812,9 @@ namespace LabelMinusinWPF
         /// 执行保存：将当前图片列表导出为翻译文本并写入文件
         /// </summary>
         /// <param name="targetPath">保存路径，为 null 时弹出另存为对话框</param>
-        private void DoSave(string? targetPath)
+        /// <param name="mode">导出模式：Current/Original/Diff</param>
+        /// <param name="updateContext">是否更新项目上下文（仅正常保存时为 true）</param>
+        private void DoSave(string? targetPath, ExportMode mode = ExportMode.Current, bool updateContext = false)
         {
             if (ImageList.Count == 0)
                 return;
@@ -606,6 +826,12 @@ namespace LabelMinusinWPF
                     ? Path.GetFileNameWithoutExtension(CurrentProject.ZipName) + "_翻译.txt"
                     : "新建翻译.txt";
 
+                // 根据导出模式调整默认文件名
+                if (mode == ExportMode.Original)
+                    defaultName = Path.GetFileNameWithoutExtension(defaultName) + "_原翻译.txt";
+                else if (mode == ExportMode.Diff)
+                    defaultName = Path.GetFileNameWithoutExtension(defaultName) + "_修改文档.txt";
+
                 targetPath = DialogService.SaveFile("文本文件|*.txt", defaultName);
                 if (string.IsNullOrEmpty(targetPath))
                     return;
@@ -616,23 +842,53 @@ namespace LabelMinusinWPF
                 string outputText = Modules.LabelsToText(
                     ImageList,
                     CurrentProject.ZipName,
-                    ExportMode.Current
+                    mode
                 );
                 File.WriteAllText(targetPath, outputText);
 
-                // 保存成功后更新上下文（record 不可变，需创建新实例）
-                CurrentProject = new ProjectContext(
-                    Path.GetDirectoryName(targetPath)!,
-                    Path.GetFileName(targetPath),
-                    CurrentProject.ZipName
-                );
+                // 只有在 updateContext 为 true 时才更新项目上下文
+                if (updateContext)
+                {
+                    CurrentProject = new ProjectContext(
+                        Path.GetDirectoryName(targetPath)!,
+                        Path.GetFileName(targetPath),
+                        CurrentProject.ZipName
+                    );
+                }
 
-                MainMessageQueue.Enqueue($"已保存翻译到 {targetPath}");
+                string modeText = mode switch
+                {
+                    ExportMode.Original => "原翻译",
+                    ExportMode.Diff => "修改文档",
+                    _ => "翻译"
+                };
+                MainMessageQueue.Enqueue($"已保存{modeText}到 {Path.GetFileName(targetPath)}");
             }
             catch (Exception ex)
             {
                 MainMessageQueue.Enqueue($"保存失败: {ex.Message}");
             }
+        }
+
+        /// <summary>导出原翻译</summary>
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void ExportOriginal()
+        {
+            DoSave(null, ExportMode.Original, updateContext: false);
+        }
+
+        /// <summary>导出现翻译</summary>
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void ExportCurrent()
+        {
+            DoSave(null, ExportMode.Current, updateContext: false);
+        }
+
+        /// <summary>导出修改文档</summary>
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void ExportDiff()
+        {
+            DoSave(null, ExportMode.Diff, updateContext: false);
         }
         #endregion
     }

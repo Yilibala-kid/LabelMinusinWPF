@@ -297,7 +297,16 @@ namespace LabelMinusinWPF
                 else
                 {
                     var myBmp = CaptureOriginalBitmapRegion(normRect);
-                    if (myBmp != null) Clipboard.SetImage(myBmp);
+                    if (myBmp != null)
+                    {
+                        Clipboard.SetImage(myBmp);
+
+                        // 检查是否为OCR模式
+                        if (IsOcrMode())
+                        {
+                            OpenOcrRecognitionWindow(myBmp);
+                        }
+                    }
                 }
             }
         }
@@ -376,8 +385,40 @@ namespace LabelMinusinWPF
                         ctrl.ViewportGrid.Cursor = isOn ? Cursors.Cross : Cursors.Arrow;
                     }
                 }));
-        // 供外部调用，用于实现“同步”裁剪相同区域
+        // 供外部调用，用于实现”同步”裁剪相同区域
         public BitmapSource? GetImageRegion(Rect normRect) => CaptureOriginalBitmapRegion(normRect);
+
+        private bool IsOcrMode()
+        {
+            // 查找MainWindow并检查是否为OCR模式
+            var mainWindow = Window.GetWindow(this);
+            if (mainWindow?.DataContext is MainViewModel vm)
+            {
+                return vm.CurrentMode == AppMode.OCR;
+            }
+            return false;
+        }
+
+        private void OpenOcrRecognitionWindow(BitmapSource screenshot)
+        {
+            try
+            {
+                var mainWindow = Window.GetWindow(this);
+                if (mainWindow?.DataContext is MainViewModel vm)
+                {
+                    string websiteName = vm.SelectedOcrWebsite;
+                    string websiteUrl = vm.GetOcrWebsiteUrl(websiteName);
+
+                    var ocrWindow = new OcrRecognitionWindow(screenshot, websiteUrl, websiteName);
+                    ocrWindow.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                string errorMsg = "OCR window open failed: " + ex.Message;
+                MessageBox.Show(errorMsg, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
         // 是否需要同步模式（true则通知外部，false则直接存剪贴板）
         public bool IsSyncRequired
         {
@@ -482,6 +523,48 @@ namespace LabelMinusinWPF
                 typeof(Style),
                 typeof(ImagewithLabelShow),
                 new PropertyMetadata(null)
+            );
+
+        // --- 文字背景透明度 ---
+        public double TextBackgroundOpacity
+        {
+            get => (double)GetValue(TextBackgroundOpacityProperty);
+            set => SetValue(TextBackgroundOpacityProperty, value);
+        }
+        public static readonly DependencyProperty TextBackgroundOpacityProperty =
+            DependencyProperty.Register(
+                nameof(TextBackgroundOpacity),
+                typeof(double),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(0.7)
+            );
+
+        // --- 文字背景颜色 ---
+        public Brush TextBackgroundColor
+        {
+            get => (Brush)GetValue(TextBackgroundColorProperty);
+            set => SetValue(TextBackgroundColorProperty, value);
+        }
+        public static readonly DependencyProperty TextBackgroundColorProperty =
+            DependencyProperty.Register(
+                nameof(TextBackgroundColor),
+                typeof(Brush),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(Brushes.White)
+            );
+
+        // --- 文字前景颜色 ---
+        public Brush TextForegroundColor
+        {
+            get => (Brush)GetValue(TextForegroundColorProperty);
+            set => SetValue(TextForegroundColorProperty, value);
+        }
+        public static readonly DependencyProperty TextForegroundColorProperty =
+            DependencyProperty.Register(
+                nameof(TextForegroundColor),
+                typeof(Brush),
+                typeof(ImagewithLabelShow),
+                new PropertyMetadata(Brushes.Black)
             );
 
         #endregion

@@ -20,6 +20,7 @@
     <PackageReference Include="MaterialDesignColors" Version="5.3.0" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
     <PackageReference Include="MaterialDesignThemes.MahApps" Version="5.3.0" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3800.47" />
     <PackageReference Include="SharpCompress" Version="0.46.0" />
   </ItemGroup>
 

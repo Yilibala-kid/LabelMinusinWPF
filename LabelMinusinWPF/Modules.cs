@@ -4,10 +4,12 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Windows;
+using System.Windows.Data;
 
 namespace LabelMinusinWPF
 {
@@ -405,6 +407,81 @@ namespace LabelMinusinWPF
                 MessageBoxButton.OK, isError ? MessageBoxImage.Error : MessageBoxImage.Information);
         }
     }
+
+    /// <summary>文件系统工具类</summary>
+    public static class FileSystemHelper
+    {
+        /// <summary>
+        /// 生成唯一文件名，避免覆盖已有文件
+        /// </summary>
+        /// <param name="folder">目标文件夹路径</param>
+        /// <param name="baseName">基础文件名（不含扩展名）</param>
+        /// <param name="extension">文件扩展名（含点号，如 ".txt"）</param>
+        /// <returns>唯一的文件名（不含路径）</returns>
+        public static string GenerateUniqueFileName(string folder, string baseName, string extension)
+        {
+            string fileName = baseName + extension;
+            string fullPath = Path.Combine(folder, fileName);
+
+            if (!File.Exists(fullPath))
+                return fileName;
+
+            int counter = 1;
+            do
+            {
+                fileName = $"{baseName}({counter}){extension}";
+                fullPath = Path.Combine(folder, fileName);
+                counter++;
+            } while (File.Exists(fullPath));
+
+            return fileName;
+        }
+
+        /// <summary>
+        /// 清理临时文件夹：删除文件夹内所有文件和子文件夹，但保留文件夹本身
+        /// </summary>
+        /// <param name="tempFolderNames">需要清理的临时文件夹名称列表</param>
+        public static void ClearTempFolders(params string[] tempFolderNames)
+        {
+            foreach (string folderName in tempFolderNames)
+            {
+                try
+                {
+                    string folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folderName);
+
+                    // 如果文件夹不存在，创建它
+                    if (!Directory.Exists(folderPath))
+                    {
+                        Directory.CreateDirectory(folderPath);
+                        continue;
+                    }
+
+                    DirectoryInfo di = new(folderPath);
+
+                    // 删除所有文件
+                    foreach (FileInfo file in di.EnumerateFiles())
+                    {
+                        try { file.Delete(); }
+                        catch (IOException) { /* 文件可能正在被占用，静默跳过 */ }
+                    }
+
+                    // 递归删除所有子文件夹
+                    foreach (DirectoryInfo dir in di.EnumerateDirectories())
+                    {
+                        try { dir.Delete(true); }
+                        catch (IOException) { /* 文件夹内有文件被占用，静默跳过 */ }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"清理 {folderName} 失败: {ex.Message}");
+                }
+            }
+        }
+    }
+    #endregion
+
+    #region 项目上下文
     /// <summary>
     /// 项目上下文：记录当前加载的基础路径、翻译文件名、压缩包名等信息
     /// </summary>
@@ -472,16 +549,62 @@ namespace LabelMinusinWPF
             var database = Modules.ParseTextToLabels(content, out string? zipName);
             var context = new ProjectContext(baseFolder, Path.GetFileName(txtFilePath), zipName);
 
-            // 补全 ImagePath：压缩包模式用 EntryName，文件夹模式拼绝对路径
-            foreach (var item in database)
+            // 如果关联了压缩包，从压缩包中加载所有图片
+            if (context.IsArchiveMode && File.Exists(context.ZipPath))
             {
-                item.Value.ImagePath = context.IsArchiveMode
-                    ? item.Key
-                    : Path.Combine(baseFolder, item.Key);
-            }
+                var zipImages = ScanZip(context.ZipPath);
+                var zipImageDict = zipImages.ToDictionary(img => Path.GetFileName(img.ImagePath), img => img);
 
-            return (context, [.. database.Values]);
+                // 将 txt 中的标注数据合并到压缩包图片中
+                foreach (var item in database)
+                {
+                    string imageName = item.Key;
+                    if (zipImageDict.TryGetValue(imageName, out var zipImage))
+                    {
+                        // 将标注数据复制到压缩包图片对象中
+                        foreach (var label in item.Value.Labels)
+                            zipImage.Labels.Add(label);
+                    }
+                }
+
+                return (context, zipImages);
+            }
+            else
+            {
+                // 文件夹模式：补全 ImagePath 为绝对路径
+                foreach (var item in database)
+                {
+                    item.Value.ImagePath = Path.Combine(baseFolder, item.Key);
+                }
+
+                return (context, [.. database.Values]);
+            }
         }
     }
     #endregion
+    public class EnumToBooleanConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => value?.Equals(parameter);
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => (bool)value ? parameter : Binding.DoNothing;
+    }
+    /// <summary>反向布尔值到可见性转换器</summary>
+    public class InverseBooleanToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool boolValue)
+                return boolValue ? Visibility.Collapsed : Visibility.Visible;
+            return Visibility.Visible;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is Visibility visibility)
+                return visibility != Visibility.Visible;
+            return false;
+        }
+    }
 }

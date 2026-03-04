@@ -28,6 +28,10 @@ namespace LabelMinusinWPF
     {
         private DispatcherTimer _closeTimer;
         private string _currentImgPath;
+        private bool _isDragModeEnabled = false;
+        private SolidColorBrush _defaultSplitterBrush = new SolidColorBrush(Colors.RoyalBlue);
+        private SolidColorBrush _activeSplitterBrush = new SolidColorBrush(Colors.LightSkyBlue);
+
         public ImageReView()
         {
             InitializeComponent();
@@ -52,6 +56,9 @@ namespace LabelMinusinWPF
                 InkEditor.Strokes.Clear();
             };
             this.Loaded += ImageReView_Loaded;
+
+            // 绑定分割线事件
+            DualImageSplitter.MouseLeftButtonDown += DualImageSplitter_MouseLeftButtonDown;
         }
         # region Q键控制截图
         private void ImageReView_Loaded(object sender, RoutedEventArgs e)
@@ -63,6 +70,18 @@ namespace LabelMinusinWPF
                 // 使用 Preview 事件，因为它在子控件（包括 Popup）处理之前触发
                 window.PreviewKeyDown += Window_PreviewKeyDown;
                 window.PreviewKeyUp += Window_PreviewKeyUp;
+            }
+
+            // 监听ViewModel的IsScreenShotEnabled变化
+            if (this.DataContext is ImageReviewVM vm)
+            {
+                vm.PropertyChanged += (s, e) =>
+                {
+                    if (e.PropertyName == nameof(ImageReviewVM.IsScreenShotEnabled))
+                    {
+                        UpdateSplitterOpacity(vm.IsScreenShotEnabled);
+                    }
+                };
             }
         }
 
@@ -92,6 +111,42 @@ namespace LabelMinusinWPF
                 {
                     vm.IsScreenShotEnabled = false;
                 }
+            }
+        }
+
+        private void UpdateSplitterOpacity(bool isScreenshotActive)
+        {
+            if (isScreenshotActive)
+            {
+                DualImageSplitter.Opacity = 0.5;
+                DualImageSplitter.IsEnabled = false;
+            }
+            else
+            {
+                DualImageSplitter.Opacity = 1.0;
+                DualImageSplitter.IsEnabled = true;
+            }
+        }
+
+        private void DualImageSplitter_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // 切换拖动模式
+            _isDragModeEnabled = !_isDragModeEnabled;
+
+            // 更新视觉反馈
+            if (_isDragModeEnabled)
+            {
+                DualImageSplitter.Background = _activeSplitterBrush;
+            }
+            else
+            {
+                DualImageSplitter.Background = _defaultSplitterBrush;
+            }
+
+            // 标记事件已处理，防止GridSplitter默认行为
+            if (!_isDragModeEnabled)
+            {
+                e.Handled = true;
             }
         }
         #endregion 
