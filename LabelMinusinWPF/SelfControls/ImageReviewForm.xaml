@@ -112,7 +112,7 @@
                 </StackPanel>
             </Button>
         </Grid>
-        <materialDesign:DrawerHost Grid.Row="1" IsTopDrawerOpen="{Binding IsMenuOpen}" OpenMode="Modal">
+        <materialDesign:DrawerHost Grid.Row="1" IsTopDrawerOpen="{Binding IsMenuOpen}">
             <!-- 工具栏 -->
             <materialDesign:DrawerHost.TopDrawerContent>
                 <Grid Height="35" Background="{DynamicResource MaterialDesignPaper}">
@@ -168,7 +168,7 @@
                 </Grid>
             </materialDesign:DrawerHost.TopDrawerContent>
             <!-- 图片对比区域 -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="1" x:Name="DualImageGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="{Binding LeftColumnWidth, Mode=TwoWay}" />
                     <ColumnDefinition Width="5" />

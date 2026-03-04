@@ -355,28 +355,58 @@ namespace LabelMinusinWPF
         }
 
         #region 命令行启动支持
-        public void OpenFileOnStartup(string filePath)
+        public void OpenFilesOnStartup(string[] paths)
         {
-            if (DataContext is MainViewModel vm && System.IO.File.Exists(filePath))
+            if (DataContext is MainViewModel vm && paths.Length > 0)
             {
-                vm.OpenResourceByPath([filePath], false);
+                if (FullScreenReview.IsOpen)
+                {
+                    FullScreenReview.IsOpen = false;
+                }
+                // 直接传递整个数组，ViewModel 会负责循环加载
+                vm.OpenResourceByPath(paths, false);
             }
         }
-
-        public void OpenImageReviewWithFile(string filePath)
+        public void OpenImageReviewSmart(string newPath)
         {
-            if (DataContext is MainViewModel vm && System.IO.File.Exists(filePath))
-            {
-                // 先打开图校界面
-                FullScreenReview.IsOpen = true;
+            if (DataContext is not MainViewModel vm) return;
 
-                // 获取图校界面的ViewModel并加载文件
+            // 1. 确保图校界面是打开的
+            if (!FullScreenReview.IsOpen)
+            {
+                FullScreenReview.IsOpen = true;
+            }
+
+            // 2. 这里的延迟执行非常重要，确保子 VM 已经就绪
+            Dispatcher.BeginInvoke(() =>
+            {
                 if (FullScreenReview.DataContext is ImageReviewVM reviewVm)
                 {
-                    // 判断文件类型，加载到左侧或右侧
-                    reviewVm.LeftImageVM.OpenResourceByPath([filePath], false);
+                    // 如果左侧 VM 还没有路径，或者当前不是对比模式且左侧是空的
+                    // 我们简单的逻辑：如果左侧没图，放左侧；否则放右侧。
+                    bool isLeftEmpty = reviewVm.LeftImageVM.ImageList.Count == 0;
+
+                    if (isLeftEmpty)
+                    {
+                        reviewVm.LeftImageVM.OpenResourceByPath([newPath], false);
+                    }
+                    else
+                    {
+                        // 左侧有图了，把新图放右侧，并强制开启双图对比
+                        reviewVm.RightImageVM.OpenResourceByPath([newPath], false);
+                    }
+
+                    // 激活窗口并置顶提醒
+                    this.FocusWindow();
                 }
-            }
+            }, System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+        public void FocusWindow()
+        {
+            if (this.WindowState == WindowState.Minimized)
+                this.WindowState = WindowState.Normal;
+
+            this.Activate(); // 尝试获取焦点
         }
         #endregion
 

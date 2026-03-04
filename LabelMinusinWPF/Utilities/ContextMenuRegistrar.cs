@@ -48,11 +48,11 @@ namespace LabelMinusinWPF.Utilities
             string openCommand = $"\"{exePath}\" \"%1\"";
             string reviewCommand = $"\"{exePath}\" --review \"%1\"";
 
-            // 1️⃣ 文件夹
+            // 1️文件夹
             RegisterMenu(@"Directory", OpenKey, "使用 LabelMinus 打开", openCommand, exePath);
             RegisterMenu(@"Directory", ReviewKey, "使用 LabelMinus 图校", reviewCommand, exePath);
 
-            // 2️⃣ 指定扩展
+            // 2️指定扩展
             foreach (var ext in GetTargetExtensions())
             {
                 string root = $@"SystemFileAssociations\{ext}";
