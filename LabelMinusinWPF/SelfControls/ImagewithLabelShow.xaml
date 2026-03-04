@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:local="clr-namespace:LabelMinusinWPF"
+    xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     d:DesignHeight="450"
     d:DesignWidth="800"
@@ -92,11 +93,15 @@
                                 </Style>
                             </StackPanel.Style>
                             <!-- 点：颜色跟随组别，悬停显示拖动光标 -->
-                            <Border Cursor="Hand" Style="{Binding LabelDotStyle, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, TargetNullValue={StaticResource DefaultDotStyle}}" MouseLeftButtonDown="LabelNode_LeftMouseDown" MouseRightButtonDown="LabelNode_RightMouseDown" Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, Converter={StaticResource BoolToVis}}">
+                            <Border Cursor="Hand" Style="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}" MouseLeftButtonDown="LabelNode_LeftMouseDown" MouseRightButtonDown="LabelNode_RightMouseDown" Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, Converter={StaticResource BoolToVis}}">
                                 <TextBlock Text="{Binding Index}" />
                             </Border>
                             <!-- 文字：仅选中时显示 -->
                             <Border Style="{Binding LabelTextStyle, RelativeSource={RelativeSource AncestorType=local:ImagewithLabelShow}, TargetNullValue={StaticResource DefaultTextStyle}}" MouseLeftButtonDown="LabelText_MouseLeftDown">
+                                <Border.Background>
+                                    <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundColor}" 
+                                        Opacity="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity}" />
+                                </Border.Background>
                                 <Border.Visibility>
                                     <MultiBinding Converter="{StaticResource AllBoolToVis}">
                                         <Binding Path="IsSelected" />
@@ -104,7 +109,11 @@
                                     </MultiBinding>
                                 </Border.Visibility>
 
-                                <TextBlock Text="{Binding Text}" />
+                                <TextBlock Text="{Binding Text}">
+                                    <TextBlock.Foreground>
+                                        <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextForegroundColor}" />
+                                    </TextBlock.Foreground>
+                                </TextBlock>
                             </Border>
                         </StackPanel>
                     </DataTemplate>

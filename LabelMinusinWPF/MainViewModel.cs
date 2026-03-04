@@ -225,20 +225,16 @@ namespace LabelMinusinWPF
 
         #region OCR识别模式
 
-        [ObservableProperty]
-        private string _selectedOcrWebsite = "百度";
-
-        private static readonly Dictionary<string, string> _ocrWebsiteUrls = new()
+        // 公开字典，让 XAML 和后台都能直接访问
+        public Dictionary<string, string> OcrWebsites { get; } = new()
         {
-            ["百度"] = "https://graph.baidu.com/pcpage/index?tpl_from=pc",
-            ["谷歌"] = "https://lens.google.com/",
+            ["识字体网 (LikeFont)"] = "https://www.likefont.com/",
+            ["AI识别 (YuzuMarker)"] = "https://huggingface.co/spaces/gyrojeff/YuzuMarker.FontDetection",
             ["必应"] = "https://www.bing.com/visualsearch"
         };
 
-        public string GetOcrWebsiteUrl(string websiteName)
-        {
-            return _ocrWebsiteUrls.TryGetValue(websiteName, out var url) ? url : _ocrWebsiteUrls["百度"];
-        }
+        [ObservableProperty]
+        private string _selectedOcrWebsite = "AI识别 (YuzuMarker)";
 
         #endregion
 

@@ -300,12 +300,6 @@ namespace LabelMinusinWPF
                     if (myBmp != null)
                     {
                         Clipboard.SetImage(myBmp);
-
-                        // 检查是否为OCR模式
-                        if (IsOcrMode())
-                        {
-                            OpenOcrRecognitionWindow(myBmp);
-                        }
                     }
                 }
             }
@@ -388,37 +382,6 @@ namespace LabelMinusinWPF
         // 供外部调用，用于实现”同步”裁剪相同区域
         public BitmapSource? GetImageRegion(Rect normRect) => CaptureOriginalBitmapRegion(normRect);
 
-        private bool IsOcrMode()
-        {
-            // 查找MainWindow并检查是否为OCR模式
-            var mainWindow = Window.GetWindow(this);
-            if (mainWindow?.DataContext is MainViewModel vm)
-            {
-                return vm.CurrentMode == AppMode.OCR;
-            }
-            return false;
-        }
-
-        private void OpenOcrRecognitionWindow(BitmapSource screenshot)
-        {
-            try
-            {
-                var mainWindow = Window.GetWindow(this);
-                if (mainWindow?.DataContext is MainViewModel vm)
-                {
-                    string websiteName = vm.SelectedOcrWebsite;
-                    string websiteUrl = vm.GetOcrWebsiteUrl(websiteName);
-
-                    var ocrWindow = new OcrRecognitionWindow(screenshot, websiteUrl, websiteName);
-                    ocrWindow.Show();
-                }
-            }
-            catch (Exception ex)
-            {
-                string errorMsg = "OCR window open failed: " + ex.Message;
-                MessageBox.Show(errorMsg, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
         // 是否需要同步模式（true则通知外部，false则直接存剪贴板）
         public bool IsSyncRequired
         {

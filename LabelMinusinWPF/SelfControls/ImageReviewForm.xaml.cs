@@ -81,6 +81,11 @@ namespace LabelMinusinWPF
                     {
                         UpdateSplitterOpacity(vm.IsScreenShotEnabled);
                     }
+                    else if (e.PropertyName == nameof(ImageReviewVM.IsDualReViewEnabled))
+                    {
+                        // 单图模式时自动启用拖动
+                        UpdateDragModeForSingleImageMode(vm.IsDualReViewEnabled);
+                    }
                 };
             }
         }
@@ -147,6 +152,22 @@ namespace LabelMinusinWPF
             if (!_isDragModeEnabled)
             {
                 e.Handled = true;
+            }
+        }
+
+        private void UpdateDragModeForSingleImageMode(bool isSingleImageMode)
+        {
+            if (isSingleImageMode)
+            {
+                // 单图模式：自动启用拖动
+                _isDragModeEnabled = true;
+                DualImageSplitter.Background = _activeSplitterBrush;
+            }
+            else
+            {
+                // 双图模式：禁用拖动
+                _isDragModeEnabled = false;
+                DualImageSplitter.Background = _defaultSplitterBrush;
             }
         }
         #endregion 

@@ -163,18 +163,17 @@ namespace LabelMinusinWPF
                     {
                         if (label.IsDeleted)
                         {
-                            sb.AppendLine("【状态】：!!! 已删除 !!!");
-                            sb.AppendLine($"【原内容】：{label.OriginalText}");
+                            sb.AppendLine($"- [已删除]\n{label.OriginalText}");
                         }
                         else if (string.IsNullOrEmpty(label.OriginalText))
                         {
-                            sb.AppendLine("【状态】：!!! 新增 !!!");
-                            sb.AppendLine($"【内容】：{label.Text}");
+                            sb.AppendLine($"+ [新增]\n{label.Text}");
                         }
                         else
                         {
-                            sb.AppendLine($"【OLD】\n{label.OriginalText}");
-                            sb.AppendLine($"【NEW】\n{label.Text}");
+                            // 关键改进：紧凑的改前改后对比
+                            sb.AppendLine($"* [原文]: {label.OriginalText.Replace("\n", " ")}");
+                            sb.AppendLine($"{label.Text}");
                         }
                     }
                     else
@@ -207,18 +206,15 @@ namespace LabelMinusinWPF
         /// </summary>
         public static List<string> GetImagePath(string archivePath)
         {
-            var fullPaths = new List<string>();
-
             using var archive = ArchiveFactory.OpenArchive(archivePath);
-            foreach (var entry in archive.Entries)
-            {
-                if (!entry.IsDirectory && ImageExtensions.Contains(Path.GetExtension(entry.Key)))
-                {
-                    string physicalPath = Path.GetFullPath(Path.Combine(archivePath, entry.Key));
-                    fullPaths.Add(physicalPath);
-                }
-            }
-            return fullPaths;
+
+            return archive.Entries
+                .Where(entry => !entry.IsDirectory)
+                .Select(entry => new { Key = entry.Key, Ext = Path.GetExtension(entry.Key) })
+                // 关键修复：确保扩展名不为 null 且存在于集合中
+                .Where(x => x.Ext is string ext && ImageExtensions.Contains(ext))
+                .Select(x => Path.GetFullPath(Path.Combine(archivePath, x.Key)))
+                .ToList();
         }
 
         /// <summary>

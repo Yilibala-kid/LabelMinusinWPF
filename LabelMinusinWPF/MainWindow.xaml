@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:LabelMinusinWPF"
+    xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     xmlns:hc="https://handyorg.github.io/handycontrol"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     Title="{Binding CurrentProject.DisplayTitle}"
@@ -100,12 +101,6 @@
                     <!-- 来自 WinForms 版本的具体业务功能 -->
                     <MenuItem Header="关联压缩包" Command="{Binding AssociateZipCommand}" />
                     <MenuItem Header="调整图集" Command="{Binding AdjustImageSetCommand}" />
-                    <MenuItem Header="组别" />
-
-                    <Separator />
-
-                    <MenuItem Header="文本框字号" />
-                    <MenuItem Header="OCR网站" />
 
                     <Separator />
 
@@ -160,8 +155,8 @@
                     <MenuItem.Icon>
                         <materialDesign:PackIcon Kind="Help" />
                     </MenuItem.Icon>
-                    <MenuItem Header="官网" />
-                    <MenuItem Header="关于" />
+                    <MenuItem Header="官网" Click="OnOpenWebsite" Tag="https://github.com/Yilibala-kid/LabelMinusinWPF" />
+                    <MenuItem Header="关于" Click="About_Click"/>
                 </MenuItem>
                 <ToggleButton Width="40" VerticalAlignment="Center" Cursor="Hand" ToolTip="切换深色模式" IsChecked="{Binding IsDarkMode, RelativeSource={RelativeSource AncestorType=local:MainWindow}}">
                     <materialDesign:ToggleButtonAssist.OnContent>
@@ -190,7 +185,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0">
+                                <StackPanel Grid.Column="0" HorizontalAlignment="Center">
                                     <ToggleButton x:Name="DrawerTrigger" Style="{StaticResource IconToggleButtonStyle}" Tag="Menu" ToolTip="显示/隐藏工具箱" />
                                     <RadioButton
                                         x:Name="SEEMode"
@@ -212,20 +207,24 @@
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         GroupName="AppModes"
                                         IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:AppMode.OCR}}"
-                                        Tag="ImageSearch"
-                                        Content="识别"
-                                        ToolTip="内容识别" />
-                                    <ComboBox
-                                        Width="150"
-                                        Height="35"
-                                        Margin="10,0,0,0"
-                                        materialDesign:HintAssist.Hint="选择网站"
+                                        Tag="Camera"
+                                        Content="截图"
+                                        ToolTip="截图模式" />
+                                    <ComboBox Width="150"
+                                          Height="35"
+                                          Margin="10,0,0,0"
+                                          materialDesign:HintAssist.Hint="选择网站"
+                                          Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}"
+                                          ItemsSource="{Binding OcrWebsites.Keys}" 
+                                          SelectedItem="{Binding SelectedOcrWebsite}" />
+                                    <Button Style="{StaticResource IconButtonStyle}"
+                                        Width="20"
+                                        Height="20"
+                                        Tag="Magnify"
+                                        Padding="0"
+                                        ToolTip="将当前截图放到网站中识别"
                                         Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}"
-                                        SelectedItem="{Binding SelectedOcrWebsite}">
-                                        <ComboBoxItem Content="百度" />
-                                        <ComboBoxItem Content="谷歌" />
-                                        <ComboBoxItem Content="必应" />
-                                    </ComboBox>
+                                        Click="Recognize_Click" />
                                     <!-- 仅图片模式时显示组别栏 -->
                                     <ListBox
                                         VerticalAlignment="Center"
@@ -286,30 +285,29 @@
                         <!-- 工具栏 -->
                         <materialDesign:DrawerHost x:Name="ImageAreaDrawer" IsLeftDrawerOpen="{Binding IsChecked, ElementName=DrawerTrigger, Mode=TwoWay}">
                             <materialDesign:DrawerHost.LeftDrawerContent>
-                                <StackPanel Width="220" Background="{DynamicResource MaterialDesignPaper}" Orientation="Vertical">
-                                    <TextBlock Margin="16" Text="图片工具箱" Style="{StaticResource MaterialDesignHeadline6TextBlock}" />
+                                <StackPanel Width="280" Background="{DynamicResource MaterialDesignPaper}" Orientation="Vertical">
+                                    <!-- 标签点样式 -->
+                                    <TextBlock Margin="16,16,16,8" Text="标签点样式" FontWeight="SemiBold" Opacity="0.8" />
+                                    <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
+                                        <RadioButton Tag="Circle" Content="圆形" GroupName="DotStyle"  Style="{StaticResource IconRadioButtonStyle}"
+                                                     IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Circle, Mode=TwoWay}" />
+                                        <RadioButton Tag="Square" Content="方形" GroupName="DotStyle"  Style="{StaticResource IconRadioButtonStyle}"
+                                                     IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Square, Mode=TwoWay}" />
+                                        <RadioButton Tag="Select" Content="透明" GroupName="DotStyle" Style="{StaticResource IconRadioButtonStyle}"
+                                                     IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Transparent, Mode=TwoWay}" />
+                                    </StackPanel>
 
-                                    <Separator Margin="10,0" />
+                                    <!-- 文字背景颜色 -->
+                                    <TextBlock Margin="16,16,16,8" Text="文字背景颜色" FontWeight="SemiBold" Opacity="0.8" />
+                                    <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
+                                        <Button x:Name="BgColorWhite" Width="50" Height="30" Background="White" BorderBrush="Gray" BorderThickness="1" Margin="0,0,8,0" Click="BgColor_Click" Tag="White" />
+                                        <Button x:Name="BgColorBlack" Width="50" Height="30" Background="Black" BorderBrush="Gray" BorderThickness="1" Margin="0,0,8,0" Click="BgColor_Click" Tag="Black" />
+                                        <Button x:Name="BgColorBlue" Width="50" Height="30" Background="RoyalBlue" BorderBrush="Gray" BorderThickness="1" Margin="0,0,8,0" Click="BgColor_Click" Tag="RoyalBlue" />
+                                        <Button x:Name="BgColorTransparent" Width="50" Height="30" BorderBrush="Gray" BorderThickness="1" Click="BgColor_Click" Tag="Transparent"/>
+                                    </StackPanel>
 
-                                    <TextBlock Margin="16,16,16,4" Text="标签点样式" FontWeight="SemiBold" Opacity="0.8" />
-                                    <ComboBox x:Name="DotStyleSelector" Margin="16,0,16,8" SelectionChanged="DotStyleSelector_SelectionChanged" SelectedIndex="0">
-                                        <ComboBoxItem Content="默认 (圆形)" Tag="DefaultDotStyle" />
-                                        <ComboBoxItem Content="方形" Tag="SquareDotStyle" />
-                                        <ComboBoxItem Content="透明 (无底色)" Tag="TransparentDotStyle" />
-                                    </ComboBox>
-
-                                    <!-- 标签点样式预览 -->
-                                    <Border Height="40" Margin="16,0,16,16" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1" Background="{DynamicResource MaterialDesignPaper}">
-                                        <Ellipse
-                                            x:Name="DotPreview"
-                                            Width="20"
-                                            Height="20"
-                                            Fill="RoyalBlue"
-                                            Stroke="White"
-                                            StrokeThickness="2" />
-                                    </Border>
-
-                                    <TextBlock Margin="16,16,16,4" Text="文字背景透明度" FontWeight="SemiBold" Opacity="0.8" />
+                                    <!-- 文字背景透明度 -->
+                                    <TextBlock Margin="16,8,16,4" Text="文字背景透明度" FontWeight="SemiBold" Opacity="0.8" />
                                     <Slider
                                         x:Name="OpacitySlider"
                                         Margin="16,0,16,8"
@@ -317,41 +315,20 @@
                                         Maximum="1"
                                         TickFrequency="0.1"
                                         IsSnapToTickEnabled="True"
-                                        Value="{Binding TextBackgroundOpacity, ElementName=PicView, Mode=TwoWay}" />
+                                        Value="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity, Mode=TwoWay}" />
 
-                                    <TextBlock Margin="16,0,16,4" Text="文字背景颜色" FontWeight="SemiBold" Opacity="0.8" />
-                                    <ComboBox x:Name="BackgroundColorSelector" Margin="16,0,16,8" SelectedIndex="0" SelectionChanged="BackgroundColorSelector_SelectionChanged">
-                                        <ComboBoxItem Content="白色" Tag="White" />
-                                        <ComboBoxItem Content="黑色" Tag="Black" />
-                                        <ComboBoxItem Content="蓝色" Tag="RoyalBlue" />
-                                    </ComboBox>
+                                    <!-- 文字颜色 -->
+                                    <TextBlock Margin="16,8,16,8" Text="文字颜色" FontWeight="SemiBold" Opacity="0.8" />
+                                    <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
+                                        <Button x:Name="FgColorWhite" Width="50" Height="30" Background="White" BorderBrush="Gray" BorderThickness="1" Margin="0,0,8,0" Click="FgColor_Click" Tag="White" />
+                                        <Button x:Name="FgColorBlack" Width="50" Height="30" Background="Black" BorderBrush="Gray" BorderThickness="1" Margin="0,0,8,0" Click="FgColor_Click" Tag="Black" />
+                                        <Button x:Name="FgColorBlue" Width="50" Height="30" Background="RoyalBlue" BorderBrush="Gray" BorderThickness="1" Click="FgColor_Click" Tag="RoyalBlue" />
+                                    </StackPanel>
 
-                                    <TextBlock Margin="16,0,16,4" Text="文字颜色" FontWeight="SemiBold" Opacity="0.8" />
-                                    <ComboBox x:Name="ForegroundColorSelector" Margin="16,0,16,8" SelectedIndex="1" SelectionChanged="ForegroundColorSelector_SelectionChanged">
-                                        <ComboBoxItem Content="白色" Tag="White" />
-                                        <ComboBoxItem Content="黑色" Tag="Black" />
-                                        <ComboBoxItem Content="蓝色" Tag="RoyalBlue" />
-                                    </ComboBox>
 
-                                    <!-- 文字样式预览 -->
-                                    <Border Height="60" Margin="16,0,16,16" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1">
-                                        <TextBlock
-                                            x:Name="TextPreview"
-                                            Padding="8,4"
-                                            HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Text="预览文本"
-                                            FontSize="16">
-                                            <TextBlock.Background>
-                                                <SolidColorBrush x:Name="TextPreviewBackground" Opacity="{Binding Value, ElementName=OpacitySlider}" Color="White" />
-                                            </TextBlock.Background>
-                                            <TextBlock.Foreground>
-                                                <SolidColorBrush x:Name="TextPreviewForeground" Color="Black" />
-                                            </TextBlock.Foreground>
-                                        </TextBlock>
-                                    </Border>
+                                    <Button Background="RoyalBlue" Content="恢复默认样式" Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ResetToDefaultsCommand}" />
 
-                                    <Button Margin="16,32,16,16" Content="关闭工具栏" Command="{x:Static materialDesign:DrawerHost.CloseDrawerCommand}" />
+                                   
                                 </StackPanel>
                             </materialDesign:DrawerHost.LeftDrawerContent>
                             <!-- 图片！！！！！ -->

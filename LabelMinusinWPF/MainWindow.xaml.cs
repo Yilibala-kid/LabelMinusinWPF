@@ -1,7 +1,9 @@
 ﻿using LabelMinusinWPF.Utilities;
+using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -210,137 +212,93 @@ namespace LabelMinusinWPF
                 if (shouldRegister)
                 {
                     ContextMenuRegistrar.RegisterAll();
-                    MessageBox.Show("右键菜单注册成功！", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                    MessageBox.Show("右键菜单注册成功！", "提示",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
                     ContextMenuRegistrar.UnregisterAll();
-                    MessageBox.Show("右键菜单已取消注册", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // 回滚勾选状态，因为本次操作没成功
-                menuItem.IsChecked = !shouldRegister;
-
-                var result = MessageBox.Show(
-                    "修改注册表需要管理员权限。\n\n是否立即以管理员身份重启程序？",
-                    "权限不足",
-                    MessageBoxButton.YesNo,
-                    MessageBoxImage.Question);
-
-                if (result == MessageBoxResult.Yes)
-                {
-                    RestartAsAdmin();
+                    MessageBox.Show("右键菜单已取消注册", "提示",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
+                // 回滚勾选状态
                 menuItem.IsChecked = !shouldRegister;
-                MessageBox.Show($"操作失败：{ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-        private void RestartAsAdmin()
-        {
-            var processInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = System.Environment.ProcessPath, // 获取当前运行的 exe 路径
-                UseShellExecute = true,
-                Verb = "runas" // 关键：触发 UAC 提权
-            };
 
-            try
-            {
-                System.Diagnostics.Process.Start(processInfo);
-                Application.Current.Shutdown(); // 关闭当前非管理员实例
-            }
-            catch (System.ComponentModel.Win32Exception)
-            {
-                // 用户在 UAC 界面点击了“否”
-                MessageBox.Show("未获得管理员权限，操作已取消。", "提示");
+                MessageBox.Show($"操作失败：{ex.Message}",
+                    "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         #endregion
-
         private void OpenImageReview_Click(object sender, RoutedEventArgs e)
         {
             // 直接操作状态，控件会自动显示
             FullScreenReview.IsOpen = true;
         }
-
-
-        private void DotStyleSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void Recognize_Click(object sender, RoutedEventArgs e)
         {
-            // 确保组件已经加载
-            if (DotStyleSelector.SelectedItem is ComboBoxItem item && PicView != null)
-            {
-                string styleKey = item.Tag.ToString();
-                // 动态查找资源字典中的样式并赋值给图片控件
-                PicView.LabelDotStyle = (Style)FindResource(styleKey);
+            if (DataContext is not MainViewModel vm) return;
 
-                // 更新预览
-                if (DotPreview != null)
-                {
-                    switch (styleKey)
-                    {
-                        case "DefaultDotStyle":
-                            DotPreview.Width = 20;
-                            DotPreview.Height = 20;
-                            DotPreview.Fill = new SolidColorBrush(Colors.RoyalBlue);
-                            DotPreview.Stroke = new SolidColorBrush(Colors.White);
-                            DotPreview.StrokeThickness = 2;
-                            break;
-                        case "SquareDotStyle":
-                            DotPreview.Width = 16;
-                            DotPreview.Height = 16;
-                            DotPreview.Fill = new SolidColorBrush(Colors.RoyalBlue);
-                            DotPreview.Stroke = new SolidColorBrush(Colors.White);
-                            DotPreview.StrokeThickness = 2;
-                            break;
-                        case "TransparentDotStyle":
-                            DotPreview.Width = 20;
-                            DotPreview.Height = 20;
-                            DotPreview.Fill = Brushes.Transparent;
-                            DotPreview.Stroke = new SolidColorBrush(Colors.RoyalBlue);
-                            DotPreview.StrokeThickness = 2;
-                            break;
-                    }
-                }
+            // 从剪贴板获取最近截图的图片
+            BitmapSource? screenshot = null;
+            try
+            {
+                if (Clipboard.ContainsImage())
+                    screenshot = Clipboard.GetImage();
             }
+            catch { }
+
+            if (screenshot == null)
+            {
+                vm.MainMessageQueue.Enqueue("请先截图，再点击识别");
+                return;
+            }
+
+            string websiteName = vm.SelectedOcrWebsite;
+            // 直接用 TryGetValue 获取，安全又简洁
+            string websiteUrl = vm.OcrWebsites.TryGetValue(websiteName, out var url)
+                                ? url
+                                : vm.OcrWebsites["百度"]; // 默认回退到百度
+
+            var ocrWindow = new OcrRecognitionWindow(screenshot, websiteUrl, websiteName);
+            ocrWindow.Show();
         }
 
-        private void BackgroundColorSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+
+        private void BgColor_Click(object sender, RoutedEventArgs e)
         {
-            if (BackgroundColorSelector.SelectedItem is ComboBoxItem item && TextPreviewBackground != null && PicView != null)
+            if (sender is not System.Windows.Controls.Button btn) return;
+
+            string colorName = btn.Tag.ToString();
+            Color color = colorName switch
             {
-                string colorName = item.Tag.ToString();
-                Color color = colorName switch
-                {
-                    "White" => Colors.White,
-                    "Black" => Colors.Black,
-                    "RoyalBlue" => Colors.RoyalBlue,
-                    _ => Colors.White
-                };
-                TextPreviewBackground.Color = color;
-                PicView.TextBackgroundColor = new SolidColorBrush(color);
-            }
+                "White" => Colors.White,
+                "Black" => Colors.Black,
+                "RoyalBlue" => Colors.RoyalBlue,
+                "Transparent" => Colors.Transparent,
+                _ => Colors.White
+            };
+
+            SelfControls.LabelStyleManager.Instance.TextBackgroundColor = color;
+
         }
 
-        private void ForegroundColorSelector_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void FgColor_Click(object sender, RoutedEventArgs e)
         {
-            if (ForegroundColorSelector.SelectedItem is ComboBoxItem item && TextPreviewForeground != null && PicView != null)
+            if (sender is not System.Windows.Controls.Button btn) return;
+
+            string colorName = btn.Tag.ToString();
+            Color color = colorName switch
             {
-                string colorName = item.Tag.ToString();
-                Color color = colorName switch
-                {
-                    "White" => Colors.White,
-                    "Black" => Colors.Black,
-                    "RoyalBlue" => Colors.RoyalBlue,
-                    _ => Colors.Black
-                };
-                TextPreviewForeground.Color = color;
-                PicView.TextForegroundColor = new SolidColorBrush(color);
-            }
+                "White" => Colors.White,
+                "Black" => Colors.Black,
+                "RoyalBlue" => Colors.RoyalBlue,
+                _ => Colors.Black
+            };
+
+            SelfControls.LabelStyleManager.Instance.TextForegroundColor = color;
         }
 
         #region 拖放文件支持
@@ -369,6 +327,60 @@ namespace LabelMinusinWPF
             }
         }
         #endregion
+        private void OnOpenWebsite(object sender, RoutedEventArgs e)
+        {
+            if (sender is MenuItem menuItem && menuItem.Tag is string url)
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = url,
+                        UseShellExecute = true // 必须设置为 true 才能在 .NET Core 中打开浏览器
+                    });
+                }
+                catch (System.Exception ex)
+                {
+                    MessageBox.Show($"无法打开网页: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+        private void About_Click(object sender, RoutedEventArgs e)
+        {
+            if (this.DataContext is MainViewModel vm)
+            {
+                // 访问 MainMessageQueue
+                vm.MainMessageQueue.Enqueue("本程序由No-Hifuu友情赞助");
+            }
+        }
+
+        #region 命令行启动支持
+        public void OpenFileOnStartup(string filePath)
+        {
+            if (DataContext is MainViewModel vm && System.IO.File.Exists(filePath))
+            {
+                vm.OpenResourceByPath([filePath], false);
+            }
+        }
+
+        public void OpenImageReviewWithFile(string filePath)
+        {
+            if (DataContext is MainViewModel vm && System.IO.File.Exists(filePath))
+            {
+                // 先打开图校界面
+                FullScreenReview.IsOpen = true;
+
+                // 获取图校界面的ViewModel并加载文件
+                if (FullScreenReview.DataContext is ImageReviewVM reviewVm)
+                {
+                    // 判断文件类型，加载到左侧或右侧
+                    reviewVm.LeftImageVM.OpenResourceByPath([filePath], false);
+                }
+            }
+        }
+        #endregion
+
+
     }
 
 
