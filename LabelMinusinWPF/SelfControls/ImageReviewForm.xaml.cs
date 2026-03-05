@@ -72,6 +72,11 @@ namespace LabelMinusinWPF
                 window.PreviewKeyUp += Window_PreviewKeyUp;
             }
 
+            // 确保GridSplitter不会捕获键盘焦点
+            if (DualImageSplitter != null)
+            {
+                DualImageSplitter.Focusable = false;
+            }
         }
 
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -383,6 +388,7 @@ namespace LabelMinusinWPF
         }
         #endregion
 
+
         #region 简单功能
         private void TempChangePic_Click(bool isLeft)
         {
@@ -437,6 +443,8 @@ namespace LabelMinusinWPF
             });
         }
         #endregion
+
+
         #region 拖入文件显示
         private void OnFileDrop(object sender, DragEventArgs e)
         {

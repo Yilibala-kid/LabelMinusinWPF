@@ -93,7 +93,7 @@
                 <Button Padding="0,0" ToolTip="下一张" Command="{Binding NextImageCommand}">
                     <materialDesign:PackIcon Width="30" Height="30" Kind="ArrowDown" />
                 </Button>
-                <ToggleButton x:Name="ImageReviewMenu" Style="{StaticResource IconToggleButtonStyle}" Tag="Menu" ToolTip="菜单" IsChecked="{Binding IsMenuOpen}" />
+                <ToggleButton x:Name="ImageReviewMenu" Style="{StaticResource IconToggleButtonStyle}" Tag="Menu" ToolTip="菜单" IsChecked="{Binding IsMenuOpen}" Focusable="False"/>
             </StackPanel>
 
             <StackPanel Grid.Column="3" HorizontalAlignment="Right">
@@ -115,7 +115,7 @@
         <materialDesign:DrawerHost Grid.Row="1" IsTopDrawerOpen="{Binding IsMenuOpen}">
             <!-- 工具栏 -->
             <materialDesign:DrawerHost.TopDrawerContent>
-                <Grid Height="35" Background="{DynamicResource MaterialDesignPaper}">
+                <Grid Height="35" Background="{DynamicResource MaterialDesignPaper}" Focusable="False">
                     <StackPanel HorizontalAlignment="Center">
                         <ToggleButton
                             x:Name="ModeToggle"
@@ -123,14 +123,16 @@
                             Content="单图校对"
                             Tag="compare"
                             ToolTip="单/双图校对&#x0A;建议打开同步显示"
-                            IsChecked="{Binding IsDualReViewEnabled}" />
+                            IsChecked="{Binding IsDualReViewEnabled}" 
+                            Focusable="False"/>
                         <Button
                             x:Name="ResetSplitter"
                             Style="{StaticResource IconButtonStyle}"
                             Tag="ArrowSplitVertical"
                             Content="重置分割线布局"
                             ToolTip="重置布局"
-                            Command="{Binding ResetLayoutCommand}" />
+                            Command="{Binding ResetLayoutCommand}" 
+                            Focusable="False"/>
                         <!-- 打开截图文件夹 -->
                         <Button Style="{StaticResource IconButtonStyle}" Tag="FolderImage" Content="截图文件夹" ToolTip="存放所有截图，关闭程序后清空" Click="OpenScreenshotFolder_Click" />
                         <materialDesign:PopupBox>
@@ -253,7 +255,8 @@
                     HorizontalAlignment="Center"
                     VerticalAlignment="Stretch"
                     Background="RoyalBlue"
-                    Cursor="SizeWE">
+                    Cursor="SizeWE"
+                    Focusable="False">
                     <GridSplitter.Template>
                         <ControlTemplate TargetType="GridSplitter">
                             <Grid Background="{TemplateBinding Background}">
