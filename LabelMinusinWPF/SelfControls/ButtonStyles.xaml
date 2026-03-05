@@ -194,4 +194,40 @@
             </Style>
         </Style.Resources>
     </Style>
+
+    <!-- 颜色选择按钮样式(带选中高亮) -->
+    <Style x:Key="ColorPickerButtonStyle" TargetType="Button">
+        <Setter Property="Width" Value="50" />
+        <Setter Property="Height" Value="30" />
+        <Setter Property="Margin" Value="0,0,8,0" />
+        <Setter Property="BorderBrush" Value="Gray" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid>
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="2">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <!-- 选中指示器 -->
+                        <Border x:Name="selectedIndicator" Width="8" Height="8" Background="RoyalBlue" CornerRadius="4" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-3,-3,0" Visibility="Collapsed">
+                            <materialDesign:PackIcon Kind="Check" Width="6" Height="6" Foreground="White" />
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="RoyalBlue" />
+                            <Setter TargetName="border" Property="BorderThickness" Value="2" />
+                        </Trigger>
+                        <Trigger Property="Tag" Value="Selected">
+                            <Setter TargetName="border" Property="BorderBrush" Value="RoyalBlue" />
+                            <Setter TargetName="border" Property="BorderThickness" Value="3" />
+                            <Setter TargetName="selectedIndicator" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

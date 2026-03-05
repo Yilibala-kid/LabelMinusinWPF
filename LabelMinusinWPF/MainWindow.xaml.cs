@@ -19,6 +19,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using static LabelMinusinWPF.Modules;
 using static MaterialDesignThemes.Wpf.Theme;
 
@@ -37,6 +38,10 @@ namespace LabelMinusinWPF
     }
     public partial class MainWindow : Window
     {
+        private DispatcherTimer? _autoSaveTimer;
+        private const int AutoSaveIntervalMinutes = 5;
+        private const int MaxAutoSaveFiles = 20;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -44,6 +49,7 @@ namespace LabelMinusinWPF
             Closing += MainWindow_Closing;
             Loaded += MainWindow_Loaded;
             RegisterMenu.IsChecked = ContextMenuRegistrar.IsRegistered();
+            InitializeAutoSave();
         }
 
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -53,10 +59,42 @@ namespace LabelMinusinWPF
             {
                 UpdateLayout(DisplayMode.ListAndTextBox);
             }
+
+            // 监听样式管理器的颜色变化以更新按钮高亮
+            SelfControls.LabelStyleManager.Instance.PropertyChanged += LabelStyleManager_PropertyChanged;
+            UpdateColorButtonHighlight();
+        }
+
+        private void LabelStyleManager_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SelfControls.LabelStyleManager.TextBackgroundColor) ||
+                e.PropertyName == nameof(SelfControls.LabelStyleManager.TextForegroundColor))
+            {
+                UpdateColorButtonHighlight();
+            }
+        }
+
+        private void UpdateColorButtonHighlight()
+        {
+            var styleManager = SelfControls.LabelStyleManager.Instance;
+
+            // 更新背景颜色按钮高亮
+            BgColorWhite.Tag = styleManager.TextBackgroundColor == Colors.White ? "Selected" : "White";
+            BgColorBlack.Tag = styleManager.TextBackgroundColor == Colors.Black ? "Selected" : "Black";
+            BgColorBlue.Tag = styleManager.TextBackgroundColor == Colors.RoyalBlue ? "Selected" : "RoyalBlue";
+            BgColorTransparent.Tag = styleManager.TextBackgroundColor == Colors.Transparent ? "Selected" : "Transparent";
+
+            // 更新前景颜色按钮高亮
+            FgColorWhite.Tag = styleManager.TextForegroundColor == Colors.White ? "Selected" : "White";
+            FgColorBlack.Tag = styleManager.TextForegroundColor == Colors.Black ? "Selected" : "Black";
+            FgColorBlue.Tag = styleManager.TextForegroundColor == Colors.RoyalBlue ? "Selected" : "RoyalBlue";
         }
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
+            // 停止自动保存计时器
+            _autoSaveTimer?.Stop();
+
             // 获取 ViewModel
             if (DataContext is MainViewModel viewModel && viewModel.HasUnsavedChanges())
             {
@@ -76,6 +114,7 @@ namespace LabelMinusinWPF
                     e.Cancel = true;
                 }
             }
+            SelfControls.LabelStyleManager.Instance.SaveSettings();
         }
         #region 黑白模式控制
         // 定义依赖属性
@@ -272,6 +311,12 @@ namespace LabelMinusinWPF
             if (sender is not System.Windows.Controls.Button btn) return;
 
             string colorName = btn.Tag.ToString();
+            // 如果已经是Selected状态,提取原始颜色名
+            if (colorName == "Selected")
+            {
+                colorName = btn.Name.Replace("BgColor", "");
+            }
+
             Color color = colorName switch
             {
                 "White" => Colors.White,
@@ -282,7 +327,6 @@ namespace LabelMinusinWPF
             };
 
             SelfControls.LabelStyleManager.Instance.TextBackgroundColor = color;
-
         }
 
         private void FgColor_Click(object sender, RoutedEventArgs e)
@@ -290,6 +334,12 @@ namespace LabelMinusinWPF
             if (sender is not System.Windows.Controls.Button btn) return;
 
             string colorName = btn.Tag.ToString();
+            // 如果已经是Selected状态,提取原始颜色名
+            if (colorName == "Selected")
+            {
+                colorName = btn.Name.Replace("FgColor", "");
+            }
+
             Color color = colorName switch
             {
                 "White" => Colors.White,
@@ -410,7 +460,152 @@ namespace LabelMinusinWPF
         }
         #endregion
 
+        #region 快捷键
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            // 【重要防护】如果用户当前正在 TextBox 里输入文字，则不触发快捷键
+            if (e.OriginalSource is System.Windows.Controls.TextBox) return;
+            if (FullScreenReview.IsOpen) return; // 图校界面打开时禁用快捷键，避免冲突
+            if (DataContext is MainViewModel vm)
+            {
+                switch (e.Key)
+                {
+                    // --- 模式切换 (1, 2, 3) ---
+                    case Key.D1:
+                    case Key.NumPad1:
+                        vm.CurrentMode = AppMode.See;
+                        e.Handled = true;
+                        break;
+                    case Key.D2:
+                    case Key.NumPad2:
+                        vm.CurrentMode = AppMode.LabelDo;
+                        e.Handled = true;
+                        break;
+                    case Key.D3:
+                    case Key.NumPad3:
+                        vm.CurrentMode = AppMode.OCR;
+                        e.Handled = true;
+                        break;
 
+                    // --- 图片切换 (A: 上一张, D: 下一张) ---
+                    case Key.A:
+                        if (vm.PreviousImageCommand.CanExecute(null))
+                            vm.PreviousImageCommand.Execute(null);
+                        e.Handled = true;
+                        break;
+                    case Key.D:
+                        if (vm.NextImageCommand.CanExecute(null)) // RelayCommand 会自动处理 CanExecute
+                            vm.NextImageCommand.Execute(null);
+                        e.Handled = true;
+                        break;
+
+                    // --- 标签切换 (W: 上一个, S: 下一个) ---
+                    case Key.W:
+                        if (vm.PreviousLabelCommand.CanExecute(null))
+                            vm.PreviousLabelCommand.Execute(null);
+                        e.Handled = true;
+                        break;
+                    case Key.S:
+                        if (vm.NextLabelCommand.CanExecute(null))
+                            vm.NextLabelCommand.Execute(null);
+                        e.Handled = true;
+                        break;
+                    case Key.R:
+                        PicView.FitToView();
+                        e.Handled = true;
+                        break;
+                }
+            }
+        }
+        #endregion
+
+        #region 自动保存功能
+        private void InitializeAutoSave()
+        {
+            _autoSaveTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMinutes(AutoSaveIntervalMinutes)
+            };
+            _autoSaveTimer.Tick += AutoSaveTimer_Tick;
+            _autoSaveTimer.Start();
+        }
+
+        private void AutoSaveTimer_Tick(object? sender, EventArgs e)
+        {
+            if (DataContext is not MainViewModel vm) return;
+
+            // 只有在MainWindow中有翻译项目且有修改时才自动保存
+            if (vm.CurrentProject == ProjectContext.Empty || !vm.HasUnsavedChanges())
+                return;
+
+            // 不保存ImageReview中的内容
+            if (FullScreenReview.IsOpen)
+                return;
+
+            try
+            {
+                // 获取程序所在目录
+                string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string autoSaveFolder = System.IO.Path.Combine(appDirectory, "AutoSave");
+
+                // 确保AutoSave文件夹存在
+                Directory.CreateDirectory(autoSaveFolder);
+
+                // 生成文件名: 翻译文件名_保存时间.txt
+                string originalFileName = string.IsNullOrEmpty(vm.CurrentProject.TxtName)
+                    ? "未命名翻译"
+                    : System.IO.Path.GetFileNameWithoutExtension(vm.CurrentProject.TxtName);
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string autoSaveFileName = $"{originalFileName}_{timestamp}.txt";
+                string autoSavePath = System.IO.Path.Combine(autoSaveFolder, autoSaveFileName);
+
+                // 保存翻译
+                string outputText = Modules.LabelsToText(
+                    vm.ImageList,
+                    vm.CurrentProject.ZipName,
+                    ExportMode.Current
+                );
+                File.WriteAllText(autoSavePath, outputText);
+
+                // 清理旧的自动保存文件,只保留最新的20个
+                CleanupOldAutoSaveFiles(autoSaveFolder, originalFileName);
+            }
+            catch (Exception ex)
+            {
+                // 自动保存失败不影响用户操作,只记录日志
+                System.Diagnostics.Debug.WriteLine($"自动保存失败: {ex.Message}");
+            }
+        }
+
+        private void CleanupOldAutoSaveFiles(string autoSaveFolder, string baseFileName)
+        {
+            try
+            {
+                // 获取所有相关的自动保存文件
+                var files = Directory.GetFiles(autoSaveFolder, $"{baseFileName}_*.txt")
+                    .Select(f => new FileInfo(f))
+                    .OrderByDescending(f => f.CreationTime)
+                    .ToList();
+
+                // 删除超过MaxAutoSaveFiles的旧文件
+                foreach (var file in files.Skip(MaxAutoSaveFiles))
+                {
+                    try
+                    {
+                        file.Delete();
+                    }
+                    catch
+                    {
+                        // 删除失败不影响程序运行
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"清理旧自动保存文件失败: {ex.Message}");
+            }
+        }
+        #endregion
     }
 
 

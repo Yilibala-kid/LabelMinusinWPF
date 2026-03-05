@@ -291,6 +291,68 @@ namespace LabelMinusinWPF
                 SelectedGroupName = img.SelectedLabel.Group;
         }
         #endregion
+        #region 标签切换
+        [RelayCommand(CanExecute = nameof(CanGoToPreviousLabel))]
+        public void PreviousLabel()
+        {
+            if (SelectedImage == null) return;
+
+            var activeLabels = SelectedImage.ActiveLabels;
+            if (activeLabels.Count == 0) return;
+
+            // 如果当前没选中标签，按“上一个”则选中最后一个
+            if (SelectedImage.SelectedLabel == null)
+            {
+                SelectedImage.SelectedLabel = activeLabels[activeLabels.Count - 1];
+                return;
+            }
+
+            int currentIndex = activeLabels.IndexOf(SelectedImage.SelectedLabel);
+            if (currentIndex > 0)
+                SelectedImage.SelectedLabel = activeLabels[currentIndex - 1];
+        }
+
+        private bool CanGoToPreviousLabel()
+        {
+            if (SelectedImage == null) return false;
+            var activeLabels = SelectedImage.ActiveLabels;
+            if (activeLabels.Count == 0) return false;
+            if (SelectedImage.SelectedLabel == null) return true;
+
+            return activeLabels.IndexOf(SelectedImage.SelectedLabel) > 0;
+        }
+
+        [RelayCommand(CanExecute = nameof(CanGoToNextLabel))]
+        public void NextLabel()
+        {
+            if (SelectedImage == null) return;
+
+            var activeLabels = SelectedImage.ActiveLabels;
+            if (activeLabels.Count == 0) return;
+
+            // 如果当前没选中标签，按“下一个”则选中第一个
+            if (SelectedImage.SelectedLabel == null)
+            {
+                SelectedImage.SelectedLabel = activeLabels[0];
+                return;
+            }
+
+            int currentIndex = activeLabels.IndexOf(SelectedImage.SelectedLabel);
+            if (currentIndex >= 0 && currentIndex < activeLabels.Count - 1)
+                SelectedImage.SelectedLabel = activeLabels[currentIndex + 1];
+        }
+
+        private bool CanGoToNextLabel()
+        {
+            if (SelectedImage == null) return false;
+            var activeLabels = SelectedImage.ActiveLabels;
+            if (activeLabels.Count == 0) return false;
+            if (SelectedImage.SelectedLabel == null) return true;
+
+            int currentIndex = activeLabels.IndexOf(SelectedImage.SelectedLabel);
+            return currentIndex >= 0 && currentIndex < activeLabels.Count - 1;
+        }
+        #endregion
     }
 
     #region 模式选择
@@ -322,6 +384,11 @@ namespace LabelMinusinWPF
                     IsPictureTextVisible = true;
                     break;
             }
+        }
+        [RelayCommand]
+        private void SetAppMode(AppMode mode)
+        {
+            CurrentMode = mode;
         }
     }
 
