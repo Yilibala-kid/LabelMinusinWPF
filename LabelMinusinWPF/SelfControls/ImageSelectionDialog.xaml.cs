@@ -51,7 +51,7 @@ namespace LabelMinusinWPF
 
             ImageListBox.ItemsSource = Items;
             ImageListBox.PreviewMouseLeftButtonDown += ImageListBox_PreviewMouseLeftButtonDown;
-            SelectedImages = new List<ImageInfo>();
+            SelectedImages = new();
         }
 
         private void ImageListBox_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
@@ -64,16 +64,14 @@ namespace LabelMinusinWPF
             }
         }
 
-        private void SelectAll_Click(object sender, RoutedEventArgs e)
-        {
-            foreach (var item in Items)
-                item.IsSelected = true;
-        }
+        private void SelectAll_Click(object sender, RoutedEventArgs e) => SetAllSelection(true);
 
-        private void DeselectAll_Click(object sender, RoutedEventArgs e)
+        private void DeselectAll_Click(object sender, RoutedEventArgs e) => SetAllSelection(false);
+
+        private void SetAllSelection(bool value)
         {
             foreach (var item in Items)
-                item.IsSelected = false;
+                item.IsSelected = value;
         }
 
         private void OK_Click(object sender, RoutedEventArgs e)

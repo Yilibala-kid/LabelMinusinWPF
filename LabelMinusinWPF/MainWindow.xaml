@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:local="clr-namespace:LabelMinusinWPF"
+    xmlns:common="clr-namespace:LabelMinusinWPF.Common"
     xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     xmlns:hc="https://handyorg.github.io/handycontrol"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
@@ -31,10 +32,9 @@
         <Style TargetType="StackPanel">
             <Setter Property="Orientation" Value="Horizontal" />
         </Style>
-        <local:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
+        <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        <local:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
-        <local:EnumToBooleanConverter x:Key="EnumToBool" />
+        <common:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
         <Style TargetType="Grid">
             <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}" />
         </Style>
@@ -167,14 +167,14 @@
                                         x:Name="SEEMode"
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         GroupName="AppModes"
-                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:AppMode.See}}"
+                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static common:Constants+AppMode.See}}"
                                         Tag="Eye"
                                         Content="浏览"
                                         ToolTip="浏览图片" />
                                     <RadioButton
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         GroupName="AppModes"
-                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:AppMode.LabelDo}}"
+                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static common:Constants+AppMode.LabelDo}}"
                                         Tag="FileEdit"
                                         Content="标记"
                                         ToolTip="标记图片" />
@@ -182,7 +182,7 @@
                                         x:Name="OcrBtn"
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         GroupName="AppModes"
-                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static local:AppMode.OCR}}"
+                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static common:Constants+AppMode.OCR}}"
                                         Tag="Camera"
                                         Content="截图"
                                         ToolTip="截图模式" />
@@ -375,7 +375,7 @@
                         SelectedValuePath="Name"
                         SelectedValue="{Binding SelectedGroupName, Mode=TwoWay}"
                         ItemContainerStyle="{StaticResource GroupBadgeItemStyle}"
-                        Visibility="{Binding IsImageOnlyMode, Converter={StaticResource InverseBoolToVisibility}}">
+                        Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource InverseBoolToVisibility}}">
                         <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <StackPanel Orientation="Horizontal" />

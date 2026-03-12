@@ -5,7 +5,7 @@ using System.Linq;
 using System.Reflection;
 using Microsoft.Win32;
 
-namespace LabelMinusinWPF.Utilities
+namespace LabelMinusinWPF.Common
 {
     public static class ContextMenuRegistrar
     {
@@ -21,14 +21,8 @@ namespace LabelMinusinWPF.Utilities
 
         private static IEnumerable<string> GetTargetExtensions()
         {
-            return new List<string>
-            {
-                ".txt",
-                ".zip",
-                ".rar",
-                ".7z"
-            }
-            .Concat(ProjectService.ImageExtensions)
+            return new[] { ".txt", ".zip", ".rar", ".7z" }
+            .Concat(ProjectHelper.ImageExtensions)
             .Where(ext => !string.IsNullOrWhiteSpace(ext))
             .Select(ext => ext.StartsWith(".") ? ext : "." + ext)
             .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -63,7 +57,7 @@ namespace LabelMinusinWPF.Utilities
 
         public static void UnregisterAll()
         {
-            var roots = new List<string> { "Directory" }
+            var roots = new[] { "Directory" }
                 .Concat(GetTargetExtensions()
                 .Select(ext => $@"SystemFileAssociations\{ext}"));
 

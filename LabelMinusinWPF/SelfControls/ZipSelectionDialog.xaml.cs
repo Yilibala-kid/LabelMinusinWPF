@@ -13,8 +13,7 @@ namespace LabelMinusinWPF
             InitializeComponent();
 
             // 添加"无"选项用于取消关联
-            var items = new List<string> { "无（取消关联）" };
-            items.AddRange(zipFiles);
+            var items = new[] { "无（取消关联）" }.Concat(zipFiles).ToList();
 
             ZipListBox.ItemsSource = items;
 

@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using ControlzEx.Standard;
 using MaterialDesignThemes.Wpf;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -18,6 +19,7 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using static LabelMinusinWPF.MainViewModel;
+using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF
 {
@@ -27,10 +29,7 @@ namespace LabelMinusinWPF
     public partial class ImageReView : UserControl
     {
         private DispatcherTimer _closeTimer;
-        private string _currentImgPath;
-        private bool _isDragModeEnabled = false;
-        private SolidColorBrush _defaultSplitterBrush = new SolidColorBrush(Colors.RoyalBlue);
-        private SolidColorBrush _activeSplitterBrush = new SolidColorBrush(Colors.LightSkyBlue);
+        private string _currentImgPath = string.Empty;
 
         public ImageReView()
         {
@@ -123,10 +122,10 @@ namespace LabelMinusinWPF
             if (bmpLeft != null || bmpRight != null)
             {
                 string currentImgName = DualNameCombobox.SelectedItem?.ToString() ?? "截图";
-                CombineAndCopy(bmpLeft, bmpRight, currentImgName);
+                CombineAndCopy(bmpLeft!, bmpRight!, currentImgName);
             }
         }
-        private void CombineAndCopy(BitmapSource leftSource, BitmapSource rightSource, string footerText)
+        private void CombineAndCopy(BitmapSource? leftSource, BitmapSource? rightSource, string footerText)
         {
             // 1. 如果两张图都是空的，直接返回
             if (leftSource == null && rightSource == null) return;
@@ -258,7 +257,7 @@ namespace LabelMinusinWPF
                 {
                     // 从压缩后的字节流创建一个新的解码器
                     JpegBitmapDecoder decoder = new JpegBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-                    BitmapSource compressedBitmap = decoder.Frames[0];
+                    BitmapSource compressedBitmap = decoder.Frames.First();
 
                     // 存入剪贴板
                     Clipboard.SetImage(compressedBitmap);

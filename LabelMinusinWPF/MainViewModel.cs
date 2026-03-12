@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
+using System.Linq;
 using System.IO;
 using System.Windows;
 using System.Windows.Data;
@@ -12,8 +12,10 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
-using static LabelMinusinWPF.Modules;
-using LabelMinusinWPF.Utilities;
+using LabelMinusinWPF.Common;
+using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
+using Constants = LabelMinusinWPF.Common.Constants;
+using AppMode = LabelMinusinWPF.Common.Constants.AppMode;
 
 namespace LabelMinusinWPF
 {
@@ -92,7 +94,7 @@ namespace LabelMinusinWPF
         [NotifyCanExecuteChangedFor(nameof(ExportOriginalCommand))]
         [NotifyCanExecuteChangedFor(nameof(ExportDiffCommand))]
         [NotifyCanExecuteChangedFor(nameof(ClearWorkspaceCommand))]
-        private ProjectContext _currentProject = ProjectContext.Empty;
+        private ProjectHelper.ProjectContext _currentProject = ProjectHelper.ProjectContext.Empty;
 
         /// <summary>当前加载的图片列表（使用 BindingList 以支持 ListChanged 事件）</summary>
         public BindingList<ImageInfo> ImageList { get; } = [];
@@ -101,26 +103,27 @@ namespace LabelMinusinWPF
         [ObservableProperty]
         private ImageInfo? _selectedImage;
 
+
         #region 组别汇总
         // 初始化时就带上默认值
         private List<GroupItem> _allGroupsCache =
         [
-            new GroupItem("框内", GroupBrushes[0]),
-            new GroupItem("框外", GroupBrushes[1]),
+            new GroupItem(Constants.Groups.Default, GroupBrushes.First()),
+            new GroupItem(Constants.Groups.Outside, GroupBrushes.ElementAt(1)),
         ];
         public IReadOnlyList<GroupItem> AllGroups => _allGroupsCache;
 
         private void RebuildGroupsCache()
         {
             // 定义必须存在的组
-            string[] defaultGroups = ["框内", "框外"];
+            string[] defaultGroups = Constants.Groups.Required;
 
             _allGroupsCache = ImageList
                 .SelectMany(img => img.Labels.Select(l => l.Group)) // 提取所有已存在的组名
-                .Concat(defaultGroups)                             // 强制注入“框内”“框外”
+                .Concat(defaultGroups)                             // 强制注入默认组别
                 .Where(g => !string.IsNullOrWhiteSpace(g))
                 .Distinct()                                        // 去重
-                .OrderBy(g => g == "框内" ? 0 : (g == "框外" ? 1 : 2))
+                .OrderBy(g => g == Constants.Groups.Default ? 0 : (g == Constants.Groups.Outside ? 1 : 2))
                 .ThenBy(g => g)
                 .Select((g, i) => new GroupItem(g, GroupBrushes[i % GroupBrushes.Length]))
                 .ToList();
@@ -163,7 +166,7 @@ namespace LabelMinusinWPF
         }
 
         [ObservableProperty]
-        private string? _selectedGroupName = "框内";
+        private string? _selectedGroupName = Constants.Groups.Default;
 
         partial void OnSelectedGroupNameChanged(string? value)
         {
@@ -209,9 +212,9 @@ namespace LabelMinusinWPF
 
             // 恢复选中状态
             var names = _allGroupsCache.ConvertAll(g => g.Name);
-            SelectedGroupName = names.Contains(savedGroup)
-                ? savedGroup
-                : names.FirstOrDefault() ?? "框内";
+            SelectedGroupName = names.Contains(savedGroup!)
+                ? savedGroup!
+                : names.FirstOrDefault() ?? Constants.Groups.Default;
         }
         #endregion
 
@@ -225,16 +228,11 @@ namespace LabelMinusinWPF
 
         #region OCR识别模式
 
-        // 公开字典，让 XAML 和后台都能直接访问
-        public Dictionary<string, string> OcrWebsites { get; } = new()
-        {
-            ["识字体网 (LikeFont)"] = "https://www.likefont.com/",
-            ["AI识别 (YuzuMarker)"] = "https://huggingface.co/spaces/gyrojeff/YuzuMarker.FontDetection",
-            ["必应"] = "https://www.bing.com/visualsearch"
-        };
+        // 使用常量配置
+        public static Dictionary<string, string> OcrWebsites => Constants.OcrWebsites.Websites;
 
         [ObservableProperty]
-        private string _selectedOcrWebsite = "AI识别 (YuzuMarker)";
+        private string _selectedOcrWebsite = Constants.OcrWebsites.DefaultWebsite;
 
         #endregion
 
@@ -263,7 +261,7 @@ namespace LabelMinusinWPF
 
         private ImageInfo? _watchedImage;
 
-        /// <summary>选中图片变更时：刷新按钮状态、监听 SelectedLabel 以同步组别</summary>
+        /// <summary>选中图片变更时：刷新按钮状态、监听 SelectedLabel 以同步组别、刷新过滤结果</summary>
         partial void OnSelectedImageChanged(ImageInfo? value)
         {
             if (_watchedImage != null)
@@ -330,10 +328,10 @@ namespace LabelMinusinWPF
             var activeLabels = SelectedImage.ActiveLabels;
             if (activeLabels.Count == 0) return;
 
-            // 如果当前没选中标签，按“下一个”则选中第一个
+            // 如果当前没选中标签，按”下一个”则选中第一个
             if (SelectedImage.SelectedLabel == null)
             {
-                SelectedImage.SelectedLabel = activeLabels[0];
+                SelectedImage.SelectedLabel = activeLabels.First();
                 return;
             }
 
@@ -357,13 +355,6 @@ namespace LabelMinusinWPF
 
     #region 模式选择
 
-    public enum AppMode
-    {
-        See,
-        LabelDo,
-        OCR,
-    }
-
     public partial class MainViewModel
     {
         [ObservableProperty]
@@ -372,17 +363,15 @@ namespace LabelMinusinWPF
         /// <summary>模式切换时更新界面元素的可见性</summary>
         partial void OnCurrentModeChanged(AppMode value)
         {
-            switch (value)
+            if (value == AppMode.LabelDo)
             {
-                case AppMode.See:
-                case AppMode.OCR:
-                    IsPictureIndexVisible = false;
-                    IsPictureTextVisible = false;
-                    break;
-                case AppMode.LabelDo:
-                    IsPictureIndexVisible = true;
-                    IsPictureTextVisible = true;
-                    break;
+                IsPictureIndexVisible = true;
+                IsPictureTextVisible = true;
+            }
+            else
+            {
+                IsPictureIndexVisible = false;
+                IsPictureTextVisible = false;
             }
         }
         [RelayCommand]
@@ -414,7 +403,7 @@ namespace LabelMinusinWPF
         private void NewZipTranslation()
         {
             string? zipPath = DialogService.OpenFile(
-                "压缩文件|*.zip;*.7z;*.rar",
+                Constants.FileFilters.ArchiveFiles,
                 "选择要新建翻译的压缩包"
             );
             if (!string.IsNullOrEmpty(zipPath))
@@ -425,7 +414,7 @@ namespace LabelMinusinWPF
         [RelayCommand]
         private void OpenTranslation()
         {
-            string? txtPath = DialogService.OpenFile("文本文件|*.txt", "打开已有翻译");
+            string? txtPath = DialogService.OpenFile(Constants.FileFilters.TextFiles, "打开已有翻译");
             if (!string.IsNullOrEmpty(txtPath))
                 OpenResourceByPath([txtPath], false);
         }
@@ -444,7 +433,7 @@ namespace LabelMinusinWPF
         private void OpenImageOrZip()
         {
             string[]? filepaths = DialogService.OpenFiles(
-                "支持的文件|*.zip;*.7z;*.rar;*.jpg;*.png;*.bmp",
+                Constants.FileFilters.ImageAndArchive,
                 "选择要预览的图片（多张）或压缩包（单个）"
             );
             if (filepaths is { Length: > 0 })
@@ -456,7 +445,7 @@ namespace LabelMinusinWPF
         private void OpenImage()
         {
             string[]? filepaths = DialogService.OpenFiles(
-                "支持的文件|*.jpg;*.png;*.bmp",
+                Constants.FileFilters.ImageFiles,
                 "选择要预览的图片（多张）"
             );
             if (filepaths is { Length: > 0 })
@@ -468,14 +457,14 @@ namespace LabelMinusinWPF
         private void OpenZip()
         {
             string? zipPath = DialogService.OpenFile(
-                "压缩文件|*.zip;*.7z;*.rar",
+                Constants.FileFilters.ArchiveFiles,
                 "选择要预览的压缩包"
             );
             if (!string.IsNullOrEmpty(zipPath))
                 OpenResourceByPath([zipPath], false);
         }
 
-        private bool CanSave() => CurrentProject != ProjectContext.Empty;
+        private bool CanSave() => CurrentProject != ProjectHelper.ProjectContext.Empty;
 
         /// <summary>保存翻译（mode 为 "As" 时另存为）</summary>
         [RelayCommand(CanExecute = nameof(CanSave))]
@@ -537,7 +526,7 @@ namespace LabelMinusinWPF
             {
                 ImageList.Clear();
                 SelectedImage = null;
-                CurrentProject = ProjectContext.Empty;
+                CurrentProject = ProjectHelper.ProjectContext.Empty;
             }
             finally
             {
@@ -563,11 +552,11 @@ namespace LabelMinusinWPF
             // 根据是否关联压缩包，获取可用图片列表
             if (CurrentProject.IsArchiveMode && File.Exists(CurrentProject.ZipPath))
             {
-                availableImages = ProjectService.ScanZip(CurrentProject.ZipPath);
+                availableImages = ProjectHelper.ScanZip(CurrentProject.ZipPath);
             }
             else if (Directory.Exists(CurrentProject.BaseFolderPath))
             {
-                availableImages = ProjectService.ScanFolder(CurrentProject.BaseFolderPath);
+                availableImages = ProjectHelper.ScanFolder(CurrentProject.BaseFolderPath);
             }
             else
             {
@@ -624,7 +613,7 @@ namespace LabelMinusinWPF
 
             // 获取当前文件夹中的所有压缩包
             var zipFiles = Directory.GetFiles(CurrentProject.BaseFolderPath)
-                .Where(f => ProjectService.ZipExtensions.Contains(Path.GetExtension(f)))
+                .Where(f => ProjectHelper.ZipExtensions.Contains(Path.GetExtension(f)))
                 .Select(f => Path.GetFileName(f))
                 .ToList();
 
@@ -641,7 +630,7 @@ namespace LabelMinusinWPF
                 string? selectedZip = dialog.SelectedZip;
 
                 // 更新项目上下文
-                CurrentProject = new ProjectContext(
+                CurrentProject = new ProjectHelper.ProjectContext(
                     CurrentProject.BaseFolderPath,
                     CurrentProject.TxtName,
                     selectedZip
@@ -652,7 +641,7 @@ namespace LabelMinusinWPF
                 {
                     try
                     {
-                        var zipImages = ProjectService.ScanZip(CurrentProject.ZipPath);
+                        var zipImages = ProjectHelper.ScanZip(CurrentProject.ZipPath);
                         var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
 
                         _suppressGroupNotify = true;
@@ -689,7 +678,7 @@ namespace LabelMinusinWPF
                 else
                 {
                     // 取消关联，切换到文件夹模式
-                    var folderImages = ProjectService.ScanFolder(CurrentProject.BaseFolderPath);
+                    var folderImages = ProjectHelper.ScanFolder(CurrentProject.BaseFolderPath);
                     var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
 
                     _suppressGroupNotify = true;
@@ -722,15 +711,13 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-        //TODO：似乎有文件会被直接覆盖的bug，比如万一用户选了一个已经存在的txt路径作为新建翻译的目标路径，这时候会直接覆盖掉原来的txt文件，应该在保存的时候加个判断，如果文件已经存在了就提示用户是否覆盖
-
         #region 核心函数：加载与保存
 
         /// <summary>
         /// 统一数据加载入口：更新上下文、填充图片列表、选中首张图片
         /// </summary>
         private void LoadProjectData(
-            ProjectContext context,
+            ProjectHelper.ProjectContext context,
             List<ImageInfo> images,
             string successMsg
         )
@@ -780,22 +767,22 @@ namespace LabelMinusinWPF
             if (paths is not { Length: > 0 })
                 return;
 
-            string firstPath = paths[0];
+            string firstPath = paths.First();
             string ext = Path.GetExtension(firstPath);
 
             // --- 1. 图片组：只要输入中包含支持的图片，就直接加载这些图片 ---
             var imageFiles = paths
                 .Where(p =>
-                    File.Exists(p) && ProjectService.ImageExtensions.Contains(Path.GetExtension(p))
+                    File.Exists(p) && ProjectHelper.ImageExtensions.Contains(Path.GetExtension(p))
                 )
                 .ToList();
 
             if (imageFiles.Count > 0)
             {
-                string baseFolder = Path.GetDirectoryName(imageFiles[0]) ?? string.Empty;
+                string baseFolder = Path.GetDirectoryName(imageFiles.First()) ?? string.Empty;
                 var images = imageFiles.Select(p => new ImageInfo { ImagePath = p }).ToList();
-                string? defaultTxtName = isCreateMode ? FileSystemHelper.GenerateUniqueFileName(baseFolder, "New_Translation", ".txt") : null;
-                var context = new ProjectContext(baseFolder, defaultTxtName, null);
+                string? defaultTxtName = isCreateMode ? ProjectHelper.GenerateUniqueFileName(baseFolder, "New_Translation", ".txt") : null;
+                var context = new ProjectHelper.ProjectContext(baseFolder, defaultTxtName, null);
 
                 LoadProjectData(
                     context,
@@ -812,7 +799,7 @@ namespace LabelMinusinWPF
             {
                 try
                 {
-                    var (context, images) = ProjectService.LoadProjectFromTxt(firstPath);
+                    var (context, images) = ProjectHelper.LoadProjectFromTxt(firstPath);
                     LoadProjectData(context, images, $"已加载翻译：{context.TxtName}");
                 }
                 catch (Exception ex)
@@ -823,17 +810,17 @@ namespace LabelMinusinWPF
             }
 
             // --- 3. 压缩包 (.zip, .rar, .7z) ---
-            if (ProjectService.ZipExtensions.Contains(ext) && File.Exists(firstPath))
+            if (ProjectHelper.ZipExtensions.Contains(ext) && File.Exists(firstPath))
             {
                 try
                 {
-                    var images = ProjectService.ScanZip(firstPath);
+                    var images = ProjectHelper.ScanZip(firstPath);
                     string baseFolder = Path.GetDirectoryName(firstPath) ?? string.Empty;
                     string zipName = Path.GetFileName(firstPath);
                     string? txtName = isCreateMode
                         ? Path.GetFileNameWithoutExtension(zipName) + "_翻译.txt"
                         : null;
-                    var context = new ProjectContext(baseFolder, txtName, zipName);
+                    var context = new ProjectHelper.ProjectContext(baseFolder, txtName, zipName);
 
                     LoadProjectData(
                         context,
@@ -855,9 +842,9 @@ namespace LabelMinusinWPF
             // --- 4. 文件夹 ---
             if (Directory.Exists(firstPath))
             {
-                var images = ProjectService.ScanFolder(firstPath);
-                string? txtName = isCreateMode ? FileSystemHelper.GenerateUniqueFileName(firstPath, "新建翻译", ".txt") : null;
-                var context = new ProjectContext(firstPath, txtName, null);
+                var images = ProjectHelper.ScanFolder(firstPath);
+                string? txtName = isCreateMode ? ProjectHelper.GenerateUniqueFileName(firstPath, "新建翻译", ".txt") : null;
+                var context = new ProjectHelper.ProjectContext(firstPath, txtName, null);
 
                 LoadProjectData(
                     context,
@@ -895,14 +882,14 @@ namespace LabelMinusinWPF
                 else if (mode == ExportMode.Diff)
                     defaultName = Path.GetFileNameWithoutExtension(defaultName) + "_修改文档.txt";
 
-                targetPath = DialogService.SaveFile("文本文件|*.txt", defaultName);
+                targetPath = DialogService.SaveFile(Constants.FileFilters.TextFiles, defaultName);
                 if (string.IsNullOrEmpty(targetPath))
                     return;
             }
 
             try
             {
-                string outputText = Modules.LabelsToText(
+                string outputText = LabelPlusParser.LabelsToText(
                     ImageList,
                     CurrentProject.ZipName,
                     mode
@@ -912,7 +899,7 @@ namespace LabelMinusinWPF
                 // 只有在 updateContext 为 true 时才更新项目上下文
                 if (updateContext)
                 {
-                    CurrentProject = new ProjectContext(
+                    CurrentProject = new ProjectHelper.ProjectContext(
                         Path.GetDirectoryName(targetPath)!,
                         Path.GetFileName(targetPath),
                         CurrentProject.ZipName
