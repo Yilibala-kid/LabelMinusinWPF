@@ -3,9 +3,9 @@ using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Linq;
 using System.IO;
 using System.Windows;
-using static LabelMinusinWPF.Modules;
 
 namespace LabelMinusinWPF
 {
@@ -63,7 +63,7 @@ namespace LabelMinusinWPF
                     AllImageNames.Add(name);
 
                 if (SelectedMergedName == null && AllImageNames.Count > 0)
-                    SelectedMergedName = AllImageNames[0];
+                    SelectedMergedName = AllImageNames.First();
             });
         }
         #endregion

@@ -7,6 +7,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 
 namespace LabelMinusinWPF
 {
@@ -18,9 +19,30 @@ namespace LabelMinusinWPF
         public ImagewithLabelShow()
         {
             InitializeComponent();
+            // 初始化拖动节流计时器（约60fps）
+            _dragThrottleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+            _dragThrottleTimer.Tick += OnDragThrottleTick;
         }
 
         public ImageInfo? ShowingImage => DataContext as ImageInfo;
+
+        #region 拖动节流优化
+        private readonly DispatcherTimer _dragThrottleTimer;
+        private Point? _pendingDragPosition; // 待应用的目标位置
+        private bool _hasPendingDragUpdate;
+
+        private void OnDragThrottleTick(object? sender, EventArgs e)
+        {
+            if (_pendingDragPosition.HasValue && _draggingLabel != null && TargetImage.ActualWidth > 0 && TargetImage.ActualHeight > 0)
+            {
+                var pos = _pendingDragPosition.Value;
+                _draggingLabel.X = pos.X;
+                _draggingLabel.Y = pos.Y;
+            }
+            _hasPendingDragUpdate = false;
+            _dragThrottleTimer.Stop();
+        }
+        #endregion
 
         #region 第一层：整体拖动与缩放
         private Point _lastMousePosition; // 记录鼠标按下时的坐标（用于计算位移量）
@@ -119,7 +141,7 @@ namespace LabelMinusinWPF
 
             Point currentPos = e.GetPosition(LabelItemsControl);
 
-            // 【位移判定】只有当鼠标移动距离超过系统阈值（默认约4像素）时，才认为是在“拖拽”
+            // 【位移判定】只有当鼠标移动距离超过系统阈值（默认约4像素）时，才认为是在”拖拽”
             if (!_isRealDragging)
             {
                 double diffX = Math.Abs(currentPos.X - _dragStartPoint.X);
@@ -132,20 +154,26 @@ namespace LabelMinusinWPF
                 }
             }
 
-            // 执行拖拽逻辑
+            // 执行拖拽逻辑（使用节流机制）
             if (_isRealDragging)
             {
                 Point mousePosInImage = e.GetPosition(TargetImage);
 
                 if (TargetImage.ActualWidth > 0 && TargetImage.ActualHeight > 0)
                 {
-                    // 直接计算比例坐标 (0.0 到 1.0)
+                    // 计算目标比例坐标
                     double newX = mousePosInImage.X / TargetImage.ActualWidth;
                     double newY = mousePosInImage.Y / TargetImage.ActualHeight;
 
-                    // 限制在图片内部，防止标签被拖没影了
-                    _draggingLabel.X = Math.Clamp(newX, 0, 1);
-                    _draggingLabel.Y = Math.Clamp(newY, 0, 1);
+                    // 存储待应用的位置（节流）
+                    _pendingDragPosition = new Point(Math.Clamp(newX, 0, 1), Math.Clamp(newY, 0, 1));
+                    _hasPendingDragUpdate = true;
+
+                    // 启动节流计时器（如果未运行）
+                    if (!_dragThrottleTimer.IsEnabled)
+                    {
+                        _dragThrottleTimer.Start();
+                    }
                 }
             }
 
@@ -153,6 +181,18 @@ namespace LabelMinusinWPF
         }
         private void LabelItemsControl_MouseLeftUp(object sender, MouseButtonEventArgs e)
         {
+            // 应用最终位置（确保拖动结束时位置正确）
+            if (_hasPendingDragUpdate && _pendingDragPosition.HasValue && _draggingLabel != null)
+            {
+                _draggingLabel.X = _pendingDragPosition.Value.X;
+                _draggingLabel.Y = _pendingDragPosition.Value.Y;
+            }
+
+            // 停止节流计时器
+            _dragThrottleTimer.Stop();
+            _hasPendingDragUpdate = false;
+            _pendingDragPosition = null;
+
             if (LabelItemsControl.IsMouseCaptured)
             {
                 LabelItemsControl.ReleaseMouseCapture();

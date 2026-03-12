@@ -10,11 +10,16 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF
 {
-    public partial class ImageInfo : ObservableObject
+    public partial class ImageInfo : ObservableObject, IDisposable
     {
+        // 图片缓存（避免重复加载）
+        private BitmapImage? _cachedImageSource;
+        private string? _cachedImagePath;
+
         // 图片完整路径
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ImageSource), nameof(ImageName))]
@@ -27,9 +32,24 @@ namespace LabelMinusinWPF
         // 图片包含的标签
         public BindingList<ImageLabel> Labels { get; } = [];
         /// <summary>新建标签时使用的默认组别（由 MainViewModel 同步）</summary>
-        public string ActiveGroup { get; set; } = "框内";
-        // 只读属性：获取未删除的标签列表
-        public BindingList<ImageLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];
+        public string ActiveGroup { get; set; } = Constants.Groups.Default;
+
+        // 只读属性：获取未删除的标签列表（带缓存优化）
+        private List<ImageLabel>? _cachedActiveLabels;
+        private bool _activeLabelsCacheValid;
+        public List<ImageLabel> ActiveLabels
+        {
+            get
+            {
+                if (_activeLabelsCacheValid && _cachedActiveLabels != null)
+                    return _cachedActiveLabels;
+
+                _cachedActiveLabels = [.. Labels.Where(l => !l.IsDeleted)];
+                _activeLabelsCacheValid = true;
+                return _cachedActiveLabels;
+            }
+        }
+
         // 当前选中的标注
         [ObservableProperty] private ImageLabel? _selectedLabel;
         #region 图片源获取
@@ -39,33 +59,29 @@ namespace LabelMinusinWPF
             {
                 if (string.IsNullOrEmpty(ImagePath)) return null;
 
-                // 1. 定义压缩包特征后缀
-                string[] archiveExts = { ".zip\\", ".rar\\", ".7z\\" };
-
-                // 2. 尝试寻找切割点
-                string? foundExt = archiveExts.FirstOrDefault(ext =>
-                    ImagePath.Contains(ext, StringComparison.OrdinalIgnoreCase));
+                // 使用缓存避免重复加载
+                if (_cachedImageSource != null && _cachedImagePath == ImagePath)
+                    return _cachedImageSource;
 
                 try
                 {
-                    if (foundExt != null)
+                    // 使用 ResourceHelper 解析路径
+                    var archiveResult = ResourceHelper.ParseArchivePath(ImagePath);
+                    if (archiveResult.HasValue)
                     {
-                        // --- 压缩包逻辑 ---
-                        int index = ImagePath.IndexOf(foundExt, StringComparison.OrdinalIgnoreCase);
-
-                        // 物理路径：E:\psd\1\2.zip
-                        string realZipPath = ImagePath.Substring(0, index + foundExt.Length - 1);
-                        // 内部路径：01-1.png
-                        string entryKey = ImagePath.Substring(index + foundExt.Length);
-
-                        byte[]? data = ArchiveHelper.ExtractFileToBytes(realZipPath, entryKey);
-                        return data != null ? LoadFromBytes(data) : null;
+                        // 压缩包逻辑
+                        var (archivePath, entryPath) = archiveResult.Value;
+                        byte[]? data = ResourceHelper.ExtractFileToBytes(archivePath, entryPath);
+                        _cachedImageSource = data != null ? LoadFromBytes(data) : null;
                     }
                     else
                     {
-                        // --- 普通文件逻辑 ---
-                        return LoadFromPath(ImagePath);
+                        // 普通文件逻辑
+                        _cachedImageSource = LoadFromPath(ImagePath);
                     }
+
+                    _cachedImagePath = ImagePath;
+                    return _cachedImageSource;
                 }
                 catch (Exception ex)
                 {
@@ -75,30 +91,16 @@ namespace LabelMinusinWPF
             }
         }
 
-        private ImageSource LoadFromPath(string path)
+        /// <summary>清除图片缓存（当路径变化时调用）</summary>
+        public void ClearImageCache()
         {
-            if (!File.Exists(path)) return null;
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.UriSource = new Uri(path);
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
+            _cachedImageSource = null;
+            _cachedImagePath = null;
+            OnPropertyChanged(nameof(ImageSource));
         }
 
-        private ImageSource LoadFromBytes(byte[] data)
-        {
-            using var ms = new MemoryStream(data);
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.StreamSource = ms;
-            bmp.EndInit();
-            bmp.Freeze();
-            return bmp;
-        }
-
+        private static BitmapImage? LoadFromPath(string path) => ResourceHelper.LoadFromPath(path);
+        private static BitmapImage? LoadFromBytes(byte[] data) => ResourceHelper.LoadFromBytes(data);
 
         #endregion
 
@@ -111,13 +113,25 @@ namespace LabelMinusinWPF
             {
                 // 当列表发生增删改操作时，刷新索引
                 if (!_isRefreshing) RefreshIndices();
+                // 使缓存失效
+                _activeLabelsCacheValid = false;
             };
             // 自动刷新 Undo/Redo 按钮的可点击状态
-            CommandManager.RequerySuggested += (s, e) =>
+            _requeryHandler = (s, e) =>
             {
                 UndoCommand.NotifyCanExecuteChanged();
                 RedoCommand.NotifyCanExecuteChanged();
             };
+            CommandManager.RequerySuggested += _requeryHandler;
+        }
+
+        private readonly EventHandler _requeryHandler;
+
+        /// <summary>释放资源，取消事件订阅</summary>
+        public void Dispose()
+        {
+            CommandManager.RequerySuggested -= _requeryHandler;
+            GC.SuppressFinalize(this);
         }
 
         #region 业务逻辑方法
@@ -201,7 +215,7 @@ namespace LabelMinusinWPF
             var newLabel = new ImageLabel
             {
                 Index = nextIndex,
-                Text = "新标签",
+                Text = Constants.Label.NewLabelText,
                 Group = ActiveGroup,
                 Position = pos ?? new Point(0.5, 0.5)
             };

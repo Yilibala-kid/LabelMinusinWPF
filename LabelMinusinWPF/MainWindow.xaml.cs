@@ -1,27 +1,22 @@
-﻿using LabelMinusinWPF.Utilities;
+﻿using LabelMinusinWPF.Common;
 using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 using System.Windows.Threading;
-using static LabelMinusinWPF.Modules;
 using static MaterialDesignThemes.Wpf.Theme;
+using AppMode = LabelMinusinWPF.Common.Constants.AppMode;
+using Constants = LabelMinusinWPF.Common.Constants;
+using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
 
 namespace LabelMinusinWPF
 {
@@ -45,7 +40,7 @@ namespace LabelMinusinWPF
         public MainWindow()
         {
             InitializeComponent();
-            Task.Run(() => FileSystemHelper.ClearTempFolders("OCRtemp", "ScreenShottemp", "Archivetemp"));
+            Task.Run(() => ProjectHelper.ClearTempFolders("OCRtemp", "ScreenShottemp", "Archivetemp"));
             Closing += MainWindow_Closing;
             Loaded += MainWindow_Loaded;
             RegisterMenu.IsChecked = ContextMenuRegistrar.IsRegistered();
@@ -297,9 +292,9 @@ namespace LabelMinusinWPF
 
             string websiteName = vm.SelectedOcrWebsite;
             // 直接用 TryGetValue 获取，安全又简洁
-            string websiteUrl = vm.OcrWebsites.TryGetValue(websiteName, out var url)
+            string websiteUrl = MainViewModel.OcrWebsites.TryGetValue(websiteName, out var url)
                                 ? url
-                                : vm.OcrWebsites["百度"]; // 默认回退到百度
+                                : MainViewModel.OcrWebsites["百度"]; // 默认回退到百度
 
             var ocrWindow = new OcrRecognitionWindow(screenshot, websiteUrl, websiteName);
             ocrWindow.Show();
@@ -309,46 +304,31 @@ namespace LabelMinusinWPF
         private void BgColor_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not System.Windows.Controls.Button btn) return;
-
-            string colorName = btn.Tag.ToString();
-            // 如果已经是Selected状态,提取原始颜色名
-            if (colorName == "Selected")
-            {
-                colorName = btn.Name.Replace("BgColor", "");
-            }
-
-            Color color = colorName switch
-            {
-                "White" => Colors.White,
-                "Black" => Colors.Black,
-                "RoyalBlue" => Colors.RoyalBlue,
-                "Transparent" => Colors.Transparent,
-                _ => Colors.White
-            };
-
+            var color = GetColorFromButton(btn, "BgColor");
             SelfControls.LabelStyleManager.Instance.TextBackgroundColor = color;
         }
 
         private void FgColor_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not System.Windows.Controls.Button btn) return;
+            var color = GetColorFromButton(btn, "FgColor");
+            SelfControls.LabelStyleManager.Instance.TextForegroundColor = color;
+        }
 
-            string colorName = btn.Tag.ToString();
-            // 如果已经是Selected状态,提取原始颜色名
+        private static Color GetColorFromButton(System.Windows.Controls.Button btn, string prefix)
+        {
+            string colorName = btn.Tag?.ToString() ?? string.Empty;
             if (colorName == "Selected")
-            {
-                colorName = btn.Name.Replace("FgColor", "");
-            }
+                colorName = btn.Name.Replace(prefix, "");
 
-            Color color = colorName switch
+            return colorName switch
             {
                 "White" => Colors.White,
                 "Black" => Colors.Black,
                 "RoyalBlue" => Colors.RoyalBlue,
-                _ => Colors.Black
+                "Transparent" => Colors.Transparent,
+                _ => prefix == "BgColor" ? Colors.White : Colors.Black
             };
-
-            SelfControls.LabelStyleManager.Instance.TextForegroundColor = color;
         }
 
         #region 拖放文件支持
@@ -535,7 +515,7 @@ namespace LabelMinusinWPF
             if (DataContext is not MainViewModel vm) return;
 
             // 只有在MainWindow中有翻译项目且有修改时才自动保存
-            if (vm.CurrentProject == ProjectContext.Empty || !vm.HasUnsavedChanges())
+            if (vm.CurrentProject == ProjectHelper.ProjectContext.Empty || !vm.HasUnsavedChanges())
                 return;
 
             // 不保存ImageReview中的内容
@@ -560,7 +540,7 @@ namespace LabelMinusinWPF
                 string autoSavePath = System.IO.Path.Combine(autoSaveFolder, autoSaveFileName);
 
                 // 保存翻译
-                string outputText = Modules.LabelsToText(
+                string outputText = LabelPlusParser.LabelsToText(
                     vm.ImageList,
                     vm.CurrentProject.ZipName,
                     ExportMode.Current

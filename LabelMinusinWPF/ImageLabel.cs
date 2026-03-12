@@ -1,10 +1,11 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using MahApps.Metro.Controls;
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using LabelMinusinWPF.Common;
+using Constants = LabelMinusinWPF.Common.Constants;
 
 
 namespace LabelMinusinWPF
@@ -14,13 +15,13 @@ namespace LabelMinusinWPF
         #region 基本属性
         [ObservableProperty] private int _index;
         [ObservableProperty]
-        [NotifyPropertyChangedFor(nameof(IsModified))] // Text 变了，IsModified 也要刷新
+        [NotifyPropertyChangedFor(nameof(IsModified))]
         private string _text = "";
 
-        [ObservableProperty] private string _group = "框内";
-        [ObservableProperty] private string _remark = "这是备注";
-        [ObservableProperty] private double _fontSize = 20.0;
-        [ObservableProperty] private string _fontFamily = "微软雅黑";
+        [ObservableProperty] private string _group = Constants.Groups.Default;
+        [ObservableProperty] private string _remark = Constants.Label.DefaultRemark;
+        [ObservableProperty] private double _fontSize = Constants.Label.DefaultFontSize;
+        [ObservableProperty] private string _fontFamily = Constants.Label.DefaultFontFamily;
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(X), nameof(Y))]
         private Point _position = new(0, 0);
@@ -73,7 +74,7 @@ namespace LabelMinusinWPF
 
         public void LoadBaseContent(string text)
         {
-            _originalText = text;
+            OriginalText = text;
             Text = text; // 此时会触发 OnTextChanged，但你可以根据需求手动重置
             _isModified = false;
             OnPropertyChanged(nameof(IsModified));

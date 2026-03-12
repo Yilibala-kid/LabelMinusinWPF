@@ -166,7 +166,6 @@
                         </materialDesign:PopupBox>
 
                     </StackPanel>
-                    <StackPanel Margin="0,0,10,0" HorizontalAlignment="Right" />
                 </Grid>
             </materialDesign:DrawerHost.TopDrawerContent>
             <!-- 图片对比区域 -->

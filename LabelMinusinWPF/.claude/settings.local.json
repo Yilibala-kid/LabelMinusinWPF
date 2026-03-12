@@ -1,7 +1,21 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet build)"
+      "Bash(dotnet build)",
+      "Bash(mv Constants.cs Common/)",
+      "Bash(mv ImageHelper.cs Common/)",
+      "Bash(mv ArchiveHelper.cs Common/)",
+      "Bash(mv LabelPlusParser.cs Common/)",
+      "Bash(mv DialogService.cs Common/)",
+      "Bash(mv FileSystemHelper.cs Common/)",
+      "Bash(mv ProjectContext.cs Common/)",
+      "Bash(mv ProjectService.cs Common/)",
+      "Bash(mv UndoRedo.cs Common/)",
+      "Bash(dotnet clean:*)",
+      "Bash(mv Constants.cs Models/)",
+      "Bash(mv ProjectContext.cs Models/)",
+      "Bash(ls -la d:letsgolmLabelMinusinWPF/*.cs)",
+      "Bash(ls \"d:/letsgo/lm/LabelMinusinWPF/\"*.cs)"
     ]
   }
 }

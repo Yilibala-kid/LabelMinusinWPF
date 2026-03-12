@@ -197,7 +197,7 @@ namespace LabelMinusinWPF.SelfControls
             if (color == Colors.Transparent) return "Transparent";
 
             // 否则返回十六进制格式
-            return color.ToString();
+            return $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
         }
     }
 }
