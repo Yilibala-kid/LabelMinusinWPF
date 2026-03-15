@@ -7,19 +7,15 @@ using System.Text.RegularExpressions;
 
 namespace LabelMinusinWPF.Common
 {
-    /// <summary>
-    /// LabelPlus 格式的文本解析与导出
-    /// </summary>
+    // LabelPlus 格式的文本解析与导出
     public static class LabelPlusParser
     {
         // 预编译正则（static readonly 保证只编译一次）
         private static readonly Regex ImgRegex = new(@">>>>>>>>\[(.*?)\]<<<<<<<<", RegexOptions.Compiled);
         private static readonly Regex MetaRegex = new(@"----------------\[(\d+)\]----------------\[([\d\.]+),([\d\.]+),(\d+)\]", RegexOptions.Compiled);
 
-        /// <summary>
-        /// 将 LabelPlus 格式的文本解析为 图片名→ImageInfo 字典
-        /// </summary>
-        public static Dictionary<string, ImageInfo> ParseTextToLabels(string content, out string? sourceName)
+        // 将 LabelPlus 格式的文本解析为 图片名→ImageInfo 字典
+        public static Dictionary<string, ImageInfo> TextToLabels(string content, out string? sourceName)
         {
             sourceName = null;
             var database = new Dictionary<string, ImageInfo>();
@@ -97,9 +93,7 @@ namespace LabelMinusinWPF.Common
 
         public enum ExportMode { Original, Current, Diff }
 
-        /// <summary>
-        /// 将图片列表导出为 LabelPlus 格式文本
-        /// </summary>
+        // 将图片列表导出为 LabelPlus 格式文本
         public static string LabelsToText(IEnumerable<ImageInfo> images, string? sourceName, ExportMode mode = ExportMode.Current)
         {
             var imageList = images.ToList();

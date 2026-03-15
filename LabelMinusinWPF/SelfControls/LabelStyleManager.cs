@@ -8,7 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace LabelMinusinWPF.SelfControls
 {
-    /// <summary>标签点样式类型</summary>
+
     public enum DotStyleType
     {
         Circle,
@@ -16,24 +16,26 @@ namespace LabelMinusinWPF.SelfControls
         Transparent
     }
 
-    /// <summary>标签样式配置（可序列化）</summary>
+
     public class LabelStyleSettings
     {
         public DotStyleType DotStyle { get; set; } = DotStyleType.Circle;
         public string TextBackgroundColor { get; set; } = "White";
         public string TextForegroundColor { get; set; } = "Black";
         public double TextBackgroundOpacity { get; set; } = 1.0;
+        public double LabelScale { get; set; } = 1.0;
 
-        /// <summary>创建默认配置</summary>
+
         public static LabelStyleSettings CreateDefault() => new()
         {
             DotStyle = DotStyleType.Circle,
             TextBackgroundColor = "White",
             TextForegroundColor = "Black",
-            TextBackgroundOpacity = 0.5
+            TextBackgroundOpacity = 0.5,
+            LabelScale = 1.0
         };
     }
-    /// <summary>标签样式管理器（单例）</summary>
+
     public partial class LabelStyleManager : ObservableObject
     {
         private static readonly Lazy<LabelStyleManager> _instance = new(() => new LabelStyleManager());
@@ -60,6 +62,9 @@ namespace LabelMinusinWPF.SelfControls
 
         [ObservableProperty]
         private double _textBackgroundOpacity = 1.0;
+
+        [ObservableProperty]
+        private double _labelScale = 1.0;
 
         // --- 计算属性（返回WPF对象）---
         private Style? _labelDotStyle;
@@ -104,10 +109,25 @@ namespace LabelMinusinWPF.SelfControls
             LabelDotStyle = Application.Current.TryFindResource(styleKey) as Style;
         }
 
+        // 画刷缓存字典
+        private static readonly Dictionary<Color, SolidColorBrush> _brushCache = new();
+
         private void UpdateBrushes()
         {
-            TextBackgroundBrush = new SolidColorBrush(TextBackgroundColor);
-            TextForegroundBrush = new SolidColorBrush(TextForegroundColor);
+            // 使用缓存的画刷，避免重复创建
+            if (!_brushCache.TryGetValue(TextBackgroundColor, out var bgBrush))
+            {
+                bgBrush = new SolidColorBrush(TextBackgroundColor);
+                _brushCache[TextBackgroundColor] = bgBrush;
+            }
+            TextBackgroundBrush = bgBrush;
+
+            if (!_brushCache.TryGetValue(TextForegroundColor, out var fgBrush))
+            {
+                fgBrush = new SolidColorBrush(TextForegroundColor);
+                _brushCache[TextForegroundColor] = fgBrush;
+            }
+            TextForegroundBrush = fgBrush;
         }
 
         // --- 持久化方法 ---
@@ -136,6 +156,7 @@ namespace LabelMinusinWPF.SelfControls
                         TextBackgroundColor = ColorFromString(settings.TextBackgroundColor);
                         TextForegroundColor = ColorFromString(settings.TextForegroundColor);
                         TextBackgroundOpacity = settings.TextBackgroundOpacity;
+                        LabelScale = settings.LabelScale;
                     }
                 }
             }
@@ -154,7 +175,8 @@ namespace LabelMinusinWPF.SelfControls
                     DotStyle = DotStyle,
                     TextBackgroundColor = ColorToString(TextBackgroundColor),
                     TextForegroundColor = ColorToString(TextForegroundColor),
-                    TextBackgroundOpacity = TextBackgroundOpacity
+                    TextBackgroundOpacity = TextBackgroundOpacity,
+                    LabelScale = LabelScale
                 };
 
                 string json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
@@ -173,6 +195,23 @@ namespace LabelMinusinWPF.SelfControls
             TextBackgroundColor = Colors.Black;
             TextForegroundColor = Colors.White;
             TextBackgroundOpacity = 0.5;
+            LabelScale = 1.0;
+        }
+
+
+        [RelayCommand]
+        public void ZoomInLabel()
+        {
+            LabelScale = Math.Min(LabelScale + 0.1, 3.0);
+            SaveSettings();
+        }
+
+
+        [RelayCommand]
+        public void ZoomOutLabel()
+        {
+            LabelScale = Math.Max(LabelScale - 0.1, 0.3);
+            SaveSettings();
         }
 
         // --- 颜色转换辅助方法 ---

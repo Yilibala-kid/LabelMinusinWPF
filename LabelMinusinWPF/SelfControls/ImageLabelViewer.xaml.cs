@@ -6,22 +6,24 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF
 {
-    /// <summary>
-    /// ImagewithLabelShow.xaml 的交互逻辑
-    /// </summary>
-    public partial class ImagewithLabelShow : UserControl
+
+// ImageLabelViewer.xaml 的交互逻辑
+
+    public partial class ImageLabelViewer : UserControl
     {
-        public ImagewithLabelShow()
+        public ImageLabelViewer()
         {
             InitializeComponent();
             // 初始化拖动节流计时器（约60fps）
             _dragThrottleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
-            _dragThrottleTimer.Tick += OnDragThrottleTick;
+            _dragThrottleTimer.Tick += OnDragTick;
         }
 
         public ImageInfo? ShowingImage => DataContext as ImageInfo;
@@ -31,7 +33,7 @@ namespace LabelMinusinWPF
         private Point? _pendingDragPosition; // 待应用的目标位置
         private bool _hasPendingDragUpdate;
 
-        private void OnDragThrottleTick(object? sender, EventArgs e)
+        private void OnDragTick(object? sender, EventArgs e)
         {
             if (_pendingDragPosition.HasValue && _draggingLabel != null && TargetImage.ActualWidth > 0 && TargetImage.ActualHeight > 0)
             {
@@ -48,7 +50,7 @@ namespace LabelMinusinWPF
         private Point _lastMousePosition; // 记录鼠标按下时的坐标（用于计算位移量）
         private Point _mouseDownPosition; // 用于计算是否超过点击阈值
 
-        private void Viewport_MouseLeftDown(object sender, MouseButtonEventArgs e)
+        private void OnViewportDown(object sender, MouseButtonEventArgs e)
         {
             _mouseDownPosition = _lastMousePosition = e.GetPosition(ViewportGrid);
 
@@ -58,7 +60,7 @@ namespace LabelMinusinWPF
         }
 
         // 2. 鼠标移动
-        private void Viewport_MouseMove(object sender, MouseEventArgs e)
+        private void OnViewportMove(object sender, MouseEventArgs e)
         {
             if (!ViewportGrid.IsMouseCaptured) return;// 如果没有捕获鼠标，什么都不做
 
@@ -75,18 +77,18 @@ namespace LabelMinusinWPF
         }
 
         // 3. 鼠标抬起
-        private void Viewport_MouseLeftUp(object sender, MouseButtonEventArgs e)
+        private void OnViewportUp(object sender, MouseButtonEventArgs e)
         {
             // 如果鼠标按下和抬起的距离很短，且没有在拖动标签 -> 视为点击，新建标签
             if ((e.GetPosition(ViewportGrid) - _mouseDownPosition).Length < 2 && OnlySEE!=true)
             {
-                AddNewLabel(e.GetPosition(TargetImage)); // 直接传入相对于图片的坐标
+                AddLabel(e.GetPosition(TargetImage)); // 直接传入相对于图片的坐标
             }
             ViewportGrid.ReleaseMouseCapture();
             _draggingLabel = null;
         }
 
-        private void Viewport_MouseWheel(object sender, MouseWheelEventArgs e)
+        private void OnViewportWheel(object sender, MouseWheelEventArgs e)
         {
             // --- 新增逻辑：锁定状态下的平移处理 ---
             // 如果横向或纵向被锁定，滚轮将变为平移操作
@@ -134,7 +136,7 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 第二层：处理标签移动
-        private void LabelItemsControl_MouseMove(object sender, MouseEventArgs e)
+        private void OnLabelContainerMove(object sender, MouseEventArgs e)
         {
             // 如果没捕获鼠标或没有拖拽对象，直接返回
             if (!LabelItemsControl.IsMouseCaptured || _draggingLabel == null) return;
@@ -179,7 +181,7 @@ namespace LabelMinusinWPF
 
             e.Handled = true;
         }
-        private void LabelItemsControl_MouseLeftUp(object sender, MouseButtonEventArgs e)
+        private void OnLabelContainerUp(object sender, MouseButtonEventArgs e)
         {
             // 应用最终位置（确保拖动结束时位置正确）
             if (_hasPendingDragUpdate && _pendingDragPosition.HasValue && _draggingLabel != null)
@@ -241,7 +243,7 @@ namespace LabelMinusinWPF
         #region 辅助逻辑方法
 
         // 辅助：新建标签 (保持原本逻辑)
-        private void AddNewLabel(Point posInImage)
+        private void AddLabel(Point posInImage)
         {
             if (ShowingImage == null || TargetImage.ActualWidth == 0) return;
 
@@ -331,12 +333,12 @@ namespace LabelMinusinWPF
             {
                 if (IsSyncRequired)
                 {
-                    // 抛出归一化矩形，父窗口收到后可以直接转给另一个 ImagewithLabelShow
+                    // 抛出归一化矩形，父窗口收到后可以直接转给另一个 ImageLabelViewer
                     Snipped?.Invoke(this, normRect);
                 }
                 else
                 {
-                    var myBmp = CaptureOriginalBitmapRegion(normRect);
+                    var myBmp = CaptureRegion(normRect);
                     if (myBmp != null)
                     {
                         Clipboard.SetImage(myBmp);
@@ -345,7 +347,7 @@ namespace LabelMinusinWPF
             }
         }
 
-        private BitmapSource? CaptureOriginalBitmapRegion(Rect normRect)
+        private BitmapSource? CaptureRegion(Rect normRect)
         {
             if (TargetImage.Source is not BitmapSource bitmapSource) return null;
 
@@ -411,16 +413,16 @@ namespace LabelMinusinWPF
             set => SetValue(IsScreenShotModeProperty, value);
         }
         public static readonly DependencyProperty IsScreenShotModeProperty =
-            DependencyProperty.Register(nameof(IsScreenShotMode), typeof(bool), typeof(ImagewithLabelShow),
+            DependencyProperty.Register(nameof(IsScreenShotMode), typeof(bool), typeof(ImageLabelViewer),
                 new PropertyMetadata(false, (d, e) => {
-                    if (d is ImagewithLabelShow ctrl && e.NewValue is bool isOn)
+                    if (d is ImageLabelViewer ctrl && e.NewValue is bool isOn)
                     {
                         ctrl.SnipCanvas.Visibility = isOn ? Visibility.Visible : Visibility.Collapsed;
                         ctrl.ViewportGrid.Cursor = isOn ? Cursors.Cross : Cursors.Arrow;
                     }
                 }));
         // 供外部调用，用于实现”同步”裁剪相同区域
-        public BitmapSource? GetImageRegion(Rect normRect) => CaptureOriginalBitmapRegion(normRect);
+        public BitmapSource? GetImageRegion(Rect normRect) => CaptureRegion(normRect);
 
         // 是否需要同步模式（true则通知外部，false则直接存剪贴板）
         public bool IsSyncRequired
@@ -429,7 +431,7 @@ namespace LabelMinusinWPF
             set => SetValue(IsSyncRequiredProperty, value);
         }
         public static readonly DependencyProperty IsSyncRequiredProperty =
-            DependencyProperty.Register(nameof(IsSyncRequired), typeof(bool), typeof(ImagewithLabelShow), new PropertyMetadata(false));
+            DependencyProperty.Register(nameof(IsSyncRequired), typeof(bool), typeof(ImageLabelViewer), new PropertyMetadata(false));
 
 
 
@@ -441,7 +443,7 @@ namespace LabelMinusinWPF
             set => SetValue(ZoomScaleProperty, value);
         }
         public static readonly DependencyProperty ZoomScaleProperty =
-            DependencyProperty.Register(nameof(ZoomScale), typeof(double), typeof(ImagewithLabelShow), new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+            DependencyProperty.Register(nameof(ZoomScale), typeof(double), typeof(ImageLabelViewer), new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
         public double OffsetX
         {
@@ -449,7 +451,7 @@ namespace LabelMinusinWPF
             set => SetValue(OffsetXProperty, value);
         }
         public static readonly DependencyProperty OffsetXProperty =
-            DependencyProperty.Register(nameof(OffsetX), typeof(double), typeof(ImagewithLabelShow), new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+            DependencyProperty.Register(nameof(OffsetX), typeof(double), typeof(ImageLabelViewer), new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
 
         public double OffsetY
         {
@@ -457,7 +459,7 @@ namespace LabelMinusinWPF
             set => SetValue(OffsetYProperty, value);
         }
         public static readonly DependencyProperty OffsetYProperty =
-            DependencyProperty.Register(nameof(OffsetY), typeof(double), typeof(ImagewithLabelShow), new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+            DependencyProperty.Register(nameof(OffsetY), typeof(double), typeof(ImageLabelViewer), new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
         public bool OnlySEE
         {
             get => (bool)GetValue(OnlySEEProperty);
@@ -468,7 +470,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(OnlySEE),
                 typeof(bool),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(true)
             );
         public bool IsTextVisible
@@ -481,7 +483,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(IsTextVisible),
                 typeof(bool),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(true)
             );
 
@@ -496,7 +498,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(IsIndexVisible),
                 typeof(bool),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(true)
             );
 
@@ -510,7 +512,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(LabelDotStyle),
                 typeof(Style),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(null)
             );
 
@@ -524,7 +526,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(LabelTextStyle),
                 typeof(Style),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(null)
             );
 
@@ -538,7 +540,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(TextBackgroundOpacity),
                 typeof(double),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(0.7)
             );
 
@@ -552,7 +554,7 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(TextBackgroundColor),
                 typeof(Brush),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(Brushes.White)
             );
 
@@ -566,9 +568,56 @@ namespace LabelMinusinWPF
             DependencyProperty.Register(
                 nameof(TextForegroundColor),
                 typeof(Brush),
-                typeof(ImagewithLabelShow),
+                typeof(ImageLabelViewer),
                 new PropertyMetadata(Brushes.Black)
             );
+
+        #endregion
+
+        #region 标签缩放
+
+
+        public double LabelScale
+        {
+            get => (double)GetValue(LabelScaleProperty);
+            set => SetValue(LabelScaleProperty, value);
+        }
+        public static readonly DependencyProperty LabelScaleProperty =
+            DependencyProperty.Register(
+                nameof(LabelScale),
+                typeof(double),
+                typeof(ImageLabelViewer),
+                new PropertyMetadata(1.0)
+            );
+
+        #endregion
+
+        #region 图片切换动画
+
+
+        public static Constants.ImgAnim TransitionAnimation { get; set; } = Constants.ImgAnim.None;
+
+
+        public void PlayTransitionAnimation()
+        {
+            if (TransitionAnimation == Constants.ImgAnim.None || TargetImage.Source == null)
+                return;
+
+            var storyboard = new Storyboard();
+            var duration = TimeSpan.FromMilliseconds(300);
+
+            // 淡入淡出动画
+            var fadeIn = new DoubleAnimation { From = 0, To = 1, Duration = duration };
+
+            TargetImage.Opacity = 0;
+            Storyboard.SetTarget(fadeIn, TargetImage);
+            Storyboard.SetTargetProperty(fadeIn, new PropertyPath(OpacityProperty));
+
+            storyboard.Children.Add(fadeIn);
+
+            storyboard.Completed += (s, e) => TargetImage.Opacity = 1;
+            storyboard.Begin(this);
+        }
 
         #endregion
     }
