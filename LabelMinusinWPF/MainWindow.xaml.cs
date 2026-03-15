@@ -20,9 +20,9 @@ using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
 
 namespace LabelMinusinWPF
 {
-    /// <summary>
+
     /// Interaction logic for MainWindow.xaml
-    /// </summary>
+
     /// 
     public enum DisplayMode
     {
@@ -34,13 +34,14 @@ namespace LabelMinusinWPF
     public partial class MainWindow : Window
     {
         private DispatcherTimer? _autoSaveTimer;
-        private const int AutoSaveIntervalMinutes = 5;
-        private const int MaxAutoSaveFiles = 20;
 
         public MainWindow()
         {
             InitializeComponent();
-            Task.Run(() => ProjectHelper.ClearTempFolders("OCRtemp", "ScreenShottemp", "Archivetemp"));
+            Task.Run(() => ProjectHelper.ClearTempFolders(
+                Constants.TempFolders.OcrTemp,
+                Constants.TempFolders.ScreenShotTemp,
+                Constants.TempFolders.ArchiveTemp));
             Closing += MainWindow_Closing;
             Loaded += MainWindow_Loaded;
             RegisterMenu.IsChecked = ContextMenuRegistrar.IsRegistered();
@@ -50,39 +51,10 @@ namespace LabelMinusinWPF
         private void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             // 监听ViewModel的DisplayMode变化
-            if (DataContext is MainViewModel viewModel)
+            if (DataContext is MainVM)
             {
                 UpdateLayout(DisplayMode.ListAndTextBox);
             }
-
-            // 监听样式管理器的颜色变化以更新按钮高亮
-            SelfControls.LabelStyleManager.Instance.PropertyChanged += LabelStyleManager_PropertyChanged;
-            UpdateColorButtonHighlight();
-        }
-
-        private void LabelStyleManager_PropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(SelfControls.LabelStyleManager.TextBackgroundColor) ||
-                e.PropertyName == nameof(SelfControls.LabelStyleManager.TextForegroundColor))
-            {
-                UpdateColorButtonHighlight();
-            }
-        }
-
-        private void UpdateColorButtonHighlight()
-        {
-            var styleManager = SelfControls.LabelStyleManager.Instance;
-
-            // 更新背景颜色按钮高亮
-            BgColorWhite.Tag = styleManager.TextBackgroundColor == Colors.White ? "Selected" : "White";
-            BgColorBlack.Tag = styleManager.TextBackgroundColor == Colors.Black ? "Selected" : "Black";
-            BgColorBlue.Tag = styleManager.TextBackgroundColor == Colors.RoyalBlue ? "Selected" : "RoyalBlue";
-            BgColorTransparent.Tag = styleManager.TextBackgroundColor == Colors.Transparent ? "Selected" : "Transparent";
-
-            // 更新前景颜色按钮高亮
-            FgColorWhite.Tag = styleManager.TextForegroundColor == Colors.White ? "Selected" : "White";
-            FgColorBlack.Tag = styleManager.TextForegroundColor == Colors.Black ? "Selected" : "Black";
-            FgColorBlue.Tag = styleManager.TextForegroundColor == Colors.RoyalBlue ? "Selected" : "RoyalBlue";
         }
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -91,18 +63,18 @@ namespace LabelMinusinWPF
             _autoSaveTimer?.Stop();
 
             // 获取 ViewModel
-            if (DataContext is MainViewModel viewModel && viewModel.HasUnsavedChanges())
+            if (DataContext is MainVM viewModel && viewModel.HasUnsavedChanges())
             {
                 var result = MessageBox.Show(
-                    "当前翻译有未保存的修改，是否保存？",
-                    "提示",
+                    Constants.Msg.UnsavedPrompt,
+                    Constants.Msg.UnsavedTitle,
                     MessageBoxButton.YesNoCancel,
                     MessageBoxImage.Question
                 );
 
                 if (result == MessageBoxResult.Yes)
                 {
-                    viewModel.SaveTranslationCommand.Execute(null);
+                    viewModel.SaveCommand.Execute(null);
                 }
                 else if (result == MessageBoxResult.Cancel)
                 {
@@ -141,12 +113,13 @@ namespace LabelMinusinWPF
         private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
 
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
+        private const int IntPtrSize = 4;
 
         private void UpdateTitleBarColor(bool isDark)
         {
             IntPtr hWnd = new WindowInteropHelper(this).Handle;
             int darkMode = isDark ? 1 : 0;
-            DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, sizeof(int));
+            _ = DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, IntPtrSize);
         }
         #endregion
 
@@ -176,6 +149,11 @@ namespace LabelMinusinWPF
         }
         private void UpdateLayout(DisplayMode mode)
         {
+            // 共同的列宽设置
+            LeftColumn.Width = new GridLength(1, GridUnitType.Star);
+            RightColumn.Width = new GridLength(1, GridUnitType.Star);
+            MiddleColumn.Width = new GridLength(1, GridUnitType.Auto);
+
             switch (mode)
             {
                 case DisplayMode.ImageOnly:
@@ -184,27 +162,18 @@ namespace LabelMinusinWPF
                     break;
 
                 case DisplayMode.ListAndTextBox:
-                    LeftColumn.Width = new GridLength(1,GridUnitType.Star);
-                    RightColumn.Width = new GridLength(1, GridUnitType.Star);
-                    MiddleColumn.Width = new GridLength(1, GridUnitType.Auto);
                     DataGridRow.Height = new GridLength(4, GridUnitType.Star);
                     SplitterRow.Height = new GridLength(1, GridUnitType.Auto);
                     TextBoxRow.Height = new GridLength(1, GridUnitType.Star);
                     break;
 
                 case DisplayMode.ListOnly:
-                    LeftColumn.Width = new GridLength(1, GridUnitType.Star);
-                    RightColumn.Width = new GridLength(1, GridUnitType.Star);
-                    MiddleColumn.Width = new GridLength(1, GridUnitType.Auto);
                     DataGridRow.Height = new GridLength(4, GridUnitType.Star);
                     SplitterRow.Height = new GridLength(0);
                     TextBoxRow.Height = new GridLength(0);
                     break;
 
                 case DisplayMode.TextBoxOnly:
-                    LeftColumn.Width = new GridLength(1, GridUnitType.Star);
-                    RightColumn.Width = new GridLength(1, GridUnitType.Star);
-                    MiddleColumn.Width = new GridLength(1, GridUnitType.Auto);
                     DataGridRow.Height = new GridLength(0);
                     SplitterRow.Height = new GridLength(0);
                     TextBoxRow.Height = new GridLength(1, GridUnitType.Star);
@@ -273,7 +242,7 @@ namespace LabelMinusinWPF
         }
         private void Recognize_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is not MainViewModel vm) return;
+            if (DataContext is not MainVM vm) return;
 
             // 从剪贴板获取最近截图的图片
             BitmapSource? screenshot = null;
@@ -286,50 +255,20 @@ namespace LabelMinusinWPF
 
             if (screenshot == null)
             {
-                vm.MainMessageQueue.Enqueue("请先截图，再点击识别");
+                vm.MainMessageQueue.Enqueue(Constants.Msg.ScreenshotPrompt);
                 return;
             }
 
             string websiteName = vm.SelectedOcrWebsite;
             // 直接用 TryGetValue 获取，安全又简洁
-            string websiteUrl = MainViewModel.OcrWebsites.TryGetValue(websiteName, out var url)
+            string websiteUrl = MainVM.OcrWebsites.TryGetValue(websiteName, out var url)
                                 ? url
-                                : MainViewModel.OcrWebsites["百度"]; // 默认回退到百度
+                                : MainVM.OcrWebsites[Constants.OcrWebsites.DefaultWebsite]; // 使用常量定义的默认网站
 
-            var ocrWindow = new OcrRecognitionWindow(screenshot, websiteUrl, websiteName);
+            var ocrWindow = new OcrWindow(screenshot, websiteUrl, websiteName);
             ocrWindow.Show();
         }
 
-
-        private void BgColor_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not System.Windows.Controls.Button btn) return;
-            var color = GetColorFromButton(btn, "BgColor");
-            SelfControls.LabelStyleManager.Instance.TextBackgroundColor = color;
-        }
-
-        private void FgColor_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is not System.Windows.Controls.Button btn) return;
-            var color = GetColorFromButton(btn, "FgColor");
-            SelfControls.LabelStyleManager.Instance.TextForegroundColor = color;
-        }
-
-        private static Color GetColorFromButton(System.Windows.Controls.Button btn, string prefix)
-        {
-            string colorName = btn.Tag?.ToString() ?? string.Empty;
-            if (colorName == "Selected")
-                colorName = btn.Name.Replace(prefix, "");
-
-            return colorName switch
-            {
-                "White" => Colors.White,
-                "Black" => Colors.Black,
-                "RoyalBlue" => Colors.RoyalBlue,
-                "Transparent" => Colors.Transparent,
-                _ => prefix == "BgColor" ? Colors.White : Colors.Black
-            };
-        }
 
         #region 拖放文件支持
         private void Window_DragOver(object sender, DragEventArgs e)
@@ -350,7 +289,7 @@ namespace LabelMinusinWPF
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
                 string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files.Length > 0 && DataContext is MainViewModel viewModel)
+                if (files.Length > 0 && DataContext is MainVM viewModel)
                 {
                     viewModel.OpenResourceByPath(files, false);
                 }
@@ -377,17 +316,29 @@ namespace LabelMinusinWPF
         }
         private void About_Click(object sender, RoutedEventArgs e)
         {
-            if (this.DataContext is MainViewModel vm)
+            if (this.DataContext is MainVM vm)
             {
                 // 访问 MainMessageQueue
-                vm.MainMessageQueue.Enqueue("本程序由No-Hifuu友情赞助");
+                vm.MainMessageQueue.Enqueue(Constants.Msg.AboutMessage);
+            }
+        }
+
+        private void OnAnimationChanged(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.MenuItem menuItem && menuItem.Tag is string tag)
+            {
+                ImageLabelViewer.TransitionAnimation = tag switch
+                {
+                    "Fade" => Constants.ImgAnim.Fade,
+                    _ => Constants.ImgAnim.None
+                };
             }
         }
 
         #region 命令行启动支持
         public void OpenFilesOnStartup(string[] paths)
         {
-            if (DataContext is MainViewModel vm && paths.Length > 0)
+            if (DataContext is MainVM vm && paths.Length > 0)
             {
                 if (FullScreenReview.IsOpen)
                 {
@@ -399,7 +350,7 @@ namespace LabelMinusinWPF
         }
         public void OpenImageReviewSmart(string newPath)
         {
-            if (DataContext is not MainViewModel vm) return;
+            if (DataContext is not MainVM vm) return;
 
             // 1. 确保图校界面是打开的
             if (!FullScreenReview.IsOpen)
@@ -410,7 +361,7 @@ namespace LabelMinusinWPF
             // 2. 这里的延迟执行非常重要，确保子 VM 已经就绪
             Dispatcher.BeginInvoke(() =>
             {
-                if (FullScreenReview.DataContext is ImageReviewVM reviewVm)
+                if (FullScreenReview.DataContext is CompareImgVM reviewVm)
                 {
                     // 如果左侧 VM 还没有路径，或者当前不是对比模式且左侧是空的
                     // 我们简单的逻辑：如果左侧没图，放左侧；否则放右侧。
@@ -446,7 +397,7 @@ namespace LabelMinusinWPF
             // 【重要防护】如果用户当前正在 TextBox 里输入文字，则不触发快捷键
             if (e.OriginalSource is System.Windows.Controls.TextBox) return;
             if (FullScreenReview.IsOpen) return; // 图校界面打开时禁用快捷键，避免冲突
-            if (DataContext is MainViewModel vm)
+            if (DataContext is MainVM vm)
             {
                 switch (e.Key)
                 {
@@ -469,25 +420,23 @@ namespace LabelMinusinWPF
 
                     // --- 图片切换 (A: 上一张, D: 下一张) ---
                     case Key.A:
-                        if (vm.PreviousImageCommand.CanExecute(null))
-                            vm.PreviousImageCommand.Execute(null);
+                        vm.PreviousImageCommand.Execute(null);
+                        PicView?.PlayTransitionAnimation();
                         e.Handled = true;
                         break;
                     case Key.D:
-                        if (vm.NextImageCommand.CanExecute(null)) // RelayCommand 会自动处理 CanExecute
-                            vm.NextImageCommand.Execute(null);
+                        vm.NextImageCommand.Execute(null);
+                        PicView?.PlayTransitionAnimation();
                         e.Handled = true;
                         break;
 
                     // --- 标签切换 (W: 上一个, S: 下一个) ---
                     case Key.W:
-                        if (vm.PreviousLabelCommand.CanExecute(null))
-                            vm.PreviousLabelCommand.Execute(null);
+                        vm.PreviousLabelCommand.Execute(null);
                         e.Handled = true;
                         break;
                     case Key.S:
-                        if (vm.NextLabelCommand.CanExecute(null))
-                            vm.NextLabelCommand.Execute(null);
+                        vm.NextLabelCommand.Execute(null);
                         e.Handled = true;
                         break;
                     case Key.R:
@@ -504,7 +453,7 @@ namespace LabelMinusinWPF
         {
             _autoSaveTimer = new DispatcherTimer
             {
-                Interval = TimeSpan.FromMinutes(AutoSaveIntervalMinutes)
+                Interval = TimeSpan.FromMinutes(Constants.AutoSave.IntervalMinutes)
             };
             _autoSaveTimer.Tick += AutoSaveTimer_Tick;
             _autoSaveTimer.Start();
@@ -512,7 +461,7 @@ namespace LabelMinusinWPF
 
         private void AutoSaveTimer_Tick(object? sender, EventArgs e)
         {
-            if (DataContext is not MainViewModel vm) return;
+            if (DataContext is not MainVM vm) return;
 
             // 只有在MainWindow中有翻译项目且有修改时才自动保存
             if (vm.CurrentProject == ProjectHelper.ProjectContext.Empty || !vm.HasUnsavedChanges())
@@ -557,7 +506,7 @@ namespace LabelMinusinWPF
             }
         }
 
-        private void CleanupOldAutoSaveFiles(string autoSaveFolder, string baseFileName)
+        private static void CleanupOldAutoSaveFiles(string autoSaveFolder, string baseFileName)
         {
             try
             {
@@ -568,7 +517,7 @@ namespace LabelMinusinWPF
                     .ToList();
 
                 // 删除超过MaxAutoSaveFiles的旧文件
-                foreach (var file in files.Skip(MaxAutoSaveFiles))
+                foreach (var file in files.Skip(Constants.AutoSave.MaxFiles))
                 {
                     try
                     {

@@ -7,7 +7,7 @@ using System.Windows.Controls;
 
 namespace LabelMinusinWPF
 {
-    public partial class ImageSelectionDialog : Window
+    public partial class ImageSelectDialog : Window
     {
         public class SelectableImage : INotifyPropertyChanged
         {
@@ -40,7 +40,7 @@ namespace LabelMinusinWPF
         public ObservableCollection<SelectableImage> Items { get; }
         public List<ImageInfo> SelectedImages { get; private set; }
 
-        public ImageSelectionDialog(List<ImageInfo> availableImages, List<ImageInfo> currentImages)
+        public ImageSelectDialog(List<ImageInfo> availableImages, List<ImageInfo> currentImages)
         {
             InitializeComponent();
 

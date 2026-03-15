@@ -16,10 +16,6 @@ namespace LabelMinusinWPF
 {
     public partial class ImageInfo : ObservableObject, IDisposable
     {
-        // 图片缓存（避免重复加载）
-        private BitmapImage? _cachedImageSource;
-        private string? _cachedImagePath;
-
         // 图片完整路径
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(ImageSource), nameof(ImageName))]
@@ -31,7 +27,7 @@ namespace LabelMinusinWPF
         public string ImageName => ZipEntryName ?? Path.GetFileName(ImagePath);
         // 图片包含的标签
         public BindingList<ImageLabel> Labels { get; } = [];
-        /// <summary>新建标签时使用的默认组别（由 MainViewModel 同步）</summary>
+        // 新建标签时使用的默认组别（由 MainVM 同步）
         public string ActiveGroup { get; set; } = Constants.Groups.Default;
 
         // 只读属性：获取未删除的标签列表（带缓存优化）
@@ -59,10 +55,6 @@ namespace LabelMinusinWPF
             {
                 if (string.IsNullOrEmpty(ImagePath)) return null;
 
-                // 使用缓存避免重复加载
-                if (_cachedImageSource != null && _cachedImagePath == ImagePath)
-                    return _cachedImageSource;
-
                 try
                 {
                     // 使用 ResourceHelper 解析路径
@@ -72,16 +64,13 @@ namespace LabelMinusinWPF
                         // 压缩包逻辑
                         var (archivePath, entryPath) = archiveResult.Value;
                         byte[]? data = ResourceHelper.ExtractFileToBytes(archivePath, entryPath);
-                        _cachedImageSource = data != null ? LoadFromBytes(data) : null;
+                        return data != null ? ResourceHelper.LoadFromBytes(data) : null;
                     }
                     else
                     {
-                        // 普通文件逻辑
-                        _cachedImageSource = LoadFromPath(ImagePath);
+                        // 普通文件逻辑 - 每次直接加载
+                        return ResourceHelper.LoadFromPath(ImagePath);
                     }
-
-                    _cachedImagePath = ImagePath;
-                    return _cachedImageSource;
                 }
                 catch (Exception ex)
                 {
@@ -91,31 +80,26 @@ namespace LabelMinusinWPF
             }
         }
 
-        /// <summary>清除图片缓存（当路径变化时调用）</summary>
-        public void ClearImageCache()
-        {
-            _cachedImageSource = null;
-            _cachedImagePath = null;
-            OnPropertyChanged(nameof(ImageSource));
-        }
-
-        private static BitmapImage? LoadFromPath(string path) => ResourceHelper.LoadFromPath(path);
-        private static BitmapImage? LoadFromBytes(byte[] data) => ResourceHelper.LoadFromBytes(data);
-
         #endregion
 
         private bool _isRefreshing = false;
 
+        // 用于事件取消订阅的处理器
+        private readonly ListChangedEventHandler _labelsListChangedHandler;
+        private readonly EventHandler _requeryHandler;
+
         public ImageInfo()
         {
             // 订阅 BindingList 的 ListChanged 事件
-            Labels.ListChanged += (s, e) =>
+            _labelsListChangedHandler = (s, e) =>
             {
                 // 当列表发生增删改操作时，刷新索引
                 if (!_isRefreshing) RefreshIndices();
                 // 使缓存失效
                 _activeLabelsCacheValid = false;
             };
+            Labels.ListChanged += _labelsListChangedHandler;
+
             // 自动刷新 Undo/Redo 按钮的可点击状态
             _requeryHandler = (s, e) =>
             {
@@ -125,11 +109,10 @@ namespace LabelMinusinWPF
             CommandManager.RequerySuggested += _requeryHandler;
         }
 
-        private readonly EventHandler _requeryHandler;
-
-        /// <summary>释放资源，取消事件订阅</summary>
+        // 释放资源，取消事件订阅
         public void Dispose()
         {
+            Labels.ListChanged -= _labelsListChangedHandler;
             CommandManager.RequerySuggested -= _requeryHandler;
             GC.SuppressFinalize(this);
         }
@@ -160,10 +143,6 @@ namespace LabelMinusinWPF
         {
             SelectedLabel = label;
         });
-        //public void ResetModificationFlags()// 保存后重置所有修改标记
-        //{
-        //    foreach (var l in Labels) l._isModified = false;
-        //}
         #endregion
 
 

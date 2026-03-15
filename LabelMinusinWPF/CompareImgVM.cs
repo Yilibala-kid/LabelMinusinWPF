@@ -9,12 +9,13 @@ using System.Windows;
 
 namespace LabelMinusinWPF
 {
-    public partial class ImageReviewVM : ObservableObject
+    public partial class CompareImgVM : ObservableObject, IDisposable
     {
+        private bool _disposed;
         [ObservableProperty]
-        private MainViewModel _leftImageVM = new();
+        private MainVM _leftImageVM = new();
         [ObservableProperty]
-        private MainViewModel _rightImageVM = new();
+        private MainVM _rightImageVM = new();
 
         #region combobox绑定
         // 1. 供 ComboBox 绑定的数据源 (所有图片名的并集)
@@ -37,7 +38,7 @@ namespace LabelMinusinWPF
                 Path.GetFileNameWithoutExtension(img.ImageName).Equals(value, StringComparison.OrdinalIgnoreCase));
         }
 
-        public ImageReviewVM()
+        public CompareImgVM()
         {
             // 监听左右两个列表的变化事件 (BindingList 使用 ListChanged)
             LeftImageVM.ImageList.ListChanged += ImageList_ListChanged;
@@ -101,7 +102,16 @@ namespace LabelMinusinWPF
         [RelayCommand]
         private void SwapImages()
         {
+            // 交换前先取消旧的事件订阅
+            LeftImageVM.ImageList.ListChanged -= ImageList_ListChanged;
+            RightImageVM.ImageList.ListChanged -= ImageList_ListChanged;
+
+            // 交换 VM
             (LeftImageVM, RightImageVM) = (RightImageVM, LeftImageVM);
+
+            // 交换后重新订阅事件
+            LeftImageVM.ImageList.ListChanged += ImageList_ListChanged;
+            RightImageVM.ImageList.ListChanged += ImageList_ListChanged;
         }
 
         // 清空图片命令（修复：重新订阅新 VM 的事件）
@@ -111,8 +121,8 @@ namespace LabelMinusinWPF
             LeftImageVM.ImageList.ListChanged -= ImageList_ListChanged;
             RightImageVM.ImageList.ListChanged -= ImageList_ListChanged;
 
-            LeftImageVM = new MainViewModel();
-            RightImageVM = new MainViewModel();
+            LeftImageVM = new MainVM();
+            RightImageVM = new MainVM();
 
             LeftImageVM.ImageList.ListChanged += ImageList_ListChanged;
             RightImageVM.ImageList.ListChanged += ImageList_ListChanged;
@@ -208,6 +218,26 @@ namespace LabelMinusinWPF
         {
             IsDualReViewEnabled = !IsDualReViewEnabled;
             if (IsDualReViewEnabled) IsSyncEnabled = true;
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed)
+            {
+                if (disposing)
+                {
+                    // 取消事件订阅
+                    LeftImageVM.ImageList.ListChanged -= ImageList_ListChanged;
+                    RightImageVM.ImageList.ListChanged -= ImageList_ListChanged;
+                }
+                _disposed = true;
+            }
         }
     }
 }

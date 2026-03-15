@@ -6,9 +6,9 @@ using System.Windows;
 
 namespace LabelMinusinWPF
 {
-    /// <summary>
+
     /// Interaction logic for App.xaml
-    /// </summary>
+
     public partial class App : Application
     {
         // 互斥体名称，建议使用唯一的 GUID

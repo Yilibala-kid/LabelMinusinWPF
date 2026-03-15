@@ -5,14 +5,14 @@ namespace LabelMinusinWPF.Common
 {
     #region 撤销重做功能
 
-    /// <summary>撤销/重做命令接口</summary>
+    // 撤销/重做命令接口
     public interface IUndoCommand
     {
         void Execute();
         void Undo();
     }
 
-    /// <summary>撤销重做管理器：维护两个栈实现无限撤销/重做</summary>
+    // 撤销重做管理器：维护两个栈实现无限撤销/重做
     public class UndoRedoManager
     {
         private readonly Stack<IUndoCommand> _undoStack = new();
@@ -23,7 +23,7 @@ namespace LabelMinusinWPF.Common
         public int UndoCount => _undoStack.Count;
         public int RedoCount => _redoStack.Count;
 
-        /// <summary>执行命令并压入撤销栈（清空重做栈）</summary>
+        // 执行命令并压入撤销栈（清空重做栈）
         public void Execute(IUndoCommand command)
         {
             command.Execute();
@@ -54,21 +54,21 @@ namespace LabelMinusinWPF.Common
         }
     }
 
-    /// <summary>新增标注命令</summary>
+    // 新增标注命令
     public class AddCommand(BindingList<ImageLabel> list, ImageLabel label) : IUndoCommand
     {
         public void Execute() { label.IsDeleted = false; list.Add(label); }
         public void Undo() { label.IsDeleted = true; list.Remove(label); }
     }
 
-    /// <summary>删除标注命令（软删除）</summary>
+    // 删除标注命令（软删除）
     public class DeleteCommand(ImageLabel label) : IUndoCommand
     {
         public void Execute() { label.IsDeleted = true; }
         public void Undo() { label.IsDeleted = false; }
     }
 
-    /// <summary>标注属性修改命令（基于快照的撤销/重做）</summary>
+    // 标注属性修改命令（基于快照的撤销/重做）
     public class UpdateLabelCommand : IUndoCommand
     {
         private readonly ImageLabel _target;
@@ -88,7 +88,7 @@ namespace LabelMinusinWPF.Common
         public void Undo() { _oldState.RestoreTo(_target); _refreshAction(); }
     }
 
-    /// <summary>标注状态快照（记录 Text、Group、Position）</summary>
+    // 标注状态快照（记录 Text、Group、Position）
     public class LabelSnapshot
     {
         public string Text { get; }

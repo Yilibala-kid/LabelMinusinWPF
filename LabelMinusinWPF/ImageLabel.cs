@@ -28,9 +28,6 @@ namespace LabelMinusinWPF
 
         #endregion
 
-
-
-
         #region UI 相关属性
         [ObservableProperty]
         private bool _isEditing;
@@ -40,17 +37,15 @@ namespace LabelMinusinWPF
 
         [ObservableProperty] private string _originalText = "";
 
-        /// <summary>当前标签是否被选中</summary>
+        // 当前标签是否被选中
         [ObservableProperty] private bool _isSelected;
 
-        /// <summary>组别对应的画刷颜色（由 ViewModel 同步）</summary>
+        // 组别对应的画刷颜色（由 ViewModel 同步）
         [ObservableProperty] private SolidColorBrush _groupBrush = Brushes.Red;
 
         private bool _isModified = false;
         public bool IsModified => _isModified || IsDeleted;
         #endregion
-
-
 
         #region 快捷坐标访问
         public double X { get => Position.X; set => Position = Position with { X = Math.Clamp(value, 0, 1) }; }
@@ -58,7 +53,7 @@ namespace LabelMinusinWPF
 
         #endregion
 
-        #region 5. 业务方法
+        #region 业务方法
         partial void OnTextChanged(string value) => SetModified();
         partial void OnIsDeletedChanged(bool value) => SetModified();
 
@@ -79,8 +74,6 @@ namespace LabelMinusinWPF
             _isModified = false;
             OnPropertyChanged(nameof(IsModified));
         }
-
-        public ImageLabel Clone() => (ImageLabel)this.MemberwiseClone();
         #endregion
     }
 

@@ -4,11 +4,11 @@ using System.Windows;
 
 namespace LabelMinusinWPF
 {
-    public partial class ZipSelectionDialog : Window
+    public partial class ZipDialog : Window
     {
         public string? SelectedZip { get; private set; }
 
-        public ZipSelectionDialog(List<string> zipFiles, string? currentZip)
+        public ZipDialog(List<string> zipFiles, string? currentZip)
         {
             InitializeComponent();
 

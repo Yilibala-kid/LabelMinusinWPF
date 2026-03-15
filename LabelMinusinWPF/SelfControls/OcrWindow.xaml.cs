@@ -7,10 +7,10 @@ using System.Windows.Media.Imaging;
 
 namespace LabelMinusinWPF
 {
-    public partial class OcrRecognitionWindow : Window
+    public partial class OcrWindow : Window
     {
         private string? _tempImagePath;
-        public OcrRecognitionWindow(BitmapSource screenshot, string websiteUrl, string websiteName)
+        public OcrWindow(BitmapSource screenshot, string websiteUrl, string websiteName)
         {
             InitializeComponent();
 
@@ -23,7 +23,7 @@ namespace LabelMinusinWPF
 
             // 初始化WebView2
             InitializeWebView(websiteUrl);
-            this.Closed += OcrRecognitionWindow_Closed;
+            this.Closed += OnClosed;
         }
 
         private async void InitializeWebView(string url)
@@ -70,7 +70,7 @@ namespace LabelMinusinWPF
         }
 
         // 鼠标移动事件：检测左键按下并启动拖拽
-        private void ScreenshotImage_MouseMove(object sender, MouseEventArgs e)
+        private void OnScreenshotMove(object sender, MouseEventArgs e)
         {
             if (e.LeftButton == MouseButtonState.Pressed && !string.IsNullOrEmpty(_tempImagePath) && File.Exists(_tempImagePath))
             {
@@ -80,7 +80,7 @@ namespace LabelMinusinWPF
         }
 
         // 窗口关闭时清理临时文件
-        private void OcrRecognitionWindow_Closed(object? sender, System.EventArgs e)
+        private void OnClosed(object? sender, System.EventArgs e)
         {
             if (!string.IsNullOrEmpty(_tempImagePath) && File.Exists(_tempImagePath))
             {
