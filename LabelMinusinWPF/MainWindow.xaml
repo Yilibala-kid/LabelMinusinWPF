@@ -228,6 +228,7 @@
 
                                 <StackPanel Grid.Column="2">
                                     <Button Style="{StaticResource IconButtonStyle}" Click="OpenImageReview_Click" Tag="Compare" Content="图校" ToolTip="图片对比" />
+                                    <ToggleButton x:Name="RegionCaptureWithLabelsBtn" Style="{StaticResource IconToggleButtonStyle}" Tag="Selection" Content="框选" ToolTip="带标签框选截图" Click="RegionCaptureWithLabels_Click" />
                                 </StackPanel>
                             </Grid>
                         </Border>

@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using LabelMinusinWPF.Common;
+using LabelMinusinWPF.SelfControls;
 
 namespace LabelMinusinWPF
 {
@@ -26,7 +27,7 @@ namespace LabelMinusinWPF
             _dragThrottleTimer.Tick += OnDragTick;
         }
 
-        public ImageInfo? ShowingImage => DataContext as ImageInfo;
+        public OneImage? ShowingImage => DataContext as OneImage;
 
         #region 拖动节流优化
         private readonly DispatcherTimer _dragThrottleTimer;
@@ -207,12 +208,12 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 第三层(上)：标签选中与删除
-        private ImageLabel? _draggingLabel; // 当前拖动的标签，非空即代表正在拖拽标签
+        private OneLabel? _draggingLabel; // 当前拖动的标签，非空即代表正在拖拽标签
         private Point _dragStartPoint;      // 鼠标按下的起始点（用于判定位移）
         private bool _isRealDragging;       // 是否真正开始移动的标志
         private void LabelNode_LeftMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is FrameworkElement elm && elm.DataContext is ImageLabel label && ShowingImage != null)
+            if (sender is FrameworkElement elm && elm.DataContext is OneLabel label && ShowingImage != null)
             {
                 // 1. 正常选中
                 ShowingImage.SelectedLabel = label;
@@ -229,7 +230,7 @@ namespace LabelMinusinWPF
         }
         private void LabelNode_RightMouseDown(object sender, MouseButtonEventArgs e)
         {
-            if (sender is FrameworkElement { DataContext: ImageLabel label } && ShowingImage != null)
+            if (sender is FrameworkElement { DataContext: OneLabel label } && ShowingImage != null)
             {
                 ShowingImage.SelectedLabel = label;
                 if (ShowingImage.DeleteLabelCommand.CanExecute(label))
@@ -331,7 +332,12 @@ namespace LabelMinusinWPF
             // 过滤掉无效的微小点击
             if (normRect.Width > 0.01 && normRect.Height > 0.01)
             {
-                if (IsSyncRequired)
+                if (IsRegionCaptureWithLabels)
+                {
+                    // 带标签框选模式：通知外部处理
+                    SnappedWithLabels?.Invoke(this, normRect);
+                }
+                else if (IsSyncRequired)
                 {
                     // 抛出归一化矩形，父窗口收到后可以直接转给另一个 ImageLabelViewer
                     Snipped?.Invoke(this, normRect);
@@ -350,25 +356,21 @@ namespace LabelMinusinWPF
         private BitmapSource? CaptureRegion(Rect normRect)
         {
             if (TargetImage.Source is not BitmapSource bitmapSource) return null;
-
-            // 映射到真实像素坐标 (直接用归一化比例乘真实像素，免去繁杂的 UI 坐标系转换)
-            int pxX = (int)(normRect.X * bitmapSource.PixelWidth);
-            int pxY = (int)(normRect.Y * bitmapSource.PixelHeight);
-            int pxW = (int)(normRect.Width * bitmapSource.PixelWidth);
-            int pxH = (int)(normRect.Height * bitmapSource.PixelHeight);
-
-            // 边界安全检查，使用 Math.Clamp 简化代码
-            pxX = Math.Clamp(pxX, 0, bitmapSource.PixelWidth);
-            pxY = Math.Clamp(pxY, 0, bitmapSource.PixelHeight);
-            pxW = Math.Clamp(pxW, 1, bitmapSource.PixelWidth - pxX);
-            pxH = Math.Clamp(pxH, 1, bitmapSource.PixelHeight - pxY);
-
-            try
-            {
-                return new CroppedBitmap(bitmapSource, new Int32Rect(pxX, pxY, pxW, pxH));
-            }
-            catch { return null; }
+            return ScreenshotHelper.CropRegion(bitmapSource, normRect);
         }
+
+        /// <summary>
+        /// 捕获指定区域（图片+该区域内的标签）
+        /// 返回：(截图Bitmap, 选区内的标签列表)
+        /// </summary>
+        public (BitmapSource? Image, List<OneLabel> LabelsInRegion)? CaptureRegionWithLabels(Rect normRect)
+        {
+            if (ShowingImage == null || TargetImage.Source is not BitmapSource bitmapSource) return null;
+            return ScreenshotHelper.CaptureRegionWithLabels(bitmapSource, normRect, ShowingImage.ActiveLabels);
+        }
+
+
+
         #endregion
 
         #region 暴露给外部的状态属性/公开控制方法
@@ -406,6 +408,25 @@ namespace LabelMinusinWPF
         #region 外部显示控制/自设参数
         // 当截图完成时，通知外部（父窗口）
         public event EventHandler<Rect>? Snipped;
+        // 当带标签截图完成时，通知外部（父窗口）
+        public event EventHandler<Rect>? SnappedWithLabels;
+
+        // 带标签框选模式开关
+        public bool IsRegionCaptureWithLabels
+        {
+            get => (bool)GetValue(IsRegionCaptureWithLabelsProperty);
+            set => SetValue(IsRegionCaptureWithLabelsProperty, value);
+        }
+        public static readonly DependencyProperty IsRegionCaptureWithLabelsProperty =
+            DependencyProperty.Register(nameof(IsRegionCaptureWithLabels), typeof(bool), typeof(ImageLabelViewer),
+                new PropertyMetadata(false, (d, e) => {
+                    if (d is ImageLabelViewer ctrl && e.NewValue is bool isOn)
+                    {
+                        ctrl.SnipCanvas.Visibility = isOn ? Visibility.Visible : Visibility.Collapsed;
+                        ctrl.ViewportGrid.Cursor = isOn ? Cursors.Cross : Cursors.Arrow;
+                    }
+                }));
+
         // 截图模式开关
         public bool IsScreenShotMode
         {

@@ -159,129 +159,23 @@ namespace LabelMinusinWPF
 
         private void CombineAndSave(BitmapSource? leftSource, BitmapSource? rightSource, string footerText, int leftW, int leftH, int rightW, int rightH)
         {
-            // 1. 如果两张图都是空的，直接返回
-            if (leftSource == null && rightSource == null) return;
-
-            // 2. 使用预先捕获的尺寸计算画布尺寸
-            double mainW = leftW + rightW;
-            double mainH = Math.Max(leftH, rightH);
-
-            // 动态计算页脚高度
-            double footerH = Math.Clamp(mainH * 0.12, 50, 150);
-
-            double canvasW = mainW;
-            double canvasH = mainH + footerH;
-
-            // 创建渲染目标
-            RenderTargetBitmap? rtb = null;
-            BitmapSource? finalBitmap = null;
-
-            try
-            {
-                // 3. 在后台线程渲染
-                rtb = new RenderTargetBitmap((int)canvasW, (int)canvasH, 96, 96, PixelFormats.Pbgra32);
-
-                DrawingVisual visual = new DrawingVisual();
-                using (DrawingContext dc = visual.RenderOpen())
-                {
-                    dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, canvasW, canvasH));
-
-                    // 使用预捕获的尺寸
-                    dc.DrawImage(leftSource, new Rect(0, 0, leftW, leftH));
-                    dc.DrawImage(rightSource, new Rect(leftW, 0, rightW, rightH));
-
-                    // 蓝色分割线
-                    Pen bluePen = new Pen(new SolidColorBrush(Color.FromRgb(65, 105, 225)), 2);
-                    dc.DrawLine(bluePen, new Point(leftW, 0), new Point(leftW, mainH));
-
-                    // 页脚背景
-                    dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(255, 245, 238)), null,
-                                     new Rect(0, mainH, canvasW, footerH));
-
-                    // 字号
-                    double fontSize = Math.Max(footerH * 0.7, 14);
-                    FormattedText ft = new FormattedText(
-                        $"▲ {footerText}",
-                        System.Globalization.CultureInfo.CurrentCulture,
-                        FlowDirection.LeftToRight,
-                        new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
-                        fontSize,
-                        Brushes.RoyalBlue,
-                        VisualTreeHelper.GetDpi(visual).PixelsPerDip);
-
-                    double maxTextWidth = canvasW * 0.9;
-                    while (ft.Width > maxTextWidth && fontSize > 14)
-                    {
-                        fontSize -= 1;
-                        ft = new FormattedText(
-                            $"▲ {footerText}",
-                            System.Globalization.CultureInfo.CurrentCulture,
-                            FlowDirection.LeftToRight,
-                            new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
-                            fontSize,
-                            Brushes.RoyalBlue,
-                            VisualTreeHelper.GetDpi(visual).PixelsPerDip);
-                    }
-
-                    Point textPos = new Point((canvasW - ft.Width) / 2, mainH + (footerH - ft.Height) / 2);
-                    dc.DrawText(ft, textPos);
-                }
-
-                rtb.Render(visual);
-                finalBitmap = rtb;
-
-                // 4. 压缩并保存（在后台线程执行）
-                SaveInBackground(finalBitmap);
-            }
-            finally
-            {
-                rtb?.Freeze();
-            }
+            var result = ScreenshotHelper.SaveTwoImages(leftSource, rightSource, footerText, ScreenshotFolderName, 85, 70, 2 * 1024 * 1024);
+            if (result == null) return;
+            UpdateClipboardAndThumb(result.Value);
         }
 
-        private void SaveInBackground(BitmapSource bitmap)
+        private void UpdateClipboardAndThumb((string FilePath, byte[] Data) result)
         {
-            string folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ScreenshotFolderName);
-            string filePath = System.IO.Path.Combine(folderPath, $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}.jpg");
-            System.IO.Directory.CreateDirectory(folderPath);
-
-            // 压缩：初始质量 85（平衡质量和性能）
-            int quality = 85;
-            byte[]? finalData = null;
-
-            using (var ms = new System.IO.MemoryStream())
-            {
-                var encoder = new JpegBitmapEncoder { QualityLevel = quality };
-                encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                encoder.Save(ms);
-                finalData = ms.ToArray();
-
-                // 如果大于 2MB 才进一步压缩，减少迭代
-                if (finalData.Length > 2 * 1024 * 1024)
-                {
-                    quality = 70;
-                    ms.SetLength(0);
-                    ms.Position = 0;
-                    encoder = new JpegBitmapEncoder { QualityLevel = quality };
-                    encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                    encoder.Save(ms);
-                    finalData = ms.ToArray();
-                }
-            }
-
-            System.IO.File.WriteAllBytes(filePath, finalData!);
-            _currentImgPath = filePath;
-
-            // 回到 UI 线程更新剪贴板和缩略图
+            _currentImgPath = result.FilePath;
             Dispatcher.BeginInvoke(() =>
             {
                 try
                 {
-                    using var ms = new System.IO.MemoryStream(finalData!);
+                    using var ms = new System.IO.MemoryStream(result.Data);
                     var decoder = new JpegBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-                    var compressedBitmap = decoder.Frames.First();
-                    Clipboard.SetImage(compressedBitmap);
-                    ImgThumb.Source = compressedBitmap;
+                    var bmp = decoder.Frames.First();
+                    Clipboard.SetImage(bmp);
+                    ImgThumb.Source = bmp;
                 }
                 catch (Exception ex)
                 {
@@ -289,144 +183,14 @@ namespace LabelMinusinWPF
                 }
             });
         }
-        private void CombineImages(BitmapSource? leftSource, BitmapSource? rightSource, string footerText)
-        {
-            // 1. 如果两张图都是空的，直接返回
-            if (leftSource == null && rightSource == null) return;
 
-            // 2. 计算画布尺寸
-            // 宽度 = 左图逻辑宽 + 右图逻辑宽
-            double mainW = (leftSource?.PixelWidth ?? 0) + (rightSource?.PixelWidth ?? 0);
-            // 高度 = 两者中最高的一个
-            double mainH = Math.Max(leftSource?.PixelHeight ?? 0, rightSource?.PixelHeight ?? 0);
-
-            // 动态计算页脚高度 (12%, 最小60, 最大150)
-            double footerH = Math.Clamp(mainH * 0.12, 10, 150);
-
-            double canvasW = mainW;
-            double canvasH = mainH + footerH;
-
-            // 3. 开始在内存中绘图
-            DrawingVisual visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
-            {
-                // 绘制白色背景
-                dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, canvasW, canvasH));
-
-                double currentX = 0;
-
-                // 绘制左图
-                if (leftSource != null)
-                {
-                    dc.DrawImage(leftSource, new Rect(0, 0, leftSource.PixelWidth, leftSource.PixelHeight));
-                    currentX = leftSource.PixelWidth;
-                }
-
-                // 绘制右图
-                if (rightSource != null)
-                {
-                    dc.DrawImage(rightSource, new Rect(currentX, 0, rightSource.PixelWidth, rightSource.PixelHeight));
-                }
-
-                // 绘制蓝色分割线 (仅在双图并存时)
-                if (leftSource != null && rightSource != null)
-                {
-                    Pen bluePen = new Pen(new SolidColorBrush(Color.FromRgb(65, 105, 225)), 2); // RoyalBlue
-                    dc.DrawLine(bluePen, new Point(leftSource.PixelWidth, 0), new Point(leftSource.PixelWidth, mainH));
-                }
-
-                // 绘制页脚背景 (SeaShell 颜色: 255, 245, 238)
-                dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(255, 245, 238)), null,
-                                 new Rect(0, mainH, canvasW, footerH));
-
-                // 1. 基础字号设定（保持你原有的逻辑作为上限）
-                double fontSize = footerH * 0.7; // 稍微调小比例，留出上下边距
-
-                // 2. 创建一个初步的 FormattedText 用于测量宽度
-                FormattedText ft = new FormattedText(
-                    $"▲ {footerText}",
-                    System.Globalization.CultureInfo.CurrentCulture,
-                    FlowDirection.LeftToRight,
-                    new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
-                    fontSize,
-                    Brushes.RoyalBlue,
-                    VisualTreeHelper.GetDpi(visual).PixelsPerDip);
-
-                // 3. 【关键修正】检查文字是否太宽。如果文字比画布宽（留出10%边距），则按比例缩小字号
-                double maxTextWidth = canvasW * 0.9; // 允许文字占用的最大宽度（90% 画布宽）
-                if (ft.Width > maxTextWidth)
-                {
-                    // 按宽度比例缩小字号
-                    fontSize = fontSize * (maxTextWidth / ft.Width);
-
-                    // 重新生成缩放后的文字
-                    ft = new FormattedText(
-                        $"▲ {footerText}",
-                        System.Globalization.CultureInfo.CurrentCulture,
-                        FlowDirection.LeftToRight,
-                        new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal),
-                        fontSize,
-                        Brushes.RoyalBlue,
-                        VisualTreeHelper.GetDpi(visual).PixelsPerDip);
-                }
-
-                // 4. 文字居中对齐绘制（逻辑不变）
-                Point textPos = new Point((canvasW - ft.Width) / 2, mainH + (footerH - ft.Height) / 2);
-                dc.DrawText(ft, textPos);
-            }
-
-            // 4. 将绘图渲染为位图 (使用 96 DPI 保证原始像素 1:1)
-            RenderTargetBitmap rtb = new RenderTargetBitmap((int)canvasW, (int)canvasH, 96, 96, PixelFormats.Pbgra32);
-            rtb.Render(visual);
-
-            // 5. 调用保存与压缩函数
-            SaveImage(rtb);
-        }
         private void SaveImage(BitmapSource bitmap)
         {
             try
             {
-                string folderPath = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, ScreenshotFolderName);
-                string filePath = System.IO.Path.Combine(folderPath, $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}.jpg");
-                Directory.CreateDirectory(folderPath);
-
-                // 1. 初始化质量为 100（不压缩）
-                int quality = 100;
-                byte[] finalData;
-
-                // 2. 迭代压缩逻辑
-                do
-                {
-                    using (MemoryStream ms = new MemoryStream())
-                    {
-                        JpegBitmapEncoder encoder = new JpegBitmapEncoder { QualityLevel = quality };
-                        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                        encoder.Save(ms);
-                        finalData = ms.ToArray();
-                    }
-
-                    // 如果文件小于 1MB，或者画质已经压到 20 了，就退出循环
-                    if (finalData.Length <= 1024 * 1024 || quality <= 20) break;
-
-                    // 步进降低质量
-                    quality -= 10;
-                } while (true);
-
-                // 3. 写入磁盘文件
-                File.WriteAllBytes(filePath, finalData);
-                _currentImgPath = filePath;
-
-                // 4. 将 finalData 写入剪贴板
-                using (MemoryStream ms = new MemoryStream(finalData))
-                {
-                    // 从压缩后的字节流创建一个新的解码器
-                    JpegBitmapDecoder decoder = new JpegBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
-                    BitmapSource compressedBitmap = decoder.Frames.First();
-
-                    // 存入剪贴板
-                    Clipboard.SetImage(compressedBitmap);
-                    ImgThumb.Source = compressedBitmap;
-                }
+                var result = ScreenshotHelper.SaveWithCompression(bitmap, null, ScreenshotFolderName);
+                if (result == null) return;
+                UpdateClipboardAndThumb(result.Value);
             }
             catch (UnauthorizedAccessException ex)
             {

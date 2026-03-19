@@ -1,16 +1,13 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using MahApps.Metro.Controls;
-using System.Runtime.CompilerServices;
+using CommunityToolkit.Mvvm.ComponentModel;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using LabelMinusinWPF.Common;
 using Constants = LabelMinusinWPF.Common.Constants;
 
 
 namespace LabelMinusinWPF
 {
-    public partial class ImageLabel : ObservableObject
+    public partial class OneLabel : ObservableObject
     {
         #region 基本属性
         [ObservableProperty] private int _index;
@@ -28,6 +25,10 @@ namespace LabelMinusinWPF
 
         #endregion
 
+
+
+
+
         #region UI 相关属性
         [ObservableProperty]
         private bool _isEditing;
@@ -41,11 +42,13 @@ namespace LabelMinusinWPF
         [ObservableProperty] private bool _isSelected;
 
         // 组别对应的画刷颜色（由 ViewModel 同步）
-        [ObservableProperty] private SolidColorBrush _groupBrush = Brushes.Red;
+        [ObservableProperty] private SolidColorBrush _groupBrush = Constants.Groups.Brushes[0];
 
         private bool _isModified = false;
         public bool IsModified => _isModified || IsDeleted;
         #endregion
+
+
 
         #region 快捷坐标访问
         public double X { get => Position.X; set => Position = Position with { X = Math.Clamp(value, 0, 1) }; }

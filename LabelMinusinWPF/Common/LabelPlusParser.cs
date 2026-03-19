@@ -14,16 +14,16 @@ namespace LabelMinusinWPF.Common
         private static readonly Regex ImgRegex = new(@">>>>>>>>\[(.*?)\]<<<<<<<<", RegexOptions.Compiled);
         private static readonly Regex MetaRegex = new(@"----------------\[(\d+)\]----------------\[([\d\.]+),([\d\.]+),(\d+)\]", RegexOptions.Compiled);
 
-        // 将 LabelPlus 格式的文本解析为 图片名→ImageInfo 字典
-        public static Dictionary<string, ImageInfo> TextToLabels(string content, out string? sourceName)
+        // 将 LabelPlus 格式的文本解析为 图片名→OneImage 字典
+        public static Dictionary<string, OneImage> TextToLabels(string content, out string? sourceName)
         {
             sourceName = null;
-            var database = new Dictionary<string, ImageInfo>();
+            var database = new Dictionary<string, OneImage>();
             var groupList = new List<string>();
 
             string[] lines = content.Split(["\r\n", "\r", "\n"], StringSplitOptions.None);
             string? currentImgName = null;
-            ImageLabel? currentLabel = null;
+            OneLabel? currentLabel = null;
             int hyphenCount = 0;
 
             foreach (string rawLine in lines)
@@ -48,7 +48,7 @@ namespace LabelMinusinWPF.Common
                 if (imgMatch.Success)
                 {
                     currentImgName = imgMatch.Groups[1].Value;
-                    database[currentImgName] = new ImageInfo { ImagePath = currentImgName };
+                    database[currentImgName] = new OneImage { ImagePath = currentImgName };
                     currentLabel = null;
                     continue;
                 }
@@ -62,7 +62,7 @@ namespace LabelMinusinWPF.Common
                                        ? groupList[groupIdx - 1]
                                        : (groupIdx == 2 ? Constants.Groups.Outside : Constants.Groups.Default);
 
-                    currentLabel = new ImageLabel
+                    currentLabel = new OneLabel
                     {
                         Index = int.Parse(metaMatch.Groups[1].Value),
                         Position = new System.Windows.Point(float.Parse(metaMatch.Groups[2].Value), float.Parse(metaMatch.Groups[3].Value)),
@@ -94,7 +94,7 @@ namespace LabelMinusinWPF.Common
         public enum ExportMode { Original, Current, Diff }
 
         // 将图片列表导出为 LabelPlus 格式文本
-        public static string LabelsToText(IEnumerable<ImageInfo> images, string? sourceName, ExportMode mode = ExportMode.Current)
+        public static string LabelsToText(IEnumerable<OneImage> images, string? sourceName, ExportMode mode = ExportMode.Current)
         {
             var imageList = images.ToList();
             if (imageList.Count == 0) return string.Empty;
