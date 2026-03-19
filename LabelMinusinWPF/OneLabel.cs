@@ -16,9 +16,9 @@ namespace LabelMinusinWPF
         private string _text = "";
 
         [ObservableProperty] private string _group = Constants.Groups.Default;
-        [ObservableProperty] private string _remark = Constants.Label.DefaultRemark;
-        [ObservableProperty] private double _fontSize = Constants.Label.DefaultFontSize;
-        [ObservableProperty] private string _fontFamily = Constants.Label.DefaultFontFamily;
+        //[ObservableProperty] private string _remark = Constants.Label.DefaultRemark;
+        //[ObservableProperty] private double _fontSize = Constants.Label.DefaultFontSize;
+        //[ObservableProperty] private string _fontFamily = Constants.Label.DefaultFontFamily;
         [ObservableProperty]
         [NotifyPropertyChangedFor(nameof(X), nameof(Y))]
         private Point _position = new(0, 0);

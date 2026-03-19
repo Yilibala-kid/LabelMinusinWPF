@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Data;
-using Microsoft.Win32;
-using SharpCompress.Archives;
-using System.Diagnostics;
-using System.IO;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Microsoft.Win32;
+using SharpCompress.Archives;
 
 namespace LabelMinusinWPF.Common
 {
@@ -19,11 +19,19 @@ namespace LabelMinusinWPF.Common
     // 枚举转布尔值转换器（用于 RadioButton 等控件绑定枚举）
     public class EnumToBooleanConverter : IValueConverter
     {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-            => value?.Equals(parameter) ?? false;
+        public object Convert(
+            object value,
+            Type targetType,
+            object parameter,
+            CultureInfo culture
+        ) => value?.Equals(parameter) ?? false;
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-            => (bool)value! ? parameter : Binding.DoNothing;
+        public object ConvertBack(
+            object value,
+            Type targetType,
+            object parameter,
+            CultureInfo culture
+        ) => (bool)value! ? parameter : Binding.DoNothing;
     }
 
     // 反向布尔值到可见性转换器
@@ -36,7 +44,12 @@ namespace LabelMinusinWPF.Common
             return Visibility.Visible;
         }
 
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        public object ConvertBack(
+            object value,
+            Type targetType,
+            object parameter,
+            CultureInfo culture
+        )
         {
             if (value is Visibility visibility)
                 return visibility != Visibility.Visible;
@@ -66,16 +79,17 @@ namespace LabelMinusinWPF.Common
         private static IEnumerable<string> GetTargetExtensions()
         {
             return TargetExtensions
-            .Concat(ProjectHelper.ImageExtensions)
-            .Where(ext => !string.IsNullOrWhiteSpace(ext))
-            .Select(ext => ext.StartsWith('.') ? ext : "." + ext)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+                .Concat(ProjectHelper.ImageExtensions)
+                .Where(ext => !string.IsNullOrWhiteSpace(ext))
+                .Select(ext => ext.StartsWith('.') ? ext : "." + ext)
+                .Distinct(StringComparer.OrdinalIgnoreCase);
         }
 
         public static bool IsRegistered()
         {
             using var key = Registry.CurrentUser.OpenSubKey(
-                $@"{BasePath}\Directory\shell\{OpenKey}");
+                $@"{BasePath}\Directory\shell\{OpenKey}"
+            );
             return key != null;
         }
 
@@ -102,8 +116,7 @@ namespace LabelMinusinWPF.Common
         public static void UnregisterAll()
         {
             var roots = new[] { "Directory" }
-                .Concat(GetTargetExtensions()
-                .Select(ext => $@"SystemFileAssociations\{ext}"))
+                .Concat(GetTargetExtensions().Select(ext => $@"SystemFileAssociations\{ext}"))
                 .ToList();
 
             foreach (var root in roots)
@@ -118,12 +131,15 @@ namespace LabelMinusinWPF.Common
             string keyName,
             string text,
             string command,
-            string iconPath)
+            string iconPath
+        )
         {
             using var key = Registry.CurrentUser.CreateSubKey(
-                $@"{BasePath}\{root}\shell\{keyName}");
+                $@"{BasePath}\{root}\shell\{keyName}"
+            );
 
-            if (key == null) return;
+            if (key == null)
+                return;
 
             key.SetValue("", text);
             key.SetValue("Icon", iconPath);
@@ -156,15 +172,18 @@ namespace LabelMinusinWPF.Common
         public record ProjectContext(
             string BaseFolderPath = "",
             string? TxtName = null,
-            string? ZipName = null)
+            string? ZipName = null
+        )
         {
             public static ProjectContext Empty => new();
 
             // 翻译文件完整路径
-            public string TxtPath => !string.IsNullOrEmpty(TxtName) ? Path.Combine(BaseFolderPath, TxtName) : "";
+            public string TxtPath =>
+                !string.IsNullOrEmpty(TxtName) ? Path.Combine(BaseFolderPath, TxtName) : "";
 
             // 压缩包完整路径
-            public string ZipPath => !string.IsNullOrEmpty(ZipName) ? Path.Combine(BaseFolderPath, ZipName) : "";
+            public string ZipPath =>
+                !string.IsNullOrEmpty(ZipName) ? Path.Combine(BaseFolderPath, ZipName) : "";
 
             // 是否为压缩包模式
             public bool IsArchiveMode => !string.IsNullOrEmpty(ZipName);
@@ -192,17 +211,21 @@ namespace LabelMinusinWPF.Common
 
         // 扫描文件夹，返回所有支持格式的图片信息（ImagePath 为绝对路径）
         public static List<OneImage> ScanFolder(string path) =>
-            [.. Directory.EnumerateFiles(path)
-                .Where(f => ImageExtensions.Contains(Path.GetExtension(f)))
-                .Select(f => new OneImage { ImagePath = f })];
+            [
+                .. Directory
+                    .EnumerateFiles(path)
+                    .Where(f => ImageExtensions.Contains(Path.GetExtension(f)))
+                    .Select(f => new OneImage { ImagePath = f }),
+            ];
 
         // 扫描压缩包，返回所有图片信息（ImagePath 为 EntryName）
         public static List<OneImage> ScanZip(string zipPath) =>
-            [.. ResourceHelper.GetImagePath(zipPath)
-                .Select(f => new OneImage { ImagePath = f })];
+            [.. ResourceHelper.GetImagePath(zipPath).Select(f => new OneImage { ImagePath = f })];
 
         // 从翻译 txt 文件加载项目上下文和图片列表
-        public static (ProjectContext Context, List<OneImage> Images) LoadProjectFromTxt(string txtFilePath)
+        public static (ProjectContext Context, List<OneImage> Images) LoadProjectFromTxt(
+            string txtFilePath
+        )
         {
             string content = File.ReadAllText(txtFilePath);
             string baseFolder = Path.GetDirectoryName(txtFilePath) ?? "";
@@ -214,7 +237,10 @@ namespace LabelMinusinWPF.Common
             if (context.IsArchiveMode && File.Exists(context.ZipPath))
             {
                 var zipImages = ScanZip(context.ZipPath);
-                var zipImageDict = zipImages.ToDictionary(img => Path.GetFileName(img.ImagePath), img => img);
+                var zipImageDict = zipImages.ToDictionary(
+                    img => Path.GetFileName(img.ImagePath),
+                    img => img
+                );
 
                 // 将 txt 中的标注数据合并到压缩包图片中
                 foreach (var item in database)
@@ -242,7 +268,11 @@ namespace LabelMinusinWPF.Common
         }
 
         // 生成唯一文件名，避免覆盖已有文件
-        public static string GenerateUniqueFileName(string folder, string baseName, string extension)
+        public static string GenerateUniqueFileName(
+            string folder,
+            string baseName,
+            string extension
+        )
         {
             string fileName = baseName + extension;
             string fullPath = Path.Combine(folder, fileName);
@@ -268,7 +298,10 @@ namespace LabelMinusinWPF.Common
             {
                 try
                 {
-                    string folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folderName);
+                    string folderPath = Path.Combine(
+                        AppDomain.CurrentDomain.BaseDirectory,
+                        folderName
+                    );
 
                     if (!Directory.Exists(folderPath))
                     {
@@ -281,15 +314,25 @@ namespace LabelMinusinWPF.Common
                     // 删除所有文件
                     foreach (FileInfo file in di.EnumerateFiles())
                     {
-                        try { file.Delete(); }
-                        catch (IOException) { /* 文件可能正在被占用，静默跳过 */ }
+                        try
+                        {
+                            file.Delete();
+                        }
+                        catch (IOException)
+                        { /* 文件可能正在被占用，静默跳过 */
+                        }
                     }
 
                     // 递归删除所有子文件夹
                     foreach (DirectoryInfo dir in di.EnumerateDirectories())
                     {
-                        try { dir.Delete(true); }
-                        catch (IOException) { /* 文件夹内有文件被占用，静默跳过 */ }
+                        try
+                        {
+                            dir.Delete(true);
+                        }
+                        catch (IOException)
+                        { /* 文件夹内有文件被占用，静默跳过 */
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -307,68 +350,30 @@ namespace LabelMinusinWPF.Common
     // 资源加载辅助类 - 合并了 ArchiveHelper 和 ImageHelper 的功能
     public static class ResourceHelper
     {
-        // 解压缓存目录（位于 exe 同级 ArchiveTemp 文件夹下）
-        private static readonly string TempFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ArchiveTemp");
+        
+        private static readonly string TempFolderPath = Path.Combine(
+            AppDomain.CurrentDomain.BaseDirectory,
+            Constants.TempFolders.ArchiveTemp
+        );// 解压缓存目录（位于 exe 同级 ArchiveTemp 文件夹下）
 
-        // 获取压缩包内所有图片的路径列表
-        public static List<string> GetImagePath(string archivePath)
+        
+        public static List<string> GetImagePath(string archivePath)// 获取压缩包内所有图片的路径列表
         {
             using var archive = ArchiveFactory.OpenArchive(archivePath);
 
-            return archive.Entries
-                .Where(entry => !entry.IsDirectory)
+            return archive
+                .Entries.Where(entry => !entry.IsDirectory)
                 .Select(entry => (Key: entry.Key, Ext: Path.GetExtension(entry.Key)))
-                .Where(x => x.Ext is not null && Constants.ImageExtensions.Contains(x.Ext) && x.Key is not null)
+                .Where(x =>
+                    x.Ext is not null
+                    && Constants.ImageExtensions.Contains(x.Ext)
+                    && x.Key is not null
+                )
                 .Select(x => Path.GetFullPath(Path.Combine(archivePath, x.Key!)))
                 .ToList();
         }
 
-        // 从压缩包中提取指定文件为 byte[]（带磁盘缓存）
-        public static byte[]? ExtractFileToBytes(string archivePath, string fileName)
-        {
-            if (string.IsNullOrEmpty(archivePath) || string.IsNullOrEmpty(fileName)) return null;
-
-            // 以压缩包名建子文件夹，防止不同压缩包同名文件冲突
-            string archiveName = Path.GetFileNameWithoutExtension(archivePath);
-            string targetDir = Path.Combine(TempFolderPath, archiveName);
-            string targetFilePath = Path.Combine(targetDir, fileName);
-
-            try
-            {
-                // 命中磁盘缓存，直接返回（优化：避免重复读取）
-                if (File.Exists(targetFilePath))
-                    return File.ReadAllBytes(targetFilePath);
-
-                // 缓存未命中，执行解压
-                Directory.CreateDirectory(targetDir);
-
-                using var archive = ArchiveFactory.OpenArchive(archivePath);
-                var entry = archive.Entries.FirstOrDefault(e =>
-                    e.Key is not null && (e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase) ||
-                    e.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase)));
-
-                if (entry != null && !entry.IsDirectory)
-                {
-                    // 直接写入内存并返回，避免重复 I/O
-                    using var ms = new MemoryStream();
-                    entry.WriteTo(ms);
-                    byte[] data = ms.ToArray();
-
-                    // 同时写入缓存
-                    File.WriteAllBytes(targetFilePath, data);
-                    return data;
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"缓存读取或解压失败: {ex.Message}");
-            }
-
-            return null;
-        }
-
-        // 从压缩包路径中提取压缩包路径和内部文件路径
-        public static (string archivePath, string entryPath)? ParseArchivePath(string fullPath)
+        public static (string archivePath, string entryPath)? ParseArchivePath(string fullPath) // 从压缩包路径中提取压缩包路径和内部文件路径
         {
             foreach (var suffix in Constants.ZipSuffixes)
             {
@@ -384,18 +389,56 @@ namespace LabelMinusinWPF.Common
             return null;
         }
 
-        // 从文件路径加载 BitmapImage
-        public static BitmapImage? LoadFromPath(string path)
+        
+        public static BitmapImage? LoadImageFromZip(string archivePath, string fileName)// 从压缩包中提取指定图片
         {
-            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+            if (string.IsNullOrEmpty(archivePath) || string.IsNullOrEmpty(fileName))
+                return null;
+
+            // 以压缩包名建子文件夹，防止不同压缩包同名文件冲突
+            string archiveName = Path.GetFileNameWithoutExtension(archivePath);
+            string targetDir = Path.Combine(TempFolderPath, archiveName);
+            string targetFilePath = Path.Combine(targetDir, fileName);
 
             try
             {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.UriSource = new Uri(path);
-                bmp.EndInit();
+                if (File.Exists(targetFilePath))
+                    return LoadFromPath(targetFilePath); // 命中磁盘缓存，直接转 BitmapImage 返回
+
+                Directory.CreateDirectory(targetDir); // 缓存未命中，执行解压
+
+                using var archive = ArchiveFactory.OpenArchive(archivePath);
+                var entry = archive.Entries.FirstOrDefault(e =>
+                    e.Key is not null
+                    && (
+                        e.Key.Equals(fileName, StringComparison.OrdinalIgnoreCase)
+                        || e.Key.EndsWith("/" + fileName, StringComparison.OrdinalIgnoreCase)
+                    )
+                );
+
+                if (entry == null || entry.IsDirectory)
+                    return null;
+
+                using var fs = File.Create(targetFilePath);
+                entry.WriteTo(fs);
+
+                return LoadFromPath(targetFilePath);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"解压图片失败: {ex.Message}");
+                return null;
+            }
+        }
+
+        public static BitmapImage? LoadFromPath(string path) // 从文件路径加载 BitmapImage
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                return null;
+
+            try
+            {
+                var bmp = new BitmapImage(new Uri(path, UriKind.Absolute));
                 bmp.Freeze();
                 return bmp;
             }
@@ -404,31 +447,8 @@ namespace LabelMinusinWPF.Common
                 Debug.WriteLine($"加载图片失败: {ex.Message}");
                 return null;
             }
-        }
-
-        // 从字节数组加载 BitmapImage
-        public static BitmapImage? LoadFromBytes(byte[] data)
-        {
-            if (data == null || data.Length == 0) return null;
-
-            try
-            {
-                using var ms = new MemoryStream(data);
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.StreamSource = ms;
-                bmp.EndInit();
-                bmp.Freeze();
-                return bmp;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"加载图片失败: {ex.Message}");
-                return null;
-            }
-        }
         }
     }
+}
 
     #endregion
