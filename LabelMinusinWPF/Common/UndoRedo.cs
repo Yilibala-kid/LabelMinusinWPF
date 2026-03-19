@@ -87,9 +87,7 @@ namespace LabelMinusinWPF.Common
         public void Execute() { _newState.RestoreTo(_target); _refreshAction(); }
         public void Undo() { _oldState.RestoreTo(_target); _refreshAction(); }
     }
-
-    // 标注状态快照（记录 Text、Group、Position）
-    public class LabelSnapshot
+    public class LabelSnapshot// 标注状态快照（记录 Text、Group、Position）
     {
         public string Text { get; }
         public string Group { get; }

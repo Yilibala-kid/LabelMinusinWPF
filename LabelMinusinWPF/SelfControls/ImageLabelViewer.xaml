@@ -5,8 +5,8 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:local="clr-namespace:LabelMinusinWPF"
-    xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     d:DesignHeight="450"
     d:DesignWidth="800"
     mc:Ignorable="d">
@@ -32,17 +32,17 @@
                     <TranslateTransform X="{Binding OffsetX, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" Y="{Binding OffsetY, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" />
                 </TransformGroup>
             </Grid.RenderTransform>
-            <!-- 图片 -->
-            <Image x:Name="TargetImage" Source="{Binding ImageSource}" />
+            <!--  图片  -->
+            <Image x:Name="TargetImage" Source="{Binding DisplayImage}" />
 
-            <!-- 标记层 -->
+            <!--  标记层  -->
             <ItemsControl
                 x:Name="LabelItemsControl"
                 Width="{Binding ActualWidth, ElementName=TargetImage}"
                 Height="{Binding ActualHeight, ElementName=TargetImage}"
                 ItemsSource="{Binding ActiveLabels}"
-                MouseMove="OnLabelContainerMove"
-                MouseLeftButtonUp="OnLabelContainerUp">
+                MouseLeftButtonUp="OnLabelContainerUp"
+                MouseMove="OnLabelContainerMove">
 
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -50,7 +50,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
 
-                <!-- 定位 -->
+                <!--  定位  -->
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter">
                         <Setter Property="Canvas.Left">
@@ -77,16 +77,16 @@
                     </Style>
                 </ItemsControl.ItemContainerStyle>
 
-                <!-- 标记内容 -->
+                <!--  标记内容  -->
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <!-- 外层 StackPanel 用于整体缩放 -->
+                        <!--  外层 StackPanel 用于整体缩放  -->
                         <StackPanel Orientation="Horizontal" RenderTransformOrigin="0,0.5">
                             <StackPanel.RenderTransform>
                                 <ScaleTransform ScaleX="{Binding LabelScale, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" ScaleY="{Binding LabelScale, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" />
                             </StackPanel.RenderTransform>
                             <StackPanel Orientation="Horizontal">
-                                <!-- 未选中时半透明 -->
+                                <!--  未选中时半透明  -->
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Opacity" Value="0.8" />
@@ -97,15 +97,19 @@
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-                                <!-- 点：颜色跟随组别，悬停显示拖动光标 -->
-                                <Border Cursor="Hand" Style="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}" MouseLeftButtonDown="LabelNode_LeftMouseDown" MouseRightButtonDown="LabelNode_RightMouseDown" Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}, Converter={StaticResource BoolToVis}}">
+                                <!--  点：颜色跟随组别，悬停显示拖动光标  -->
+                                <Border
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="LabelNode_LeftMouseDown"
+                                    MouseRightButtonDown="LabelNode_RightMouseDown"
+                                    Style="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}"
+                                    Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}, Converter={StaticResource BoolToVis}}">
                                     <TextBlock Text="{Binding Index}" />
                                 </Border>
-                                <!-- 文字：仅选中时显示 -->
-                                <Border Style="{Binding LabelTextStyle, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}, TargetNullValue={StaticResource DefaultTextStyle}}" MouseLeftButtonDown="LabelText_MouseLeftDown">
+                                <!--  文字：仅选中时显示  -->
+                                <Border MouseLeftButtonDown="LabelText_MouseLeftDown" Style="{Binding LabelTextStyle, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}, TargetNullValue={StaticResource DefaultTextStyle}}">
                                     <Border.Background>
-                                        <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundColor}"
-                                            Opacity="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity}" />
+                                        <SolidColorBrush Opacity="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity}" Color="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundColor}" />
                                     </Border.Background>
                                     <Border.Visibility>
                                         <MultiBinding Converter="{StaticResource AllBoolToVis}">
@@ -130,16 +134,16 @@
         <Canvas
             x:Name="SnipCanvas"
             Background="Transparent"
-            Visibility="Collapsed"
             MouseLeftButtonDown="SnipCanvas_MouseLeftButtonDown"
+            MouseLeftButtonUp="SnipCanvas_MouseLeftButtonUp"
             MouseMove="SnipCanvas_MouseMove"
-            MouseLeftButtonUp="SnipCanvas_MouseLeftButtonUp">
+            Visibility="Collapsed">
             <Rectangle
                 x:Name="SnipRectangle"
-                Stroke="DodgerBlue"
-                StrokeThickness="2"
-                StrokeDashArray="4 4"
                 Fill="#200078D7"
+                Stroke="DodgerBlue"
+                StrokeDashArray="4 4"
+                StrokeThickness="2"
                 Visibility="Collapsed" />
         </Canvas>
 
