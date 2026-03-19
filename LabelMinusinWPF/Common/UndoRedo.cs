@@ -55,14 +55,14 @@ namespace LabelMinusinWPF.Common
     }
 
     // 新增标注命令
-    public class AddCommand(BindingList<ImageLabel> list, ImageLabel label) : IUndoCommand
+    public class AddCommand(BindingList<OneLabel> list, OneLabel label) : IUndoCommand
     {
         public void Execute() { label.IsDeleted = false; list.Add(label); }
         public void Undo() { label.IsDeleted = true; list.Remove(label); }
     }
 
     // 删除标注命令（软删除）
-    public class DeleteCommand(ImageLabel label) : IUndoCommand
+    public class DeleteCommand(OneLabel label) : IUndoCommand
     {
         public void Execute() { label.IsDeleted = true; }
         public void Undo() { label.IsDeleted = false; }
@@ -71,12 +71,12 @@ namespace LabelMinusinWPF.Common
     // 标注属性修改命令（基于快照的撤销/重做）
     public class UpdateLabelCommand : IUndoCommand
     {
-        private readonly ImageLabel _target;
+        private readonly OneLabel _target;
         private readonly LabelSnapshot _oldState;
         private readonly LabelSnapshot _newState;
         private readonly Action _refreshAction;
 
-        public UpdateLabelCommand(ImageLabel target, LabelSnapshot oldState, Action refresh)
+        public UpdateLabelCommand(OneLabel target, LabelSnapshot oldState, Action refresh)
         {
             _target = target;
             _oldState = oldState;
@@ -95,14 +95,14 @@ namespace LabelMinusinWPF.Common
         public string Group { get; }
         public System.Windows.Point Position { get; }
 
-        public LabelSnapshot(ImageLabel label)
+        public LabelSnapshot(OneLabel label)
         {
             Text = label.Text;
             Group = label.Group;
             Position = label.Position;
         }
 
-        public void RestoreTo(ImageLabel label)
+        public void RestoreTo(OneLabel label)
         {
             label.Text = Text;
             label.Group = Group;

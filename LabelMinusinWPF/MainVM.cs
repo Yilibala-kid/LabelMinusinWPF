@@ -37,7 +37,7 @@ namespace LabelMinusinWPF
             ImageList.ListChanged += OnImageListChanged;
         }
 
-        private readonly HashSet<ImageInfo> _boundImages = [];
+        private readonly HashSet<OneImage> _boundImages = [];
 
 
         private bool _suppressGroupNotify;
@@ -70,14 +70,14 @@ namespace LabelMinusinWPF
             NotifyGroupsChanged();
         }
 
-        private void HookImage(ImageInfo img)
+        private void HookImage(OneImage img)
         {
             img.Labels.ListChanged -= OnLabelsChanged;
             img.Labels.ListChanged += OnLabelsChanged;
             _boundImages.Add(img);
         }
 
-        private void UnhookImage(ImageInfo img)
+        private void UnhookImage(OneImage img)
         {
             img.Labels.ListChanged -= OnLabelsChanged;
             _boundImages.Remove(img);
@@ -104,11 +104,11 @@ namespace LabelMinusinWPF
         private ProjectHelper.ProjectContext _currentProject = ProjectHelper.ProjectContext.Empty;
 
 
-        public BindingList<ImageInfo> ImageList { get; } = [];
+        public BindingList<OneImage> ImageList { get; } = [];
 
 
         [ObservableProperty]
-        private ImageInfo? _selectedImage;
+        private OneImage? _selectedImage;
 
 
 
@@ -230,10 +230,10 @@ namespace LabelMinusinWPF
 
         private bool CanGoToNext() => SelectedImage != null && ImageList.IndexOf(SelectedImage) < ImageList.Count - 1;
 
-        private ImageInfo? _boundImg;
+        private OneImage? _boundImg;
 
 
-        partial void OnSelectedImageChanged(ImageInfo? value)
+        partial void OnSelectedImageChanged(OneImage? value)
         {
             if (_boundImg != null)
                 _boundImg.PropertyChanged -= OnLabelChanged;
@@ -253,8 +253,8 @@ namespace LabelMinusinWPF
         private void OnLabelChanged(object? sender, PropertyChangedEventArgs e)
         {
             if (
-                e.PropertyName == nameof(ImageInfo.SelectedLabel)
-                && sender is ImageInfo img
+                e.PropertyName == nameof(OneImage.SelectedLabel)
+                && sender is OneImage img
                 && img.SelectedLabel != null
             )
                 SelectedGroupName = img.SelectedLabel.Group;
@@ -491,7 +491,7 @@ namespace LabelMinusinWPF
         }
 
 
-        private void ReloadImages(List<ImageInfo> newImages, bool updateImagePath = false)
+        private void ReloadImages(List<OneImage> newImages, bool updateImagePath = false)
         {
             var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
 
@@ -520,7 +520,7 @@ namespace LabelMinusinWPF
         [RelayCommand(CanExecute = nameof(CanSave))]
         private void AdjustImageSet()
         {
-            List<ImageInfo> availableImages;
+            List<OneImage> availableImages;
 
             // 根据是否关联压缩包，获取可用图片列表
             if (CurrentProject.IsArchiveMode && File.Exists(CurrentProject.ZipPath))
@@ -613,7 +613,7 @@ namespace LabelMinusinWPF
 
         private void LoadProject(
             ProjectHelper.ProjectContext context,
-            List<ImageInfo> images,
+            List<OneImage> images,
             string successMsg
         )
         {
@@ -669,7 +669,7 @@ namespace LabelMinusinWPF
             if (imageFiles.Count > 0)
             {
                 string baseFolder = Path.GetDirectoryName(imageFiles.First()) ?? string.Empty;
-                var images = imageFiles.Select(p => new ImageInfo { ImagePath = p }).ToList();
+                var images = imageFiles.Select(p => new OneImage { ImagePath = p }).ToList();
                 string? defaultTxtName = isCreateMode ? ProjectHelper.GenerateUniqueFileName(baseFolder, "New_Translation", ".txt") : null;
                 var context = new ProjectHelper.ProjectContext(baseFolder, defaultTxtName, null);
 

@@ -11,7 +11,7 @@ namespace LabelMinusinWPF
     {
         public class SelectableImage : INotifyPropertyChanged
         {
-            public ImageInfo Image { get; set; }
+            public OneImage Image { get; set; }
             public string ImageName => Image.ImageName;
 
             private bool _isSelected;
@@ -30,7 +30,7 @@ namespace LabelMinusinWPF
 
             public event PropertyChangedEventHandler? PropertyChanged;
 
-            public SelectableImage(ImageInfo image, bool isSelected)
+            public SelectableImage(OneImage image, bool isSelected)
             {
                 Image = image;
                 _isSelected = isSelected;
@@ -38,9 +38,9 @@ namespace LabelMinusinWPF
         }
 
         public ObservableCollection<SelectableImage> Items { get; }
-        public List<ImageInfo> SelectedImages { get; private set; }
+        public List<OneImage> SelectedImages { get; private set; }
 
-        public ImageSelectDialog(List<ImageInfo> availableImages, List<ImageInfo> currentImages)
+        public ImageSelectDialog(List<OneImage> availableImages, List<OneImage> currentImages)
         {
             InitializeComponent();
 

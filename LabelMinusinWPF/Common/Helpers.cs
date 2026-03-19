@@ -191,18 +191,18 @@ namespace LabelMinusinWPF.Common
         public static readonly HashSet<string> ZipExtensions = Constants.ArchiveExtensions;
 
         // 扫描文件夹，返回所有支持格式的图片信息（ImagePath 为绝对路径）
-        public static List<ImageInfo> ScanFolder(string path) =>
+        public static List<OneImage> ScanFolder(string path) =>
             [.. Directory.EnumerateFiles(path)
                 .Where(f => ImageExtensions.Contains(Path.GetExtension(f)))
-                .Select(f => new ImageInfo { ImagePath = f })];
+                .Select(f => new OneImage { ImagePath = f })];
 
         // 扫描压缩包，返回所有图片信息（ImagePath 为 EntryName）
-        public static List<ImageInfo> ScanZip(string zipPath) =>
+        public static List<OneImage> ScanZip(string zipPath) =>
             [.. ResourceHelper.GetImagePath(zipPath)
-                .Select(f => new ImageInfo { ImagePath = f })];
+                .Select(f => new OneImage { ImagePath = f })];
 
         // 从翻译 txt 文件加载项目上下文和图片列表
-        public static (ProjectContext Context, List<ImageInfo> Images) LoadProjectFromTxt(string txtFilePath)
+        public static (ProjectContext Context, List<OneImage> Images) LoadProjectFromTxt(string txtFilePath)
         {
             string content = File.ReadAllText(txtFilePath);
             string baseFolder = Path.GetDirectoryName(txtFilePath) ?? "";

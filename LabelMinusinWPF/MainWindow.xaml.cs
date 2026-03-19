@@ -240,6 +240,65 @@ namespace LabelMinusinWPF
             // 直接操作状态，控件会自动显示
             FullScreenReview.IsOpen = true;
         }
+
+        private void RegionCaptureWithLabels_Click(object sender, RoutedEventArgs e)
+        {
+            if (PicView == null) return;
+
+            // 切换带标签框选模式
+            PicView.IsRegionCaptureWithLabels = RegionCaptureWithLabelsBtn.IsChecked == true;
+
+            if (PicView.IsRegionCaptureWithLabels)
+            {
+                // 订阅事件
+                PicView.SnappedWithLabels += OnRegionSnappedWithLabels;
+            }
+            else
+            {
+                // 取消订阅
+                PicView.SnappedWithLabels -= OnRegionSnappedWithLabels;
+            }
+        }
+
+        private void OnRegionSnappedWithLabels(object? sender, Rect normRect)
+        {
+            if (DataContext is not MainVM vm || vm.SelectedImage == null) return;
+            if (PicView == null) return;
+
+            try
+            {
+                // 捕获带标签的区域截图（返回截图和标签列表）
+                var result = PicView.CaptureRegionWithLabels(normRect);
+                if (result == null)
+                {
+                    vm.MainMessageQueue.Enqueue("截图失败：无法捕获图片");
+                    return;
+                }
+
+                var (imageWithLabels, labelsInRegion) = result.Value;
+
+                // 生成底部标签文字
+                string labelsText = string.Join("\n", labelsInRegion.Select(l => $"[{l.Index}]\n{l.Text}"));
+
+                // 使用通用截图工具
+                var saveResult = ScreenshotHelper.CaptureAndSave(imageWithLabels, labelsText, vm.SelectedImage.ImageName);
+                if (saveResult != null)
+                    vm.MainMessageQueue.Enqueue("截图已保存并复制到剪贴板");
+                else
+                    vm.MainMessageQueue.Enqueue("截图失败：无法保存");
+
+                // 自动关闭框选模式
+                RegionCaptureWithLabelsBtn.IsChecked = false;
+                PicView.IsRegionCaptureWithLabels = false;
+                PicView.SnappedWithLabels -= OnRegionSnappedWithLabels;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"截图失败: {ex.Message}");
+                vm.MainMessageQueue.Enqueue($"截图失败: {ex.Message}");
+            }
+        }
+
         private void Recognize_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainVM vm) return;

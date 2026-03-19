@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System;
 using System.Collections.Generic;
@@ -14,7 +14,7 @@ using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF
 {
-    public partial class ImageInfo : ObservableObject, IDisposable
+    public partial class OneImage : ObservableObject, IDisposable
     {
         // 图片完整路径
         [ObservableProperty]
@@ -26,14 +26,14 @@ namespace LabelMinusinWPF
 
         public string ImageName => ZipEntryName ?? Path.GetFileName(ImagePath);
         // 图片包含的标签
-        public BindingList<ImageLabel> Labels { get; } = [];
+        public BindingList<OneLabel> Labels { get; } = [];
         // 新建标签时使用的默认组别（由 MainVM 同步）
         public string ActiveGroup { get; set; } = Constants.Groups.Default;
 
         // 只读属性：获取未删除的标签列表（带缓存优化）
-        private List<ImageLabel>? _cachedActiveLabels;
+        private List<OneLabel>? _cachedActiveLabels;
         private bool _activeLabelsCacheValid;
-        public List<ImageLabel> ActiveLabels
+        public List<OneLabel> ActiveLabels
         {
             get
             {
@@ -47,7 +47,7 @@ namespace LabelMinusinWPF
         }
 
         // 当前选中的标注
-        [ObservableProperty] private ImageLabel? _selectedLabel;
+        [ObservableProperty] private OneLabel? _selectedLabel;
         #region 图片源获取
         public ImageSource? ImageSource
         {
@@ -88,7 +88,7 @@ namespace LabelMinusinWPF
         private readonly ListChangedEventHandler _labelsListChangedHandler;
         private readonly EventHandler _requeryHandler;
 
-        public ImageInfo()
+        public OneImage()
         {
             // 订阅 BindingList 的 ListChanged 事件
             _labelsListChangedHandler = (s, e) =>
@@ -139,7 +139,7 @@ namespace LabelMinusinWPF
             }
         }
 
-        public ICommand SelectLabelCommand => new RelayCommand<ImageLabel>(label =>
+        public ICommand SelectLabelCommand => new RelayCommand<OneLabel>(label =>
         {
             SelectedLabel = label;
         });
@@ -152,7 +152,7 @@ namespace LabelMinusinWPF
         #region SelectedLabel 变更监听
 
         // 当 SelectedLabel 即将改变时调用
-        partial void OnSelectedLabelChanging(ImageLabel? value)
+        partial void OnSelectedLabelChanging(OneLabel? value)
         {
             TryCommitCurrentSnapshot();
             // 取消旧标签的选中状态
@@ -160,7 +160,7 @@ namespace LabelMinusinWPF
         }
 
         // 当 SelectedLabel 改变完成后调用
-        partial void OnSelectedLabelChanged(ImageLabel? value)
+        partial void OnSelectedLabelChanged(OneLabel? value)
         {
             if (value != null)
             {
@@ -176,7 +176,7 @@ namespace LabelMinusinWPF
         #endregion
 
         public UndoRedoManager History { get; } = new();
-        
+
         private bool CanUndo() => History.CanUndo || IsSelectedLabelDirty();// 判断是否可以撤回：历史栈有东西 OR 当前选中的标签被改动过
         private bool CanRedo() => History.CanRedo;// 判断是否可以重做：历史栈有东西
         private bool IsSelectedLabelDirty()// 辅助方法：检查当前选中的标签是否有未提交的改动
@@ -191,7 +191,7 @@ namespace LabelMinusinWPF
         {
             TryCommitCurrentSnapshot();
             int nextIndex = Labels.Count(l => !l.IsDeleted) + 1;
-            var newLabel = new ImageLabel
+            var newLabel = new OneLabel
             {
                 Index = nextIndex,
                 Text = Constants.Label.NewLabelText,
@@ -203,7 +203,7 @@ namespace LabelMinusinWPF
         }
 
         [RelayCommand]
-        public void DeleteLabel(ImageLabel? label)
+        public void DeleteLabel(OneLabel? label)
         {
             var target = label ?? SelectedLabel;
             if (target == null) return;
@@ -239,13 +239,13 @@ namespace LabelMinusinWPF
 
         //用来撤销当前选中标签的未提交修改（例如用户修改了标签但没有切换到其他标签或保存就关闭了窗口）
         private void TryCommitCurrentSnapshot()
-        {        
+        {
             if (SelectedLabel != null && _labelSnapshot != null)// 如果当前有选中的标签，且它与快照不一致（被改动过）
             {
                 if (SelectedLabel.Text != _labelSnapshot.Text ||
                     SelectedLabel.Group != _labelSnapshot.Group ||
                     SelectedLabel.Position != _labelSnapshot.Position)
-                {    
+                {
                     History.Execute(new UpdateLabelCommand(SelectedLabel, _labelSnapshot, RefreshIndices));// 将当前的改动作为一个新的命令压入栈
                     _labelSnapshot = new LabelSnapshot(SelectedLabel);// 【关键】提交后，更新快照为当前最新状态，防止重复提交
                 }
