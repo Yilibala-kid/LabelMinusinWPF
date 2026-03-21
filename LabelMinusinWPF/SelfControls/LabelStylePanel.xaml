@@ -16,35 +16,15 @@
     </UserControl.Resources>
     <StackPanel Orientation="Vertical">
         <!--  标签点样式  -->
-        <TextBlock
-            Margin="16,16,16,8"
-            FontWeight="SemiBold"
-            Opacity="0.8"
-            Text="标签点样式" />
+        <TextBlock Margin="16,16,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签点样式" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
-            <RadioButton
-                GroupName="DotStyle"
-                IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Circle, Mode=TwoWay}"
-                Style="{StaticResource IconRadioButtonStyle}"
-                Tag="Circle" />
-            <RadioButton
-                GroupName="DotStyle"
-                IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Square, Mode=TwoWay}"
-                Style="{StaticResource IconRadioButtonStyle}"
-                Tag="Square" />
-            <RadioButton
-                GroupName="DotStyle"
-                IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Transparent, Mode=TwoWay}"
-                Style="{StaticResource IconRadioButtonStyle}"
-                Tag="Select" />
+            <RadioButton GroupName="DotStyle" IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Circle, Mode=TwoWay}" Style="{StaticResource IconRadioButtonStyle}" Tag="Circle" />
+            <RadioButton GroupName="DotStyle" IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Square, Mode=TwoWay}" Style="{StaticResource IconRadioButtonStyle}" Tag="Square" />
+            <RadioButton GroupName="DotStyle" IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Transparent, Mode=TwoWay}" Style="{StaticResource IconRadioButtonStyle}" Tag="Select" />
         </StackPanel>
 
         <!--  文字背景颜色  -->
-        <TextBlock
-            Margin="16,0,16,8"
-            FontWeight="SemiBold"
-            Opacity="0.8"
-            Text="背景颜色" />
+        <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="背景颜色" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
             <Button
                 Margin="0,0,4,0"
@@ -67,11 +47,7 @@
         </StackPanel>
 
         <!--  文字背景透明度  -->
-        <TextBlock
-            Margin="16,8,16,4"
-            FontWeight="SemiBold"
-            Opacity="0.8"
-            Text="背景透明度" />
+        <TextBlock Margin="16,8,16,4" FontWeight="SemiBold" Opacity="0.8" Text="背景透明度" />
         <Slider
             Margin="16,0,16,8"
             IsSnapToTickEnabled="True"
@@ -81,11 +57,7 @@
             Value="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity, Mode=TwoWay}" />
 
         <!--  文字前景颜色  -->
-        <TextBlock
-            Margin="16,0,16,8"
-            FontWeight="SemiBold"
-            Opacity="0.8"
-            Text="文字颜色" />
+        <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="文字颜色" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
             <Button
                 Margin="0,0,4,0"
@@ -108,22 +80,10 @@
         </StackPanel>
 
         <!--  标签缩放  -->
-        <TextBlock
-            Margin="16,0,16,8"
-            FontWeight="SemiBold"
-            Opacity="0.8"
-            Text="标签缩放" />
+        <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签缩放" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
-            <Button
-                Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ZoomInLabelCommand}"
-                Style="{StaticResource IconButtonStyle}"
-                Tag="Plus"
-                ToolTip="放大标签" />
-            <Button
-                Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ZoomOutLabelCommand}"
-                Style="{StaticResource IconButtonStyle}"
-                Tag="Minus"
-                ToolTip="缩小标签" />
+            <Button Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ZoomInLabelCommand}" Style="{StaticResource IconButtonStyle}" Tag="Plus" ToolTip="放大标签" />
+            <Button Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ZoomOutLabelCommand}" Style="{StaticResource IconButtonStyle}" Tag="Minus" ToolTip="缩小标签" />
 
 
         </StackPanel>

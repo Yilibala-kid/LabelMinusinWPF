@@ -9,72 +9,35 @@
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
-    Title="{Binding CurrentProject.DisplayTitle}"
+    Title="{Binding WorkSpace.DisplayTitle}"
     Width="1200"
     Height="800"
     PreviewKeyDown="Window_PreviewKeyDown"
     mc:Ignorable="d">
     <Window.InputBindings>
-        <KeyBinding
-            Key="N"
-            Command="{Binding NewFolderCommand}"
-            Modifiers="Control" />
-        <KeyBinding
-            Key="N"
-            Command="{Binding NewZipCommand}"
-            Modifiers="Control+Shift" />
-        <KeyBinding
-            Key="O"
-            Command="{Binding OpenTxtCommand}"
-            Modifiers="Control" />
-        <KeyBinding
-            Key="O"
-            Command="{Binding OpenZipCommand}"
-            Modifiers="Alt" />
-        <KeyBinding
-            Key="O"
-            Command="{Binding OpenFolderCommand}"
-            Modifiers="Control+Shift" />
-        <KeyBinding
-            Key="O"
-            Command="{Binding OpenImagesCommand}"
-            Modifiers="Control+Alt" />
-        <KeyBinding
-            Key="S"
-            Command="{Binding SaveCommand}"
-            Modifiers="Control" />
-        <KeyBinding
-            Key="S"
-            Command="{Binding SaveCommand}"
-            CommandParameter="As"
-            Modifiers="Control+Shift" />
-        <KeyBinding
-            Key="F"
-            Command="{Binding OpenCurrentFolderCommand}"
-            Modifiers="Control" />
-        <KeyBinding
-            Key="Z"
-            Command="{Binding SelectedImage.UndoCommand}"
-            Modifiers="Ctrl" />
-        <KeyBinding
-            Key="Y"
-            Command="{Binding SelectedImage.RedoCommand}"
-            Modifiers="Ctrl" />
-        <KeyBinding
-            Key="Z"
-            Command="{Binding SelectedImage.RedoCommand}"
-            Modifiers="Ctrl+Shift" />
+        <KeyBinding Key="N" Command="{Binding NewFolderCommand}" Modifiers="Control" />
+        <KeyBinding Key="N" Command="{Binding NewZipCommand}" Modifiers="Control+Shift" />
+        <KeyBinding Key="O" Command="{Binding OpenTxtCommand}" Modifiers="Control" />
+        <KeyBinding Key="O" Command="{Binding OpenZipCommand}" Modifiers="Alt" />
+        <KeyBinding Key="O" Command="{Binding OpenFolderCommand}" Modifiers="Control+Shift" />
+        <KeyBinding Key="O" Command="{Binding OpenImagesCommand}" Modifiers="Control+Alt" />
+        <KeyBinding Key="S" Command="{Binding SaveCommand}" Modifiers="Control" />
+        <KeyBinding Key="S" Command="{Binding SaveCommand}" CommandParameter="As" Modifiers="Control+Shift" />
+        <KeyBinding Key="F" Command="{Binding OpenCurrentFolderCommand}" Modifiers="Control" />
+        <KeyBinding Key="Z" Command="{Binding SelectedImage.UndoCommand}" Modifiers="Ctrl" />
+        <KeyBinding Key="Y" Command="{Binding SelectedImage.RedoCommand}" Modifiers="Ctrl" />
+        <KeyBinding Key="Z" Command="{Binding SelectedImage.RedoCommand}" Modifiers="Ctrl+Shift" />
     </Window.InputBindings>
     <Window.Resources>
         <Style TargetType="StackPanel">
             <Setter Property="Orientation" Value="Horizontal" />
         </Style>
-        <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
-        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-        <common:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
         <Style TargetType="Grid">
             <Setter Property="Background" Value="{DynamicResource MaterialDesignPaper}" />
         </Style>
+        <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
+        <common:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
     </Window.Resources>
     <Window.DataContext>
         <local:MainVM />
@@ -94,49 +57,21 @@
                 <!--  1. 文件  -->
                 <MenuItem Header="文件" Icon="{materialDesign:PackIcon Kind=File}">
                     <!--  新建  -->
-                    <MenuItem
-                        Command="{Binding NewFolderCommand}"
-                        Header="新建文件夹翻译"
-                        Icon="{materialDesign:PackIcon Kind=FolderPlus}"
-                        InputGestureText="Ctrl+N" />
-                    <MenuItem
-                        Command="{Binding NewZipCommand}"
-                        Header="新建压缩包翻译"
-                        Icon="{materialDesign:PackIcon Kind=FilePlus}"
-                        InputGestureText="Ctrl+Shift+N" />
+                    <MenuItem Command="{Binding NewFolderCommand}" Header="新建文件夹翻译" Icon="{materialDesign:PackIcon Kind=FolderPlus}" InputGestureText="Ctrl+N" />
+                    <MenuItem Command="{Binding NewZipCommand}" Header="新建压缩包翻译" Icon="{materialDesign:PackIcon Kind=FilePlus}" InputGestureText="Ctrl+Shift+N" />
 
                     <Separator />
 
                     <!--  打开相关  -->
-                    <MenuItem
-                        Command="{Binding OpenTxtCommand}"
-                        Header="打开翻译"
-                        Icon="{materialDesign:PackIcon Kind=FileEdit}"
-                        InputGestureText="Ctrl+O" />
-                    <MenuItem
-                        Command="{Binding OpenZipCommand}"
-                        Header="打开压缩包"
-                        Icon="{materialDesign:PackIcon Kind=FolderZip}"
-                        InputGestureText="Alt+O" />
-                    <MenuItem
-                        Command="{Binding OpenFolderCommand}"
-                        Header="打开图片文件夹"
-                        Icon="{materialDesign:PackIcon Kind=FolderOpen}"
-                        InputGestureText="Ctrl+Shift+O" />
-                    <MenuItem
-                        Command="{Binding OpenImagesCommand}"
-                        Header="打开图片"
-                        Icon="{materialDesign:PackIcon Kind=FileImage}"
-                        InputGestureText="Ctrl+Alt+O" />
+                    <MenuItem Command="{Binding OpenTxtCommand}" Header="打开翻译" Icon="{materialDesign:PackIcon Kind=FileEdit}" InputGestureText="Ctrl+O" />
+                    <MenuItem Command="{Binding OpenZipCommand}" Header="打开压缩包" Icon="{materialDesign:PackIcon Kind=FolderZip}" InputGestureText="Alt+O" />
+                    <MenuItem Command="{Binding OpenFolderCommand}" Header="打开图片文件夹" Icon="{materialDesign:PackIcon Kind=FolderOpen}" InputGestureText="Ctrl+Shift+O" />
+                    <MenuItem Command="{Binding OpenImagesCommand}" Header="打开图片" Icon="{materialDesign:PackIcon Kind=FileImage}" InputGestureText="Ctrl+Alt+O" />
 
                     <Separator />
 
                     <!--  保存相关  -->
-                    <MenuItem
-                        Command="{Binding SaveCommand}"
-                        Header="保存翻译"
-                        Icon="{materialDesign:PackIcon Kind=ContentSave}"
-                        InputGestureText="Ctrl+S" />
+                    <MenuItem Command="{Binding SaveCommand}" Header="保存翻译" Icon="{materialDesign:PackIcon Kind=ContentSave}" InputGestureText="Ctrl+S" />
                     <MenuItem
                         Command="{Binding SaveCommand}"
                         CommandParameter="As"
@@ -146,62 +81,31 @@
 
                     <Separator />
 
-                    <MenuItem
-                        Command="{Binding OpenCurrentFolderCommand}"
-                        Header="打开当前文件夹"
-                        Icon="{materialDesign:PackIcon Kind=FolderMultipleImage}"
-                        InputGestureText="Ctrl+S" />
+                    <MenuItem Command="{Binding OpenCurrentFolderCommand}" Header="打开当前文件夹" Icon="{materialDesign:PackIcon Kind=FolderMultipleImage}" InputGestureText="Ctrl+S" />
 
                     <Separator />
 
-                    <MenuItem
-                        Command="{Binding ClearCommand}"
-                        Header="清空工作区"
-                        Icon="{materialDesign:PackIcon Kind=Delete}" />
+                    <MenuItem Command="{Binding ClearCommand}" Header="清空工作区" Icon="{materialDesign:PackIcon Kind=Delete}" />
                 </MenuItem>
 
                 <!--  2. 修改  -->
                 <MenuItem Header="修改" Icon="{materialDesign:PackIcon Kind=Pencil}">
                     <!--  来自 WinForms 版本的具体业务功能  -->
-                    <MenuItem
-                        Command="{Binding LinkZipCommand}"
-                        Header="关联压缩包"
-                        Icon="{materialDesign:PackIcon Kind=LinkEdit}" />
-                    <MenuItem
-                        Command="{Binding AdjustImageSetCommand}"
-                        Header="调整图集"
-                        Icon="{materialDesign:PackIcon Kind=ImageMultiple}" />
+                    <MenuItem Command="{Binding LinkZipCommand}" Header="关联压缩包" Icon="{materialDesign:PackIcon Kind=LinkEdit}" />
+                    <MenuItem Command="{Binding AdjustImageSetCommand}" Header="调整图集" Icon="{materialDesign:PackIcon Kind=ImageMultiple}" />
 
                     <Separator />
 
                     <!--  通用编辑功能  -->
-                    <MenuItem
-                        Command="{Binding SelectedImage.UndoCommand}"
-                        Header="撤销"
-                        Icon="{materialDesign:PackIcon Kind=Undo}"
-                        InputGestureText="Ctrl+Z" />
-                    <MenuItem
-                        Command="{Binding SelectedImage.RedoCommand}"
-                        Header="重做"
-                        Icon="{materialDesign:PackIcon Kind=Redo}"
-                        InputGestureText="Ctrl+Y" />
+                    <MenuItem Command="{Binding SelectedImage.UndoCommand}" Header="撤销" Icon="{materialDesign:PackIcon Kind=Undo}" InputGestureText="Ctrl+Z" />
+                    <MenuItem Command="{Binding SelectedImage.RedoCommand}" Header="重做" Icon="{materialDesign:PackIcon Kind=Redo}" InputGestureText="Ctrl+Y" />
                 </MenuItem>
 
                 <!--  3. 导出文本  -->
                 <MenuItem Header="导出" Icon="{materialDesign:PackIcon Kind=Export}">
-                    <MenuItem
-                        Command="{Binding ExportTxtCommand}"
-                        CommandParameter="Original"
-                        Header="导出原翻译" />
-                    <MenuItem
-                        Command="{Binding ExportTxtCommand}"
-                        CommandParameter="Current"
-                        Header="导出现翻译" />
-                    <MenuItem
-                        Command="{Binding ExportTxtCommand}"
-                        CommandParameter="Diff"
-                        Header="导出修改文档"
-                        Icon="{materialDesign:PackIcon Kind=FileCompare}" />
+                    <MenuItem Command="{Binding ExportTxtCommand}" CommandParameter="Original" Header="导出原翻译" />
+                    <MenuItem Command="{Binding ExportTxtCommand}" CommandParameter="Current" Header="导出现翻译" />
+                    <MenuItem Command="{Binding ExportTxtCommand}" CommandParameter="Diff" Header="导出修改文档" Icon="{materialDesign:PackIcon Kind=FileCompare}" />
                 </MenuItem>
 
                 <!--  4. 显示  -->
@@ -223,52 +127,15 @@
                         IsCheckable="True"
                         IsChecked="True"
                         Tag="{x:Static local:DisplayMode.ListAndTextBox}" />
-                    <MenuItem
-                        Click="OnLayoutModeClicked"
-                        Header="仅列表"
-                        IsCheckable="True"
-                        Tag="{x:Static local:DisplayMode.ListOnly}" />
-                    <MenuItem
-                        Click="OnLayoutModeClicked"
-                        Header="仅文本框"
-                        IsCheckable="True"
-                        Tag="{x:Static local:DisplayMode.TextBoxOnly}" />
-                    <Separator />
+                    <MenuItem Click="OnLayoutModeClicked" Header="仅列表" IsCheckable="True" Tag="{x:Static local:DisplayMode.ListOnly}" />
+                    <MenuItem Click="OnLayoutModeClicked" Header="仅文本框" IsCheckable="True" Tag="{x:Static local:DisplayMode.TextBoxOnly}" />
 
                     <!--  视图选项  -->
-                    <MenuItem
-                        x:Name="GridShowIndex"
-                        Header="列表序号"
-                        IsCheckable="True"
-                        IsChecked="True" />
-                    <MenuItem
-                        x:Name="GridShowGroup"
-                        Header="列表组别"
-                        IsCheckable="True"
-                        IsChecked="True" />
-                    <MenuItem
-                        x:Name="PicShowIndex"
-                        Header="图片序号"
-                        IsCheckable="True"
-                        IsChecked="{Binding IsPictureIndexVisible}" />
-                    <MenuItem
-                        x:Name="PicShowText"
-                        Header="选中显示文本"
-                        IsCheckable="True"
-                        IsChecked="{Binding IsPictureTextVisible}" />
+                    <MenuItem x:Name="GridShowIndex" Header="列表序号" IsCheckable="True" IsChecked="True" />
+                    <MenuItem x:Name="GridShowGroup" Header="列表组别" IsCheckable="True" IsChecked="True" />
+                    <MenuItem x:Name="PicShowIndex" Header="图片序号" IsCheckable="True" IsChecked="True" />
+                    <MenuItem x:Name="PicShowText" Header="选中显示文本" IsCheckable="True" IsChecked="True" />
                     <Separator />
-
-                    <!--  图片切换动画  -->
-                    <MenuItem Header="切换动画">
-                        <MenuItem
-                            Click="OnAnimationChanged"
-                            Header="无动画"
-                            Tag="None" />
-                        <MenuItem
-                            Click="OnAnimationChanged"
-                            Header="淡入淡出"
-                            Tag="Fade" />
-                    </MenuItem>
 
                 </MenuItem>
 
@@ -284,15 +151,8 @@
 
                 <!--  6. 帮助  -->
                 <MenuItem Header="帮助" Icon="{materialDesign:PackIcon Kind=Help}">
-                    <MenuItem
-                        Click="OnOpenWebsite"
-                        Header="官网"
-                        Icon="{materialDesign:PackIcon Kind=Web}"
-                        Tag="https://github.com/Yilibala-kid/LabelMinusinWPF" />
-                    <MenuItem
-                        Click="About_Click"
-                        Header="关于"
-                        Icon="{materialDesign:PackIcon Kind=InformationOutline}" />
+                    <MenuItem Click="OnOpenWebsite" Header="官网" Icon="{materialDesign:PackIcon Kind=Web}" Tag="https://github.com/Yilibala-kid/LabelMinusinWPF" />
+                    <MenuItem Click="About_Click" Header="关于" Icon="{materialDesign:PackIcon Kind=InformationOutline}" />
                 </MenuItem>
                 <ToggleButton
                     Width="40"
@@ -327,23 +187,18 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                    <ToggleButton
-                                        x:Name="DrawerTrigger"
-                                        Style="{StaticResource IconToggleButtonStyle}"
-                                        Tag="Menu"
-                                        ToolTip="显示/隐藏工具箱" />
+                                    <ToggleButton x:Name="DrawerTrigger" Style="{StaticResource IconToggleButtonStyle}" Tag="Menu" ToolTip="显示/隐藏工具箱" />
                                     <RadioButton
                                         x:Name="SEEMode"
                                         Content="浏览"
                                         GroupName="AppModes"
-                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static common:Constants+AppMode.See}}"
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         Tag="Eye"
                                         ToolTip="浏览图片" />
                                     <RadioButton
                                         Content="标记"
                                         GroupName="AppModes"
-                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static common:Constants+AppMode.LabelDo}}"
+                                        IsChecked="True"
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         Tag="FileEdit"
                                         ToolTip="标记图片" />
@@ -351,41 +206,31 @@
                                         x:Name="OcrBtn"
                                         Content="截图"
                                         GroupName="AppModes"
-                                        IsChecked="{Binding CurrentMode, Converter={StaticResource EnumToBoolConverter}, ConverterParameter={x:Static common:Constants+AppMode.OCR}}"
                                         Style="{StaticResource IconRadioButtonStyle}"
                                         Tag="Camera"
                                         ToolTip="截图模式" />
-                                    <ComboBox
-                                        Width="150"
-                                        Height="35"
-                                        Margin="10,0,0,0"
-                                        materialDesign:HintAssist.Hint="选择网站"
-                                        ItemsSource="{Binding OcrWebsites.Keys}"
-                                        SelectedItem="{Binding SelectedOcrWebsite}"
-                                        Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}" />
-                                    <Button
-                                        Width="20"
-                                        Height="20"
-                                        Padding="0"
-                                        Click="Recognize_Click"
-                                        Style="{StaticResource IconButtonStyle}"
-                                        Tag="Magnify"
-                                        ToolTip="将当前截图放到网站中识别"
-                                        Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}" />
+                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}">
+                                        <ComboBox
+                                            x:Name="OcrWebsiteSelector"
+                                            Width="150"
+                                            Margin="10,0,0,0"
+                                            materialDesign:HintAssist.Hint="选择网站"
+                                            ItemsSource="{x:Static common:Constants.OcrWebsiteKeys}"
+                                            SelectedIndex="0" />
+                                        <Button
+                                            Width="20"
+                                            Margin="5,0,0,0"
+                                            Padding="0"
+                                            Click="Recognize_Click"
+                                            Style="{StaticResource IconButtonStyle}"
+                                            Tag="Magnify"
+                                            ToolTip="将当前截图放到网站中识别" />
+
+                                    </StackPanel>
                                     <!--  仅图片模式时显示组别栏  -->
-                                    <ListBox
+                                    <sc:GroupPanel
                                         VerticalAlignment="Center"
-                                        ItemContainerStyle="{StaticResource GroupBadgeItemStyle}"
-                                        ItemsSource="{Binding AllGroups}"
-                                        SelectedValue="{Binding SelectedGroupName, Mode=TwoWay}"
-                                        SelectedValuePath="Name"
-                                        Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}">
-                                        <ListBox.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel Orientation="Horizontal" />
-                                            </ItemsPanelTemplate>
-                                        </ListBox.ItemsPanel>
-                                    </ListBox>
+                                        Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
@@ -408,50 +253,22 @@
                         <!--  底栏功能  -->
                         <ToolBar DockPanel.Dock="Bottom" ToolBarTray.IsLocked="True">
                             <ToolBar.Resources>
-                                <Style
-                                    x:Key="{x:Static ToolBar.ButtonStyleKey}"
-                                    BasedOn="{StaticResource IconButtonStyle}"
-                                    TargetType="Button">
+                                <Style x:Key="{x:Static ToolBar.ButtonStyleKey}" BasedOn="{StaticResource IconButtonStyle}" TargetType="Button">
                                     <Setter Property="Padding" Value="4" />
                                 </Style>
 
-                                <Style
-                                    x:Key="{x:Static ToolBar.ToggleButtonStyleKey}"
-                                    BasedOn="{StaticResource IconToggleButtonStyle}"
-                                    TargetType="ToggleButton">
+                                <Style x:Key="{x:Static ToolBar.ToggleButtonStyleKey}" BasedOn="{StaticResource IconToggleButtonStyle}" TargetType="ToggleButton">
                                     <Setter Property="Padding" Value="4" />
                                 </Style>
                             </ToolBar.Resources>
-                            <Button
-                                Click="FitToPage_Click"
-                                Tag="FitToPageOutline"
-                                ToolTip="适应视图" />
-
-                            <Button
-                                Click="FitWidth_Click"
-                                Tag="ArrowExpandHorizontal"
-                                ToolTip="适应宽度" />
-
-                            <Button
-                                Click="FitHeight_Click"
-                                Tag="ArrowExpandVertical"
-                                ToolTip="适应高度" />
-
-                            <ToggleButton
-                                IsChecked="{Binding IsYLocked, ElementName=PicView, Mode=TwoWay}"
-                                Tag="ArrowHorizontalLock"
-                                ToolTip="横向移动" />
-
-                            <ToggleButton
-                                IsChecked="{Binding IsXLocked, ElementName=PicView, Mode=TwoWay}"
-                                Tag="ArrowVerticalLock"
-                                ToolTip="纵向移动" />
+                            <Button Click="FitToPage_Click" Tag="FitToPageOutline" ToolTip="适应视图" />
+                            <Button Click="FitWidth_Click" Tag="ArrowExpandHorizontal" ToolTip="适应宽度" />
+                            <Button Click="FitHeight_Click" Tag="ArrowExpandVertical" ToolTip="适应高度" />
+                            <ToggleButton IsChecked="{Binding IsYLocked, ElementName=PicView, Mode=TwoWay}" Tag="ArrowHorizontalLock" ToolTip="横向移动" />
+                            <ToggleButton IsChecked="{Binding IsXLocked, ElementName=PicView, Mode=TwoWay}" Tag="ArrowVerticalLock" ToolTip="纵向移动" />
 
                             <Separator />
-                            <Button
-                                Command="{Binding AdjustImageSetCommand}"
-                                Tag="ImageMultiple"
-                                ToolTip="修改图片集" />
+                            <Button Command="{Binding AdjustImageSetCommand}" Tag="ImageMultiple" ToolTip="修改图片集" />
                             <ComboBox
                                 Width="150"
                                 VerticalAlignment="Center"
@@ -460,20 +277,10 @@
                                 FontSize="12"
                                 ItemsSource="{Binding ImageList}"
                                 SelectedItem="{Binding SelectedImage}" />
-                            <Button
-                                Command="{Binding PreviousImageCommand}"
-                                Tag="ArrowUp"
-                                ToolTip="上一张" />
-                            <Button
-                                Command="{Binding NextImageCommand}"
-                                Tag="ArrowDown"
-                                ToolTip="下一张" />
+                            <Button Command="{Binding PreviousImageCommand}" Tag="ArrowUp" ToolTip="上一张" />
+                            <Button Command="{Binding NextImageCommand}" Tag="ArrowDown" ToolTip="下一张" />
                             <Separator />
-                            <Button
-                                Command="{Binding OpenCurrentFolderCommand}"
-                                Content="文件夹"
-                                Tag="FolderMultipleImage"
-                                ToolTip="打开工作文件夹" />
+                            <Button Command="{Binding OpenCurrentFolderCommand}" Content="文件夹" Tag="FolderMultipleImage" ToolTip="打开工作文件夹" />
                         </ToolBar>
                         <!--  工具栏  -->
                         <materialDesign:DrawerHost x:Name="ImageAreaDrawer" IsLeftDrawerOpen="{Binding IsChecked, ElementName=DrawerTrigger, Mode=TwoWay}">
@@ -485,8 +292,8 @@
                                 x:Name="ImageParent"
                                 AllowDrop="True"
                                 ClipToBounds="True"
-                                DragOver="Window_DragOver"
-                                Drop="Window_Drop">
+                                DragOver="OnFileDragOver"
+                                Drop="OnFileDrop">
                                 <local:ImageLabelViewer
                                     x:Name="PicView"
                                     DataContext="{Binding SelectedImage}"
@@ -498,10 +305,7 @@
                                     OnlySEE="{Binding IsChecked, ElementName=SEEMode}" />
 
                                 <!--  在底部显示消息  -->
-                                <materialDesign:Snackbar
-                                    x:Name="MessageShow"
-                                    MaxWidth="1600"
-                                    MessageQueue="{Binding MainMessageQueue}" />
+                                <materialDesign:Snackbar x:Name="MessageShow" MaxWidth="1600" MessageQueue="{Binding MainMessageQueue}" />
                             </Grid>
                         </materialDesign:DrawerHost>
                     </DockPanel>
@@ -510,7 +314,7 @@
                     x:Name="MiddleSplitter"
                     Grid.Column="1"
                     Width="5"
-                    Background="RoyalBlue"
+                    Background="Transparent"
                     ResizeBehavior="PreviousAndNext" />
                 <!--  右侧列表与文本  -->
                 <Grid Grid.Column="2">
@@ -521,25 +325,12 @@
                         <RowDefinition x:Name="TextBoxRow" Height="1*" />
                     </Grid.RowDefinitions>
                     <!--  组别栏  -->
-                    <ListBox
-                        x:Name="GroupListBox"
-                        Grid.Row="0"
-                        VerticalAlignment="Center"
-                        ItemContainerStyle="{StaticResource GroupBadgeItemStyle}"
-                        ItemsSource="{Binding AllGroups}"
-                        SelectedValue="{Binding SelectedGroupName, Mode=TwoWay}"
-                        SelectedValuePath="Name"
-                        Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource InverseBoolToVisibility}}">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                    </ListBox>
+                    <sc:GroupPanel Grid.Row="0" VerticalAlignment="Center" />
                     <!--  列表  -->
                     <DataGrid
                         x:Name="LabelDataGrid"
                         Grid.Row="1"
+                        Margin="0,0,5,0"
                         AutoGenerateColumns="False"
                         BorderBrush="RoyalBlue"
                         BorderThickness="2"
@@ -593,6 +384,7 @@
                                 Binding="{Binding Group}"
                                 ElementStyle="{StaticResource CenteredCellStyle}"
                                 Header="组"
+                                IsReadOnly="True"
                                 Visibility="{Binding Source={x:Reference GridShowGroup}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}" />
                         </DataGrid.Columns>
                     </DataGrid>
@@ -600,12 +392,13 @@
                         Grid.Row="2"
                         Height="5"
                         HorizontalAlignment="Stretch"
-                        Background="RoyalBlue"
+                        Background="Transparent"
                         ResizeBehavior="PreviousAndNext" />
                     <!--  文本框  -->
                     <TextBox
                         x:Name="LabelTextBox"
                         Grid.Row="3"
+                        Margin="0,0,5,5"
                         HorizontalContentAlignment="Left"
                         VerticalContentAlignment="Top"
                         materialDesign:HintAssist.FontFamily="微软雅黑"
@@ -621,9 +414,6 @@
             </Grid>
         </DockPanel>
         <!--  图校界面  -->
-        <local:CompareImgControl
-            x:Name="FullScreenReview"
-            Grid.ColumnSpan="2"
-            Visibility="Collapsed" />
+        <local:CompareImgControl x:Name="FullScreenReview" Grid.ColumnSpan="2" Visibility="Collapsed" />
     </Grid>
 </Window>

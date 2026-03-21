@@ -15,7 +15,10 @@ namespace LabelMinusinWPF
         [NotifyPropertyChangedFor(nameof(IsModified))]
         private string _text = "";
 
-        [ObservableProperty] private string _group = Constants.Groups.Default;
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(GroupBrush))] // 当组名变了，自动通知 UI 刷新颜色
+        private string _group = Constants.Groups.Default;
+        public SolidColorBrush GroupBrush => GroupColorManager.GetBrush(Group);// 不再存储 Brush，而是直接从静态管理器获取
         //[ObservableProperty] private string _remark = Constants.Label.DefaultRemark;
         //[ObservableProperty] private double _fontSize = Constants.Label.DefaultFontSize;
         //[ObservableProperty] private string _fontFamily = Constants.Label.DefaultFontFamily;
@@ -41,11 +44,8 @@ namespace LabelMinusinWPF
         // 当前标签是否被选中
         [ObservableProperty] private bool _isSelected;
 
-        // 组别对应的画刷颜色（由 ViewModel 同步）
-        [ObservableProperty] private SolidColorBrush _groupBrush = Constants.Groups.Brushes[0];
-
         private bool _isModified = false;
-        public bool IsModified => _isModified || IsDeleted;
+        public bool IsModified => _isModified || IsDeleted; 
         #endregion
 
 
@@ -58,15 +58,18 @@ namespace LabelMinusinWPF
 
         #region 业务方法
         partial void OnTextChanged(string value) => SetModified();
+        partial void OnGroupChanged(string value) => SetModified();
         partial void OnIsDeletedChanged(bool value) => SetModified();
+
+        public void RefreshGroupBrush() => OnPropertyChanged(nameof(GroupBrush));
+
 
         private void SetModified()
         {
             if (!_isModified)
             {
-                _isModified = true;
-                // 修改点 2：因为修改了 _isModified，必须手动通知 IsModified 属性发生了变化
-                OnPropertyChanged(nameof(IsModified));
+                _isModified = true;        
+                OnPropertyChanged(nameof(IsModified));// 因为修改了 _isModified，必须手动通知 IsModified 属性发生了变化
             }
         }
 

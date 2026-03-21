@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -79,7 +80,7 @@ namespace LabelMinusinWPF.Common
         private static IEnumerable<string> GetTargetExtensions()
         {
             return TargetExtensions
-                .Concat(ProjectHelper.ImageExtensions)
+                .Concat(ProjectManager.ImageExtensions)
                 .Where(ext => !string.IsNullOrWhiteSpace(ext))
                 .Select(ext => ext.StartsWith('.') ? ext : "." + ext)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -166,16 +167,17 @@ namespace LabelMinusinWPF.Common
     #region 项目操作辅助
 
     // 项目操作辅助类 - 合并了 ProjectService, ProjectContext, FileSystemHelper 的功能
-    public static class ProjectHelper
+    public static class ProjectManager
     {
+      
         // 项目上下文：记录当前加载的基础路径、翻译文件名、压缩包名等信息
-        public record ProjectContext(
+        public record WorkSpace(
             string BaseFolderPath = "",
             string? TxtName = null,
             string? ZipName = null
         )
         {
-            public static ProjectContext Empty => new();
+            public static WorkSpace Empty => new();
 
             // 翻译文件完整路径
             public string TxtPath =>
@@ -196,8 +198,8 @@ namespace LabelMinusinWPF.Common
                     if (string.IsNullOrEmpty(BaseFolderPath))
                         return Constants.AppName;
 
-                    string pathInfo = !string.IsNullOrEmpty(TxtName) ? TxtPath : "未命名";
-                    string modeInfo = IsArchiveMode ? $"关联:{ZipName}" : "文件夹";
+                    string pathInfo = !string.IsNullOrEmpty(TxtName) ? TxtPath : "正在预览";
+                    string modeInfo = IsArchiveMode ? $"{ZipName}" : "文件夹";
                     return $"LabelMinus - {pathInfo} 【{modeInfo}】";
                 }
             }
@@ -223,7 +225,7 @@ namespace LabelMinusinWPF.Common
             [.. ResourceHelper.GetImagePath(zipPath).Select(f => new OneImage { ImagePath = f })];
 
         // 从翻译 txt 文件加载项目上下文和图片列表
-        public static (ProjectContext Context, List<OneImage> Images) LoadProjectFromTxt(
+        public static (WorkSpace Context, List<OneImage> Images) LoadProjectFromTxt(
             string txtFilePath
         )
         {
@@ -231,7 +233,7 @@ namespace LabelMinusinWPF.Common
             string baseFolder = Path.GetDirectoryName(txtFilePath) ?? "";
 
             var database = LabelPlusParser.TextToLabels(content, out string? zipName);
-            var context = new ProjectContext(baseFolder, Path.GetFileName(txtFilePath), zipName);
+            var context = new WorkSpace(baseFolder, Path.GetFileName(txtFilePath), zipName);
 
             // 如果关联了压缩包，从压缩包中加载所有图片
             if (context.IsArchiveMode && File.Exists(context.ZipPath))
@@ -345,9 +347,9 @@ namespace LabelMinusinWPF.Common
 
     #endregion
 
-    #region 资源加载辅助
+    #region 资源加载
 
-    // 资源加载辅助类 - 合并了 ArchiveHelper 和 ImageHelper 的功能
+    // 资源加载- 合并了 ArchiveHelper 和 ImageHelper 的功能
     public static class ResourceHelper
     {
         
@@ -449,6 +451,58 @@ namespace LabelMinusinWPF.Common
             }
         }
     }
-}
+    #endregion
+
+
+    #region 组别管理
+    public static class GroupColorManager
+    {
+        private static readonly Dictionary<string, SolidColorBrush> _cache = [];
+
+        public static void SetGroupOrder(IEnumerable<string> groupNames)
+        {
+            _cache.Clear();
+
+            SolidColorBrush[] palette = Constants.Groups.Brushes;
+            int index = 0;
+
+            foreach (string groupName in groupNames
+                .Select(NormalizeGroupName)
+                .Distinct())
+            {
+                _cache[groupName] = palette[index % palette.Length];
+                index++;
+            }
+        }
+
+        public static SolidColorBrush GetBrush(string groupName)
+        {
+            string normalized = NormalizeGroupName(groupName);
+
+            if (_cache.TryGetValue(normalized, out var cached))
+                return cached;
+
+            SolidColorBrush[] palette = Constants.Groups.Brushes;
+            int index = _cache.Count % palette.Length;
+            var brush = palette[index];
+            _cache[normalized] = brush;
+            return brush;
+        }
+
+        public static string NormalizeGroupName(string? groupName) =>
+            string.IsNullOrWhiteSpace(groupName) ? Constants.Groups.Default : groupName.Trim();
+    }
+
+    public class GroupNameToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            => GroupColorManager.GetBrush(value as string ?? "");
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            => throw new NotImplementedException();
+    }
 
     #endregion
+
+
+}

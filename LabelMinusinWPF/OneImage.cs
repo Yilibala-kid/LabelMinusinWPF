@@ -27,7 +27,6 @@ public partial class OneImage : ObservableObject
     [ObservableProperty] private OneLabel? _selectedLabel;// 当前选中的标注
     
 
-
     private bool _isRefreshing = false;
     public OneImage()
     {
@@ -63,8 +62,10 @@ public partial class OneImage : ObservableObject
         finally
         {
             _isRefreshing = false;
-            OnPropertyChanged(nameof(ActiveLabels));
         }
+        // 延迟通知，打破同步递归链（避免 layout 死锁）
+        System.Windows.Application.Current.Dispatcher.BeginInvoke(
+            new Action(() => OnPropertyChanged(nameof(ActiveLabels))));
     }
     #endregion
 
@@ -81,7 +82,7 @@ public partial class OneImage : ObservableObject
     {
         if (value != null) value.IsSelected = true;
         UpdateSnapshot();
-        NotifyCommands(); // 选中状态改变可能会使当前 Label 变脏，从而激活撤销按钮
+        NotifyCommands();
     }
     private bool CanUndo() => History.CanUndo || IsSelectedLabelDirty();// 判断是否可以撤回：历史栈有东西 OR 当前选中的标签被改动过
     private bool CanRedo() => History.CanRedo;// 判断是否可以重做：历史栈有东西

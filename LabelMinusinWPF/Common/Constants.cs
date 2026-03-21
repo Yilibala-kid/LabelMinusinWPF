@@ -90,7 +90,8 @@ namespace LabelMinusinWPF.Common
         #endregion
 
         #region OCR 识别
-
+        // OCR 网站名称列表（供 XAML ComboBox 直接绑定）
+        public static ICollection<string> OcrWebsiteKeys => OcrWebsites.Websites.Keys;
         // OCR 识别网站配置
         public static class OcrWebsites
         {
@@ -101,20 +102,9 @@ namespace LabelMinusinWPF.Common
                 ["必应"] = "https://www.bing.com/visualsearch"
             };
 
+            public static ICollection<string> Keys => Websites.Keys;
+
             public const string DefaultWebsite = "AI识别 (YuzuMarker)";
-        }
-
-        #endregion
-
-        #region 图片切换动画
-
-        // 图片切换动画类型
-        public enum ImgAnim
-        {
-            // 无动画
-            None,
-            // 淡入淡出
-            Fade
         }
 
         #endregion
@@ -176,5 +166,7 @@ namespace LabelMinusinWPF.Common
         }
 
         #endregion
+
+
     }
 }

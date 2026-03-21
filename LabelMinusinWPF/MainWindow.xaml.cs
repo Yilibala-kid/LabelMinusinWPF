@@ -1,10 +1,13 @@
-﻿using LabelMinusinWPF.Common;
+using LabelMinusinWPF.Common;
+using WorkSpace = LabelMinusinWPF.Common.ProjectManager.WorkSpace;
 using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -14,7 +17,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using static MaterialDesignThemes.Wpf.Theme;
-using AppMode = LabelMinusinWPF.Common.Constants.AppMode;
 using Constants = LabelMinusinWPF.Common.Constants;
 using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
 
@@ -23,7 +25,7 @@ namespace LabelMinusinWPF
 
     /// Interaction logic for MainWindow.xaml
 
-    /// 
+    ///
     public enum DisplayMode
     {
         ImageOnly,
@@ -38,7 +40,7 @@ namespace LabelMinusinWPF
         public MainWindow()
         {
             InitializeComponent();
-            Task.Run(() => ProjectHelper.ClearTempFolders(
+            Task.Run(() => ProjectManager.ClearTempFolders(
                 Constants.TempFolders.OcrTemp,
                 Constants.TempFolders.ScreenShotTemp,
                 Constants.TempFolders.ArchiveTemp));
@@ -318,11 +320,12 @@ namespace LabelMinusinWPF
                 return;
             }
 
-            string websiteName = vm.SelectedOcrWebsite;
+            string websiteName = OcrWebsiteSelector.SelectedItem as string
+                     ?? Constants.OcrWebsites.DefaultWebsite;
             // 直接用 TryGetValue 获取，安全又简洁
-            string websiteUrl = MainVM.OcrWebsites.TryGetValue(websiteName, out var url)
+            string websiteUrl = Constants.OcrWebsites.Websites.TryGetValue(websiteName, out var url)
                                 ? url
-                                : MainVM.OcrWebsites[Constants.OcrWebsites.DefaultWebsite]; // 使用常量定义的默认网站
+                                : Constants.OcrWebsites.Websites[Constants.OcrWebsites.DefaultWebsite];
 
             var ocrWindow = new OcrWindow(screenshot, websiteUrl, websiteName);
             ocrWindow.Show();
@@ -330,7 +333,7 @@ namespace LabelMinusinWPF
 
 
         #region 拖放文件支持
-        private void Window_DragOver(object sender, DragEventArgs e)
+        private void OnFileDragOver(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -343,7 +346,7 @@ namespace LabelMinusinWPF
             e.Handled = true;
         }
 
-        private void Window_Drop(object sender, DragEventArgs e)
+        private void OnFileDrop(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
             {
@@ -379,18 +382,6 @@ namespace LabelMinusinWPF
             {
                 // 访问 MainMessageQueue
                 vm.MainMessageQueue.Enqueue(Constants.Msg.AboutMessage);
-            }
-        }
-
-        private void OnAnimationChanged(object sender, RoutedEventArgs e)
-        {
-            if (sender is System.Windows.Controls.MenuItem menuItem && menuItem.Tag is string tag)
-            {
-                ImageLabelViewer.TransitionAnimation = tag switch
-                {
-                    "Fade" => Constants.ImgAnim.Fade,
-                    _ => Constants.ImgAnim.None
-                };
             }
         }
 
@@ -460,32 +451,13 @@ namespace LabelMinusinWPF
             {
                 switch (e.Key)
                 {
-                    // --- 模式切换 (1, 2, 3) ---
-                    case Key.D1:
-                    case Key.NumPad1:
-                        vm.CurrentMode = AppMode.See;
-                        e.Handled = true;
-                        break;
-                    case Key.D2:
-                    case Key.NumPad2:
-                        vm.CurrentMode = AppMode.LabelDo;
-                        e.Handled = true;
-                        break;
-                    case Key.D3:
-                    case Key.NumPad3:
-                        vm.CurrentMode = AppMode.OCR;
-                        e.Handled = true;
-                        break;
-
                     // --- 图片切换 (A: 上一张, D: 下一张) ---
                     case Key.A:
                         vm.PreviousImageCommand.Execute(null);
-                        PicView?.PlayTransitionAnimation();
                         e.Handled = true;
                         break;
                     case Key.D:
                         vm.NextImageCommand.Execute(null);
-                        PicView?.PlayTransitionAnimation();
                         e.Handled = true;
                         break;
 
@@ -523,7 +495,7 @@ namespace LabelMinusinWPF
             if (DataContext is not MainVM vm) return;
 
             // 只有在MainWindow中有翻译项目且有修改时才自动保存
-            if (vm.CurrentProject == ProjectHelper.ProjectContext.Empty || !vm.HasUnsavedChanges())
+            if (vm.WorkSpace == WorkSpace.Empty || !vm.HasUnsavedChanges())
                 return;
 
             // 不保存ImageReview中的内容
@@ -540,9 +512,9 @@ namespace LabelMinusinWPF
                 Directory.CreateDirectory(autoSaveFolder);
 
                 // 生成文件名: 翻译文件名_保存时间.txt
-                string originalFileName = string.IsNullOrEmpty(vm.CurrentProject.TxtName)
+                string originalFileName = string.IsNullOrEmpty(vm.WorkSpace.TxtName)
                     ? "未命名翻译"
-                    : System.IO.Path.GetFileNameWithoutExtension(vm.CurrentProject.TxtName);
+                    : System.IO.Path.GetFileNameWithoutExtension(vm.WorkSpace.TxtName);
                 string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 string autoSaveFileName = $"{originalFileName}_{timestamp}.txt";
                 string autoSavePath = System.IO.Path.Combine(autoSaveFolder, autoSaveFileName);
@@ -550,7 +522,7 @@ namespace LabelMinusinWPF
                 // 保存翻译
                 string outputText = LabelPlusParser.LabelsToText(
                     vm.ImageList,
-                    vm.CurrentProject.ZipName,
+                    vm.WorkSpace.ZipName,
                     ExportMode.Current
                 );
                 File.WriteAllText(autoSavePath, outputText);
@@ -594,8 +566,6 @@ namespace LabelMinusinWPF
             }
         }
         #endregion
+
     }
-
-
-
 }

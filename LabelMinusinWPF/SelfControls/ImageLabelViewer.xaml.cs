@@ -612,35 +612,6 @@ namespace LabelMinusinWPF
             );
 
         #endregion
-
-        #region 图片切换动画
-
-
-        public static Constants.ImgAnim TransitionAnimation { get; set; } = Constants.ImgAnim.None;
-
-
-        public void PlayTransitionAnimation()
-        {
-            if (TransitionAnimation == Constants.ImgAnim.None || TargetImage.Source == null)
-                return;
-
-            var storyboard = new Storyboard();
-            var duration = TimeSpan.FromMilliseconds(300);
-
-            // 淡入淡出动画
-            var fadeIn = new DoubleAnimation { From = 0, To = 1, Duration = duration };
-
-            TargetImage.Opacity = 0;
-            Storyboard.SetTarget(fadeIn, TargetImage);
-            Storyboard.SetTargetProperty(fadeIn, new PropertyPath(OpacityProperty));
-
-            storyboard.Children.Add(fadeIn);
-
-            storyboard.Completed += (s, e) => TargetImage.Opacity = 1;
-            storyboard.Begin(this);
-        }
-
-        #endregion
     }
 
     #region 图片坐标转换器
