@@ -7,10 +7,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
-                <materialDesign:CustomColorTheme
-                    BaseTheme="Light"
-                    PrimaryColor="RoyalBlue"
-                    SecondaryColor="Blue" />
+                <materialDesign:CustomColorTheme BaseTheme="Light" PrimaryColor="RoyalBlue" SecondaryColor="Blue" />
 
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign2.Defaults.xaml" />
                 <ResourceDictionary Source="/SelfControls/ButtonStyles.xaml" />

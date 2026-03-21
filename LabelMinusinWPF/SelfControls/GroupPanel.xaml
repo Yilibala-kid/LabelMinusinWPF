@@ -1,0 +1,41 @@
+<UserControl
+    x:Class="LabelMinusinWPF.SelfControls.GroupPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+    </UserControl.Resources>
+    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <ListBox
+            ItemContainerStyle="{StaticResource GroupBadgeItemStyle}"
+            ItemsSource="{Binding AllGroups}"
+            SelectedValue="{Binding SelectedGroupName, Mode=TwoWay}">
+            <ListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ListBox.ItemsPanel>
+        </ListBox>
+        <TextBox
+            x:Name="NewGroupTextBox"
+            Width="80"
+            Margin="5,0,0,0"
+            Visibility="{Binding IsAddingGroup, Converter={StaticResource BoolToVisibility}}"
+            Text="{Binding NewGroupName, UpdateSourceTrigger=PropertyChanged}"
+            KeyDown="NewGroupTextBox_KeyDown"
+            LostFocus="NewGroupTextBox_LostFocus" />
+        <Button
+            Style="{StaticResource IconButtonStyle}"
+            Tag="Plus"
+            Click="AddGroup_Click"
+            ToolTip="添加组别" />
+        <Button
+            Style="{StaticResource IconButtonStyle}"
+            Tag="Minus"
+            Command="{Binding DeleteGroupCommand}"
+            ToolTip="删除选中组别" />
+    </StackPanel>
+</UserControl>
