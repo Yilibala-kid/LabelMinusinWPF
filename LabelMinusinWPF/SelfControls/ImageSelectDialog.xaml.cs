@@ -9,6 +9,7 @@ namespace LabelMinusinWPF
 {
     public partial class ImageSelectDialog : Window
     {
+        // 可选择的图片包装类，实现 INotifyPropertyChanged 以支持 UI 绑定
         public class SelectableImage : INotifyPropertyChanged
         {
             public OneImage Image { get; set; }
@@ -28,13 +29,13 @@ namespace LabelMinusinWPF
                 }
             }
 
-            public event PropertyChangedEventHandler? PropertyChanged;
-
             public SelectableImage(OneImage image, bool isSelected)
             {
                 Image = image;
                 _isSelected = isSelected;
             }
+
+            public event PropertyChangedEventHandler? PropertyChanged;
         }
 
         public ObservableCollection<SelectableImage> Items { get; }
@@ -44,36 +45,40 @@ namespace LabelMinusinWPF
         {
             InitializeComponent();
 
-            var currentNames = new HashSet<string>(currentImages.Select(img => img.ImageName));
+            // 根据已有图片名称构建集合，快速判断是否已被选中
+            HashSet<string> currentNames = new(currentImages.Select(img => img.ImageName));
             Items = new ObservableCollection<SelectableImage>(
                 availableImages.Select(img => new SelectableImage(img, currentNames.Contains(img.ImageName)))
             );
 
             ImageListBox.ItemsSource = Items;
             ImageListBox.PreviewMouseLeftButtonDown += ImageListBox_PreviewMouseLeftButtonDown;
-            SelectedImages = new();
+            SelectedImages = new List<OneImage>();
         }
 
+        // 点击列表项时切换选中状态
         private void ImageListBox_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
             var item = ItemsControl.ContainerFromElement(ImageListBox, e.OriginalSource as DependencyObject) as ListBoxItem;
             if (item?.Content is SelectableImage selectableImage)
-            {
                 selectableImage.IsSelected = !selectableImage.IsSelected;
-                e.Handled = true;
-            }
+            e.Handled = true;
         }
 
+        // 全选
         private void SelectAll_Click(object sender, RoutedEventArgs e) => SetAllSelection(true);
 
+        // 取消全选
         private void DeselectAll_Click(object sender, RoutedEventArgs e) => SetAllSelection(false);
 
+        // 批量设置选中状态
         private void SetAllSelection(bool value)
         {
             foreach (var item in Items)
                 item.IsSelected = value;
         }
 
+        // 确认选择
         private void OK_Click(object sender, RoutedEventArgs e)
         {
             SelectedImages = Items.Where(item => item.IsSelected).Select(item => item.Image).ToList();
@@ -81,6 +86,7 @@ namespace LabelMinusinWPF
             Close();
         }
 
+        // 取消选择
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;

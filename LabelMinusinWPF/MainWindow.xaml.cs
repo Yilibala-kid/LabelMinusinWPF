@@ -131,23 +131,12 @@ namespace LabelMinusinWPF
             if (sender is not MenuItem clickedItem) return;
             if (clickedItem.Parent is not MenuItem parentMenu) return;
 
-            // 1. 实现互斥单选
             foreach (var item in parentMenu.Items.OfType<MenuItem>())
-            {
-                if (item.Tag is DisplayMode)
-                {
-                    item.IsChecked = false;
-                }
-            }
+                if (item.Tag is DisplayMode) item.IsChecked = false;
 
-            // 2. 勾选当前点击的项
             clickedItem.IsChecked = true;
 
-            // 3. 执行布局更新
-            if (clickedItem.Tag is DisplayMode mode)
-            {
-                UpdateLayout(mode);
-            }
+            if (clickedItem.Tag is DisplayMode mode) UpdateLayout(mode);
         }
         private void UpdateLayout(DisplayMode mode)
         {
@@ -185,24 +174,9 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 底栏图片控制
-        // 适应视图
-        private void FitToPage_Click(object sender, RoutedEventArgs e)
-        {
-            PicView.FitToView();
-        }
-
-        // 适应宽度
-        private void FitWidth_Click(object sender, RoutedEventArgs e)
-        {
-            PicView.FitToWidth();
-        }
-
-        // 适应高度
-        private void FitHeight_Click(object sender, RoutedEventArgs e)
-        {
-            PicView.FitToHeight();
-        }
-
+        private void FitToPage_Click(object sender, RoutedEventArgs e) => PicView.FitToView();
+        private void FitWidth_Click(object sender, RoutedEventArgs e) => PicView.FitToWidth();
+        private void FitHeight_Click(object sender, RoutedEventArgs e) => PicView.FitToHeight();
         #endregion
 
 
@@ -239,33 +213,23 @@ namespace LabelMinusinWPF
         #endregion
         private void OpenImageReview_Click(object sender, RoutedEventArgs e)
         {
-            // 直接操作状态，控件会自动显示
             FullScreenReview.IsOpen = true;
         }
 
         private void RegionCaptureWithLabels_Click(object sender, RoutedEventArgs e)
         {
             if (PicView == null) return;
-
-            // 切换带标签框选模式
-            PicView.IsRegionCaptureWithLabels = RegionCaptureWithLabelsBtn.IsChecked == true;
-
-            if (PicView.IsRegionCaptureWithLabels)
-            {
-                // 订阅事件
+            bool isEnabled = RegionCaptureWithLabelsBtn.IsChecked == true;
+            PicView.IsRegionCaptureWithLabels = isEnabled;
+            if (isEnabled)
                 PicView.SnappedWithLabels += OnRegionSnappedWithLabels;
-            }
             else
-            {
-                // 取消订阅
                 PicView.SnappedWithLabels -= OnRegionSnappedWithLabels;
-            }
         }
 
         private void OnRegionSnappedWithLabels(object? sender, Rect normRect)
         {
-            if (DataContext is not MainVM vm || vm.SelectedImage == null) return;
-            if (PicView == null) return;
+            if (DataContext is not MainVM vm || vm.SelectedImage == null || PicView == null) return;
 
             try
             {
@@ -304,85 +268,42 @@ namespace LabelMinusinWPF
         private void Recognize_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainVM vm) return;
+            var screenshot = ScreenshotHelper.TryGetClipboardImage();
+            if (screenshot == null) { vm.MainMessageQueue.Enqueue(Constants.Msg.ScreenshotPrompt); return; }
 
-            // 从剪贴板获取最近截图的图片
-            BitmapSource? screenshot = null;
-            try
-            {
-                if (Clipboard.ContainsImage())
-                    screenshot = Clipboard.GetImage();
-            }
-            catch { }
-
-            if (screenshot == null)
-            {
-                vm.MainMessageQueue.Enqueue(Constants.Msg.ScreenshotPrompt);
-                return;
-            }
-
-            string websiteName = OcrWebsiteSelector.SelectedItem as string
-                     ?? Constants.OcrWebsites.DefaultWebsite;
-            // 直接用 TryGetValue 获取，安全又简洁
+            string websiteName = OcrWebsiteSelector.SelectedItem as string ?? Constants.OcrWebsites.DefaultWebsite;
             string websiteUrl = Constants.OcrWebsites.Websites.TryGetValue(websiteName, out var url)
                                 ? url
                                 : Constants.OcrWebsites.Websites[Constants.OcrWebsites.DefaultWebsite];
 
-            var ocrWindow = new OcrWindow(screenshot, websiteUrl, websiteName);
-            ocrWindow.Show();
+            new OcrWindow(screenshot, websiteUrl, websiteName).Show();
         }
 
 
         #region 拖放文件支持
         private void OnFileDragOver(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                e.Effects = DragDropEffects.Copy;
-            }
-            else
-            {
-                e.Effects = DragDropEffects.None;
-            }
+            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
             e.Handled = true;
         }
 
         private void OnFileDrop(object sender, DragEventArgs e)
         {
-            if (e.Data.GetDataPresent(DataFormats.FileDrop))
-            {
-                string[] files = (string[])e.Data.GetData(DataFormats.FileDrop);
-                if (files.Length > 0 && DataContext is MainVM viewModel)
-                {
-                    viewModel.OpenResourceByPath(files, false);
-                }
-            }
+            if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
+                if (DataContext is MainVM viewModel) viewModel.OpenResourceByPath(files, false);
         }
         #endregion
         private void OnOpenWebsite(object sender, RoutedEventArgs e)
         {
-            if (sender is MenuItem menuItem && menuItem.Tag is string url)
+            if (sender is MenuItem { Tag: string url })
             {
-                try
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = url,
-                        UseShellExecute = true // 必须设置为 true 才能在 .NET Core 中打开浏览器
-                    });
-                }
-                catch (System.Exception ex)
-                {
-                    MessageBox.Show($"无法打开网页: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                try { Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true }); }
+                catch (Exception ex) { MessageBox.Show($"无法打开网页: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error); }
             }
         }
         private void About_Click(object sender, RoutedEventArgs e)
         {
-            if (this.DataContext is MainVM vm)
-            {
-                // 访问 MainMessageQueue
-                vm.MainMessageQueue.Enqueue(Constants.Msg.AboutMessage);
-            }
+            if (DataContext is MainVM vm) vm.MainMessageQueue.Enqueue(Constants.Msg.AboutMessage);
         }
 
         #region 命令行启动支持
@@ -390,47 +311,27 @@ namespace LabelMinusinWPF
         {
             if (DataContext is MainVM vm && paths.Length > 0)
             {
-                if (FullScreenReview.IsOpen)
-                {
-                    FullScreenReview.IsOpen = false;
-                }
-                // 直接传递整个数组，ViewModel 会负责循环加载
+                if (FullScreenReview.IsOpen) FullScreenReview.IsOpen = false;
                 vm.OpenResourceByPath(paths, false);
             }
         }
         public void OpenImageReviewSmart(string newPath)
         {
             if (DataContext is not MainVM vm) return;
+            if (!FullScreenReview.IsOpen) FullScreenReview.IsOpen = true;
 
-            // 1. 确保图校界面是打开的
-            if (!FullScreenReview.IsOpen)
-            {
-                FullScreenReview.IsOpen = true;
-            }
-
-            // 2. 这里的延迟执行非常重要，确保子 VM 已经就绪
             Dispatcher.BeginInvoke(() =>
             {
                 if (FullScreenReview.DataContext is CompareImgVM reviewVm)
                 {
-                    // 如果左侧 VM 还没有路径，或者当前不是对比模式且左侧是空的
-                    // 我们简单的逻辑：如果左侧没图，放左侧；否则放右侧。
-                    bool isLeftEmpty = reviewVm.LeftImageVM.ImageList.Count == 0;
-
-                    if (isLeftEmpty)
-                    {
+                    if (reviewVm.LeftImageVM.ImageList.Count == 0)
                         reviewVm.LeftImageVM.OpenResourceByPath([newPath], false);
-                    }
                     else
-                    {
-                        // 左侧有图了，把新图放右侧，并强制开启双图对比
                         reviewVm.RightImageVM.OpenResourceByPath([newPath], false);
-                    }
 
-                    // 激活窗口并置顶提醒
-                    this.FocusWindow();
+                    FocusWindow();
                 }
-            }, System.Windows.Threading.DispatcherPriority.Loaded);
+            }, DispatcherPriority.Loaded);
         }
         public void FocusWindow()
         {
@@ -493,77 +394,38 @@ namespace LabelMinusinWPF
         private void AutoSaveTimer_Tick(object? sender, EventArgs e)
         {
             if (DataContext is not MainVM vm) return;
-
-            // 只有在MainWindow中有翻译项目且有修改时才自动保存
-            if (vm.WorkSpace == WorkSpace.Empty || !vm.HasUnsavedChanges())
-                return;
-
-            // 不保存ImageReview中的内容
-            if (FullScreenReview.IsOpen)
-                return;
+            if (vm.WorkSpace == WorkSpace.Empty || !vm.HasUnsavedChanges()) return;
+            if (FullScreenReview.IsOpen) return;
 
             try
             {
-                // 获取程序所在目录
-                string appDirectory = AppDomain.CurrentDomain.BaseDirectory;
-                string autoSaveFolder = System.IO.Path.Combine(appDirectory, "AutoSave");
-
-                // 确保AutoSave文件夹存在
+                string autoSaveFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutoSave");
                 Directory.CreateDirectory(autoSaveFolder);
 
-                // 生成文件名: 翻译文件名_保存时间.txt
                 string originalFileName = string.IsNullOrEmpty(vm.WorkSpace.TxtName)
                     ? "未命名翻译"
-                    : System.IO.Path.GetFileNameWithoutExtension(vm.WorkSpace.TxtName);
-                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string autoSaveFileName = $"{originalFileName}_{timestamp}.txt";
-                string autoSavePath = System.IO.Path.Combine(autoSaveFolder, autoSaveFileName);
+                    : Path.GetFileNameWithoutExtension(vm.WorkSpace.TxtName);
+                string autoSavePath = Path.Combine(autoSaveFolder, $"{originalFileName}_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
 
-                // 保存翻译
-                string outputText = LabelPlusParser.LabelsToText(
-                    vm.ImageList,
-                    vm.WorkSpace.ZipName,
-                    ExportMode.Current
-                );
-                File.WriteAllText(autoSavePath, outputText);
-
-                // 清理旧的自动保存文件,只保留最新的20个
+                File.WriteAllText(autoSavePath, LabelPlusParser.LabelsToText(vm.ImageList, vm.WorkSpace.ZipName, ExportMode.Current));
                 CleanupOldAutoSaveFiles(autoSaveFolder, originalFileName);
             }
-            catch (Exception ex)
-            {
-                // 自动保存失败不影响用户操作,只记录日志
-                System.Diagnostics.Debug.WriteLine($"自动保存失败: {ex.Message}");
-            }
+            catch (Exception ex) { Debug.WriteLine($"自动保存失败: {ex.Message}"); }
         }
 
         private static void CleanupOldAutoSaveFiles(string autoSaveFolder, string baseFileName)
         {
             try
             {
-                // 获取所有相关的自动保存文件
                 var files = Directory.GetFiles(autoSaveFolder, $"{baseFileName}_*.txt")
                     .Select(f => new FileInfo(f))
                     .OrderByDescending(f => f.CreationTime)
-                    .ToList();
+                    .Skip(Constants.AutoSave.MaxFiles);
 
-                // 删除超过MaxAutoSaveFiles的旧文件
-                foreach (var file in files.Skip(Constants.AutoSave.MaxFiles))
-                {
-                    try
-                    {
-                        file.Delete();
-                    }
-                    catch
-                    {
-                        // 删除失败不影响程序运行
-                    }
-                }
+                foreach (var file in files)
+                    try { file.Delete(); } catch { /* 删除失败不影响程序运行 */ }
             }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"清理旧自动保存文件失败: {ex.Message}");
-            }
+            catch (Exception ex) { Debug.WriteLine($"清理旧自动保存文件失败: {ex.Message}"); }
         }
         #endregion
 
