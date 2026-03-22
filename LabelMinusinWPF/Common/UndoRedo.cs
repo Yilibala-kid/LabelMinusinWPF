@@ -47,25 +47,37 @@ namespace LabelMinusinWPF.Common
             _undoStack.Push(command);
         }
 
-        public void Clear()
-        {
-            _undoStack.Clear();
-            _redoStack.Clear();
-        }
+        public void Clear() { _undoStack.Clear(); _redoStack.Clear(); }
     }
 
     // 新增标注命令
-    public class AddCommand(BindingList<OneLabel> list, OneLabel label) : IUndoCommand
+    public class AddCommand : IUndoCommand
     {
-        public void Execute() { label.IsDeleted = false; list.Add(label); }
-        public void Undo() { label.IsDeleted = true; list.Remove(label); }
+        private readonly BindingList<OneLabel> _list;
+        private readonly OneLabel _label;
+
+        public AddCommand(BindingList<OneLabel> list, OneLabel label)
+        {
+            _list = list;
+            _label = label;
+        }
+
+        public void Execute() { _label.IsDeleted = false; _list.Add(_label); }
+        public void Undo() { _label.IsDeleted = true; _list.Remove(_label); }
     }
 
     // 删除标注命令（软删除）
-    public class DeleteCommand(OneLabel label) : IUndoCommand
+    public class DeleteCommand : IUndoCommand
     {
-        public void Execute() { label.IsDeleted = true; }
-        public void Undo() { label.IsDeleted = false; }
+        private readonly OneLabel _label;
+
+        public DeleteCommand(OneLabel label)
+        {
+            _label = label;
+        }
+
+        public void Execute() { _label.IsDeleted = true; }
+        public void Undo() { _label.IsDeleted = false; }
     }
 
     // 标注属性修改命令（基于快照的撤销/重做）
@@ -87,7 +99,9 @@ namespace LabelMinusinWPF.Common
         public void Execute() { _newState.RestoreTo(_target); _refreshAction(); }
         public void Undo() { _oldState.RestoreTo(_target); _refreshAction(); }
     }
-    public class LabelSnapshot// 标注状态快照（记录 Text、Group、Position）
+
+    // 标注状态快照（记录 Text、Group、Position）
+    public class LabelSnapshot
     {
         public string Text { get; }
         public string Group { get; }

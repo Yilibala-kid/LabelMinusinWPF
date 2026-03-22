@@ -2,31 +2,23 @@ using System.Windows.Media;
 
 namespace LabelMinusinWPF.Common
 {
-    // 全局常量定义
     public static class Constants
     {
         #region 文件扩展名
-
-        // 支持的图片扩展名
         public static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".jpg", ".jpeg", ".png", ".bmp", ".webp"
         };
 
-        // 支持的压缩包扩展名
         public static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
         {
             ".zip", ".rar", ".7z"
         };
 
-        // 压缩包特征后缀（用于路径识别）
         public static readonly string[] ZipSuffixes = [".zip\\", ".rar\\", ".7z\\"];
-
         #endregion
 
         #region 文件对话框过滤器
-
-        // 文件对话框过滤器
         public static class FileFilters
         {
             public const string ImageFiles = "支持的文件|*.jpg;*.png;*.bmp";
@@ -34,21 +26,15 @@ namespace LabelMinusinWPF.Common
             public const string TextFiles = "文本文件|*.txt";
             public const string ImageAndArchive = "支持的文件|*.zip;*.7z;*.rar;*.jpg;*.png;*.bmp";
         }
-
         #endregion
 
         #region 组别名称
-
-        // 默认组别名称
         public static class Groups
         {
             public const string Default = "框内";
             public const string Outside = "框外";
-
-            // 必须存在的默认组别
             public static readonly string[] Required = [Default, Outside];
 
-            // 组别颜色数组
             public static readonly SolidColorBrush[] Brushes =
             [
                 new SolidColorBrush(Color.FromRgb(234, 67, 53)),
@@ -61,12 +47,9 @@ namespace LabelMinusinWPF.Common
                 new SolidColorBrush(Color.FromRgb(141, 110, 99)),
             ];
         }
-
         #endregion
 
         #region 标签默认值
-
-        // 标签默认值
         public static class Label
         {
             public const string NewLabelText = "新标签";
@@ -74,25 +57,14 @@ namespace LabelMinusinWPF.Common
             public const double DefaultFontSize = 20.0;
             public const string DefaultFontFamily = "微软雅黑";
         }
-
         #endregion
 
         #region 应用程序模式
-
-        // 应用程序模式
-        public enum AppMode
-        {
-            See,
-            LabelDo,
-            OCR
-        }
-
+        public enum AppMode { See, LabelDo, OCR }
         #endregion
 
         #region OCR 识别
-        // OCR 网站名称列表（供 XAML ComboBox 直接绑定）
         public static ICollection<string> OcrWebsiteKeys => OcrWebsites.Websites.Keys;
-        // OCR 识别网站配置
         public static class OcrWebsites
         {
             public static readonly Dictionary<string, string> Websites = new()
@@ -103,18 +75,13 @@ namespace LabelMinusinWPF.Common
             };
 
             public static ICollection<string> Keys => Websites.Keys;
-
             public const string DefaultWebsite = "AI识别 (YuzuMarker)";
         }
-
         #endregion
 
         #region UI 显示
-
-        // 应用程序名称
         public const string AppName = "LabelMinus";
 
-        // 自动保存设置
         public static class AutoSave
         {
             public const int IntervalMinutes = 5;
@@ -122,7 +89,6 @@ namespace LabelMinusinWPF.Common
             public const string FolderName = "AutoSave";
         }
 
-        // 临时文件夹名称
         public static class TempFolders
         {
             public const string ArchiveTemp = "ArchiveTemp";
@@ -130,7 +96,6 @@ namespace LabelMinusinWPF.Common
             public const string ScreenShotTemp = "ScreenShottemp";
         }
 
-        // 消息
         public static class Msg
         {
             #region 对话框
@@ -164,9 +129,6 @@ namespace LabelMinusinWPF.Common
             public const string SaveErr = "保存失败: {0}";
             #endregion
         }
-
         #endregion
-
-
     }
 }

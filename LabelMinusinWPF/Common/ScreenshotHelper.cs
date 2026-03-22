@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Windows;
+using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
@@ -8,12 +9,55 @@ namespace LabelMinusinWPF.Common;
 
 public static class ScreenshotHelper
 {
-    public const string DefaultFolderName = "ScreenShottemp";
+    public const string DefaultFolderName = Constants.TempFolders.ScreenShotTemp;
+    public sealed record ScreenshotSaveResult(string FilePath, BitmapSource? PreviewImage);
+
+    public static string GetFolderPath(string folder = DefaultFolderName)
+    {
+        string folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folder);
+        Directory.CreateDirectory(folderPath);
+        return folderPath;
+    }
+
+    public static BitmapSource? Freeze(BitmapSource? source)
+    {
+        if (source == null || source.IsFrozen) return source;
+        var clone = new WriteableBitmap(source);
+        clone.Freeze();
+        return clone;
+    }
+
+    private static BitmapSource? DecodeBitmap(byte[]? data)
+    {
+        if (data == null || data.Length == 0) return null;
+
+        using var ms = new MemoryStream(data);
+        var decoder = new JpegBitmapDecoder(ms, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        return Freeze(decoder.Frames.FirstOrDefault());
+    }
+
+    public static bool TrySetClipboardImage(BitmapSource? image)
+    {
+        var frozen = Freeze(image);
+        if (frozen == null) return false;
+
+        try { Clipboard.SetImage(frozen); return true; }
+        catch { return false; }
+    }
+
+    public static BitmapSource? TryGetClipboardImage()
+    {
+        try { return Clipboard.ContainsImage() ? Freeze(Clipboard.GetImage()) : null; }
+        catch { return null; }
+    }
+
+    private static string BuildJpegFilePath(string? name, string folder = DefaultFolderName)
+        => Path.Combine(GetFolderPath(folder), $"{name ?? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"}.jpg".Replace(".jpg.jpg", ""));
 
     #region 图片合并
 
     /// <summary>图片 + 底部标签文字</summary>
-    public static BitmapSource? CombineWithFooter(BitmapSource? img, string? labels)
+    private static BitmapSource? CombineWithFooter(BitmapSource? img, string? labels)
     {
         if (img == null) return null;
 
@@ -56,7 +100,7 @@ public static class ScreenshotHelper
     }
 
     /// <summary>合并两张图片（左右排列）+ 页脚</summary>
-    public static BitmapSource? CombineTwoImages(BitmapSource? left, BitmapSource? right, string footer)
+    private static BitmapSource? CombineTwoImages(BitmapSource? left, BitmapSource? right, string footer)
     {
         if (left == null && right == null) return null;
 
@@ -98,42 +142,23 @@ public static class ScreenshotHelper
 
     #region 图片保存
 
-    /// <summary>保存并复制到剪贴板</summary>
-    public static string? SaveAndCopyToClipboard(BitmapSource? bmp, string? name, string folder = DefaultFolderName)
+    private static string? SaveAndCopyToClipboard(BitmapSource? bmp, string? name, string folder = DefaultFolderName)
     {
-        if (bmp == null) return null;
-
-        string folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folder);
-        string filePath = Path.Combine(folderPath, $"{name ?? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"}.jpg".Replace(".jpg.jpg", ""));
-        Directory.CreateDirectory(folderPath);
-
-        byte[] data;
-        using (var ms = new MemoryStream())
-        {
-            var encoder = new JpegBitmapEncoder { QualityLevel = 75 };
-            encoder.Frames.Add(BitmapFrame.Create(bmp));
-            encoder.Save(ms);
-            data = ms.ToArray();
-        }
-        File.WriteAllBytes(filePath, data);
-
-        try { Clipboard.SetImage(new JpegBitmapDecoder(new MemoryStream(data), BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad).Frames.First()); }
-        catch { }
-        return filePath;
+        var result = SaveWithCompressionResult(bmp, name, folder, 75, 75, long.MaxValue);
+        if (result == null) return null;
+        _ = TrySetClipboardImage(result.PreviewImage);
+        return result.FilePath;
     }
 
-    /// <summary>保存图片（迭代压缩直到满足条件）</summary>
-    public static (string FilePath, byte[] Data)? SaveWithCompression(BitmapSource? bmp, string? name, string folder = DefaultFolderName,
+    private static (string FilePath, byte[] Data)? SaveWithCompression(BitmapSource? bmp, string? name, string folder = DefaultFolderName,
         int startQuality = 100, int minQuality = 20, long maxSizeBytes = 1024 * 1024)
     {
         if (bmp == null) return null;
 
-        string folderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folder);
-        string filePath = Path.Combine(folderPath, $"{name ?? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"}.jpg".Replace(".jpg.jpg", ""));
-        Directory.CreateDirectory(folderPath);
-
+        string filePath = BuildJpegFilePath(name, folder);
         int quality = startQuality;
         byte[] data;
+
         do
         {
             using var ms = new MemoryStream();
@@ -149,16 +174,57 @@ public static class ScreenshotHelper
         return (filePath, data);
     }
 
+    public static ScreenshotSaveResult? SaveWithCompressionResult(BitmapSource? bmp, string? name, string folder = DefaultFolderName,
+        int startQuality = 100, int minQuality = 20, long maxSizeBytes = 1024 * 1024)
+    {
+        var result = SaveWithCompression(bmp, name, folder, startQuality, minQuality, maxSizeBytes);
+        return result == null ? null : new ScreenshotSaveResult(result.Value.FilePath, DecodeBitmap(result.Value.Data));
+    }
+
     /// <summary>截图并保存（一步完成）</summary>
     public static string? CaptureAndSave(BitmapSource? img, string? labels, string? name, string folder = DefaultFolderName)
         => SaveAndCopyToClipboard(CombineWithFooter(img, labels), name, folder);
 
     /// <summary>合并两张图片并保存（一步完成）</summary>
-    public static (string FilePath, byte[] Data)? SaveTwoImages(BitmapSource? left, BitmapSource? right, string footer,
+    public static ScreenshotSaveResult? SaveTwoImagesResult(BitmapSource? left, BitmapSource? right, string footer,
         string folder = DefaultFolderName, int startQuality = 100, int minQuality = 20, long maxSizeBytes = 1024 * 1024)
+        => SaveWithCompressionResult(CombineTwoImages(left, right, footer), null, folder, startQuality, minQuality, maxSizeBytes);
+
+    public static string? SaveBitmapAsPng(BitmapSource? bmp, string folder, string? fileName = null)
     {
-        var combined = CombineTwoImages(left, right, footer);
-        return combined != null ? SaveWithCompression(combined, null, folder, startQuality, minQuality, maxSizeBytes) : null;
+        if (bmp == null) return null;
+
+        string filePath = Path.Combine(GetFolderPath(folder), fileName ?? $"temp_{DateTime.Now:HHmmssfff}.png");
+        using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
+        new PngBitmapEncoder { Frames = { BitmapFrame.Create(bmp) } }.Save(fs);
+        return filePath;
+    }
+
+    public static BitmapSource? MergeInk(BitmapSource? source, StrokeCollection? strokes, Size displaySize)
+    {
+        if (source == null) return null;
+        if (strokes == null || strokes.Count == 0) return Freeze(source);
+        if (displaySize.Width <= 0 || displaySize.Height <= 0) return Freeze(source);
+
+        var rtb = new RenderTargetBitmap(source.PixelWidth, source.PixelHeight, 96, 96, PixelFormats.Pbgra32);
+        var visual = new DrawingVisual();
+
+        using (DrawingContext dc = visual.RenderOpen())
+        {
+            dc.DrawImage(source, new Rect(0, 0, source.PixelWidth, source.PixelHeight));
+
+            double scaleX = source.PixelWidth / displaySize.Width;
+            double scaleY = source.PixelHeight / displaySize.Height;
+            dc.PushGuidelineSet(new GuidelineSet());
+            dc.PushTransform(new ScaleTransform(scaleX, scaleY));
+            strokes.Draw(dc);
+            dc.Pop();
+            dc.Pop();
+        }
+
+        rtb.Render(visual);
+        rtb.Freeze();
+        return rtb;
     }
 
     #endregion
@@ -223,7 +289,7 @@ public static class ScreenshotHelper
     }
 
     /// <summary>获取区域内的标签</summary>
-    public static List<OneLabel> GetLabelsInRegion(Rect r, IEnumerable<OneLabel> labels)
+    private static List<OneLabel> GetLabelsInRegion(Rect r, IEnumerable<OneLabel> labels)
         => [.. labels.Where(l => l.X >= r.X && l.X <= r.X + r.Width && l.Y >= r.Y && l.Y <= r.Y + r.Height)];
 
     #endregion

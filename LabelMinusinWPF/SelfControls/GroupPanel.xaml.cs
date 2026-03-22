@@ -11,8 +11,10 @@ namespace LabelMinusinWPF.SelfControls
             InitializeComponent();
         }
 
+        // 获取视图模型
         private MainVM? ViewModel => DataContext as MainVM;
 
+        // 添加组别按钮点击
         private void AddGroup_Click(object sender, RoutedEventArgs e)
         {
             if (ViewModel is null) return;
@@ -22,6 +24,7 @@ namespace LabelMinusinWPF.SelfControls
             NewGroupTextBox.Focus();
         }
 
+        // 新建组别文本框按键事件
         private void NewGroupTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             if (ViewModel is null) return;
@@ -32,6 +35,7 @@ namespace LabelMinusinWPF.SelfControls
                 ViewModel.AddGroupCommand.Execute(null);
         }
 
+        // 新建组别文本框失去焦点事件
         private void NewGroupTextBox_LostFocus(object sender, RoutedEventArgs e)
         {
             if (ViewModel?.IsAddingGroup == true)

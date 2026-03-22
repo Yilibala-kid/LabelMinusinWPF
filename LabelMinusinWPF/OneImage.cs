@@ -13,40 +13,63 @@ using System.Windows.Media.Imaging;
 using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF;
+
+// 图片模型类，包含标签集合和图片信息
 public partial class OneImage : ObservableObject
 {
+    #region 基本属性
+
+    // 图片路径
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(DisplayImage), nameof(ImageName))]
-    private string _imagePath = string.Empty;// 图片完整路径
-    public string ImageName => Path.GetFileName(ImagePath);// 图片名
-    public ImageSource? DisplayImage => GetImageSource();//图片源获取
+    private string _imagePath = string.Empty;
 
+    // 图片名称（从路径提取）
+    public string ImageName => Path.GetFileName(ImagePath);
 
-    public BindingList<OneLabel> Labels { get; } = [];// 图片包含的标签
-    public List<OneLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];// 获取未删除的标签列表
-    [ObservableProperty] private OneLabel? _selectedLabel;// 当前选中的标注
-    
+    // 用于显示的图片源（自动从压缩包或文件加载）
+    public ImageSource? DisplayImage => GetImageSource();
 
-    private bool _isRefreshing = false;
+    // 标签列表
+    public BindingList<OneLabel> Labels { get; } = [];
+
+    // 活跃标签列表（排除已删除的）
+    public List<OneLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];
+
+    // 当前选中的标签
+    [ObservableProperty] private OneLabel? _selectedLabel;
+
+    // 是否正在刷新索引（防止递归）
+    private bool _isRefreshing;
+
+    // 构造函数：监听标签列表变化以刷新索引
     public OneImage()
     {
         Labels.ListChanged += (s, e) => { if (!_isRefreshing) RefreshIndices(); };
     }
-    #region 业务逻辑方法
+
+    #endregion
+
+    #region 图片加载
+
+    // 根据图片路径获取图片源（支持从压缩包加载）
     private BitmapImage? GetImageSource()
     {
         if (string.IsNullOrEmpty(ImagePath)) return null;
-
         var archiveResult = ResourceHelper.ParseArchivePath(ImagePath);
-        // 如果是压缩包路径，调用专门的解压加载方法
         if (archiveResult.HasValue)
         {
             var (archivePath, entryPath) = archiveResult.Value;
             return ResourceHelper.LoadImageFromZip(archivePath, entryPath);
         }
-        // 如果是普通路径，直接加载
         return ResourceHelper.LoadFromPath(ImagePath);
     }
+
+    #endregion
+
+    #region 标签管理
+
+    // 刷新所有标签的索引（已删除的标签索引排在最后）
     public void RefreshIndices()
     {
         if (_isRefreshing) return;
@@ -55,45 +78,61 @@ public partial class OneImage : ObservableObject
         {
             int nextIndex = 1;
             foreach (var lbl in Labels.OrderBy(l => l.IsDeleted).ThenBy(l => l.Index))
-            {
                 lbl.Index = nextIndex++;
-            }
         }
-        finally
-        {
-            _isRefreshing = false;
-        }
-        // 延迟通知，打破同步递归链（避免 layout 死锁）
-        System.Windows.Application.Current.Dispatcher.BeginInvoke(
-            new Action(() => OnPropertyChanged(nameof(ActiveLabels))));
+        finally { _isRefreshing = false; }
+        Application.Current.Dispatcher.BeginInvoke(
+            () => OnPropertyChanged(nameof(ActiveLabels)));
     }
+
     #endregion
 
+    #region 撤销重做
 
-    #region 撤回与重做功能
+    // 撤销重做管理器
     public UndoRedoManager History { get; } = new();
-    private LabelSnapshot? _labelSnapshot;// 存储选中 Label 时的初始快照
-    partial void OnSelectedLabelChanging(OneLabel? value)// 当 SelectedLabel 即将改变时调用,SelectedLabel 变更监听
+
+    // 当前选中标签的快照（用于撤销/重做）
+    private LabelSnapshot? _labelSnapshot;
+
+    // 选中标签改变前：提交当前快照
+    partial void OnSelectedLabelChanging(OneLabel? value)
     {
         TryCommitCurrentSnapshot();
-        if (SelectedLabel != null) SelectedLabel.IsSelected = false;// 取消旧标签的选中状态
+        if (SelectedLabel != null) SelectedLabel.IsSelected = false;
     }
+
+    // 选中标签改变后：更新快照和命令状态
     partial void OnSelectedLabelChanged(OneLabel? value)
     {
         if (value != null) value.IsSelected = true;
         UpdateSnapshot();
         NotifyCommands();
     }
-    private bool CanUndo() => History.CanUndo || IsSelectedLabelDirty();// 判断是否可以撤回：历史栈有东西 OR 当前选中的标签被改动过
-    private bool CanRedo() => History.CanRedo;// 判断是否可以重做：历史栈有东西
-    private bool IsSelectedLabelDirty()// 辅助方法,检查当前选中的标签是否有未提交的改动
+
+    // 判断是否可以撤销
+    private bool CanUndo() => History.CanUndo || IsSelectedLabelDirty();
+
+    // 判断是否可以重做
+    private bool CanRedo() => History.CanRedo;
+
+    // 判断当前选中标签是否有未保存的修改
+    private bool IsSelectedLabelDirty()
     {
         if (SelectedLabel == null || _labelSnapshot == null) return false;
         return SelectedLabel.Text != _labelSnapshot.Text ||
                SelectedLabel.Group != _labelSnapshot.Group ||
                SelectedLabel.Position != _labelSnapshot.Position;
     }
-    public string ActiveGroup { get; set; } = Constants.Groups.Default;// 新建标签时使用的默认组别
+
+    // 当前活跃的组别
+    public string ActiveGroup { get; set; } = Constants.Groups.Default;
+
+    #endregion
+
+    #region 命令
+
+    // 添加标签命令
     [RelayCommand]
     public void AddLabel(Point? pos)
     {
@@ -107,19 +146,21 @@ public partial class OneImage : ObservableObject
             Position = pos ?? new Point(0.5, 0.5)
         };
         History.Execute(new AddCommand(Labels, newLabel));
-        SelectedLabel = newLabel; // 自动选中新标签
+        SelectedLabel = newLabel;
     }
 
+    // 删除标签命令
     [RelayCommand]
     public void DeleteLabel(OneLabel? label)
     {
         if ((label ?? SelectedLabel) is not { } target) return;
-
         TryCommitCurrentSnapshot();
         History.Execute(new DeleteCommand(target));
         if (SelectedLabel == target) SelectedLabel = null;
         NotifyCommands();
     }
+
+    // 撤销命令
     [RelayCommand(CanExecute = nameof(CanUndo))]
     public void Undo()
     {
@@ -128,6 +169,8 @@ public partial class OneImage : ObservableObject
         UpdateSnapshot();
         NotifyCommands();
     }
+
+    // 重做命令
     [RelayCommand(CanExecute = nameof(CanRedo))]
     public void Redo()
     {
@@ -136,24 +179,26 @@ public partial class OneImage : ObservableObject
         NotifyCommands();
     }
 
-    
-    private void TryCommitCurrentSnapshot()//用来撤销当前选中标签的未提交修改（例如用户修改了标签但没有切换到其他标签或保存就关闭了窗口）
+    // 尝试提交当前快照
+    private void TryCommitCurrentSnapshot()
     {
-        if (IsSelectedLabelDirty())        // 直接复用 IsSelectedLabelDirty 方法
+        if (IsSelectedLabelDirty())
         {
             History.Execute(new UpdateLabelCommand(SelectedLabel!, _labelSnapshot!, RefreshIndices));
             UpdateSnapshot();
         }
     }
-    
-    private void UpdateSnapshot() =>
-        _labelSnapshot = SelectedLabel != null ? new LabelSnapshot(SelectedLabel) : null;// 统一处理快照刷新
 
-    
-    private void NotifyCommands()// 手动命令状态刷新
+    // 更新快照
+    private void UpdateSnapshot() =>
+        _labelSnapshot = SelectedLabel != null ? new LabelSnapshot(SelectedLabel) : null;
+
+    // 通知命令状态变化
+    private void NotifyCommands()
     {
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
     }
+
     #endregion
 }
