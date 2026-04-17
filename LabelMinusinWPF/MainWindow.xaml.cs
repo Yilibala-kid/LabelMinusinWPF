@@ -1,13 +1,13 @@
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using LabelMinusinWPF.Common;
-using WorkSpace = LabelMinusinWPF.Common.ProjectManager.WorkSpace;
+using LabelMinusinWPF.SelfControls;
 using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -19,6 +19,7 @@ using System.Windows.Threading;
 using static MaterialDesignThemes.Wpf.Theme;
 using Constants = LabelMinusinWPF.Common.Constants;
 using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
+using WorkSpace = LabelMinusinWPF.Common.ProjectManager.WorkSpace;
 
 namespace LabelMinusinWPF
 {
@@ -35,8 +36,6 @@ namespace LabelMinusinWPF
     }
     public partial class MainWindow : Window
     {
-        private DispatcherTimer? _autoSaveTimer;
-
         public MainWindow()
         {
             InitializeComponent();
@@ -45,31 +44,19 @@ namespace LabelMinusinWPF
                 Constants.TempFolders.ScreenShotTemp,
                 Constants.TempFolders.ArchiveTemp));
             Closing += MainWindow_Closing;
-            Loaded += MainWindow_Loaded;
             RegisterMenu.IsChecked = ContextMenuRegistrar.IsRegistered();
+            LabelStylePanel.Instance.LoadSettings();
             InitializeAutoSave();
-        }
-
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
-        {
-            // 监听ViewModel的DisplayMode变化
-            if (DataContext is MainVM)
-            {
-                UpdateLayout(DisplayMode.ListAndTextBox);
-            }
         }
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
-            // 停止自动保存计时器
-            _autoSaveTimer?.Stop();
-
             // 获取 ViewModel
             if (DataContext is MainVM viewModel && viewModel.HasUnsavedChanges())
             {
                 var result = MessageBox.Show(
-                    Constants.Msg.UnsavedPrompt,
-                    Constants.Msg.UnsavedTitle,
+                    "当前翻译有未保存的修改，是否保存？",
+                    "提示",
                     MessageBoxButton.YesNoCancel,
                     MessageBoxImage.Question
                 );
@@ -83,7 +70,6 @@ namespace LabelMinusinWPF
                     e.Cancel = true;
                 }
             }
-            SelfControls.LabelStyleManager.Instance.SaveSettings();
         }
         #region 黑白模式控制
         // 定义依赖属性
@@ -177,6 +163,8 @@ namespace LabelMinusinWPF
         private void FitToPage_Click(object sender, RoutedEventArgs e) => PicView.FitToView();
         private void FitWidth_Click(object sender, RoutedEventArgs e) => PicView.FitToWidth();
         private void FitHeight_Click(object sender, RoutedEventArgs e) => PicView.FitToHeight();
+        private void ZoomIn_Click(object sender, RoutedEventArgs e) => PicView.ZoomScale *= 1.1;
+        private void ZoomOut_Click(object sender, RoutedEventArgs e) => PicView.ZoomScale *= 0.9;
         #endregion
 
 
@@ -216,60 +204,11 @@ namespace LabelMinusinWPF
             FullScreenReview.IsOpen = true;
         }
 
-        private void RegionCaptureWithLabels_Click(object sender, RoutedEventArgs e)
-        {
-            if (PicView == null) return;
-            bool isEnabled = RegionCaptureWithLabelsBtn.IsChecked == true;
-            PicView.IsRegionCaptureWithLabels = isEnabled;
-            if (isEnabled)
-                PicView.SnappedWithLabels += OnRegionSnappedWithLabels;
-            else
-                PicView.SnappedWithLabels -= OnRegionSnappedWithLabels;
-        }
-
-        private void OnRegionSnappedWithLabels(object? sender, Rect normRect)
-        {
-            if (DataContext is not MainVM vm || vm.SelectedImage == null || PicView == null) return;
-
-            try
-            {
-                // 捕获带标签的区域截图（返回截图和标签列表）
-                var result = PicView.CaptureRegionWithLabels(normRect);
-                if (result == null)
-                {
-                    vm.MainMessageQueue.Enqueue("截图失败：无法捕获图片");
-                    return;
-                }
-
-                var (imageWithLabels, labelsInRegion) = result.Value;
-
-                // 生成底部标签文字
-                string labelsText = string.Join("\n", labelsInRegion.Select(l => $"[{l.Index}]\n{l.Text}"));
-
-                // 使用通用截图工具
-                var saveResult = ScreenshotHelper.CaptureAndSave(imageWithLabels, labelsText, vm.SelectedImage.ImageName);
-                if (saveResult != null)
-                    vm.MainMessageQueue.Enqueue("截图已保存并复制到剪贴板");
-                else
-                    vm.MainMessageQueue.Enqueue("截图失败：无法保存");
-
-                // 自动关闭框选模式
-                RegionCaptureWithLabelsBtn.IsChecked = false;
-                PicView.IsRegionCaptureWithLabels = false;
-                PicView.SnappedWithLabels -= OnRegionSnappedWithLabels;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"截图失败: {ex.Message}");
-                vm.MainMessageQueue.Enqueue($"截图失败: {ex.Message}");
-            }
-        }
-
         private void Recognize_Click(object sender, RoutedEventArgs e)
         {
             if (DataContext is not MainVM vm) return;
             var screenshot = ScreenshotHelper.TryGetClipboardImage();
-            if (screenshot == null) { vm.MainMessageQueue.Enqueue(Constants.Msg.ScreenshotPrompt); return; }
+            if (screenshot == null) { vm.MsgQueue.Enqueue("请先截图，再点击识别"); return; }
 
             string websiteName = OcrWebsiteSelector.SelectedItem as string ?? Constants.OcrWebsites.DefaultWebsite;
             string websiteUrl = Constants.OcrWebsites.Websites.TryGetValue(websiteName, out var url)
@@ -303,7 +242,7 @@ namespace LabelMinusinWPF
         }
         private void About_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is MainVM vm) vm.MainMessageQueue.Enqueue(Constants.Msg.AboutMessage);
+            if (DataContext is MainVM vm) vm.MsgQueue.Enqueue("本程序由No-Hifuu友情赞助");
         }
 
         #region 命令行启动支持
@@ -364,11 +303,11 @@ namespace LabelMinusinWPF
 
                     // --- 标签切换 (W: 上一个, S: 下一个) ---
                     case Key.W:
-                        vm.PreviousLabelCommand.Execute(null);
+                        vm.SelectedImage?.PreviousLabelCommand.Execute(null);
                         e.Handled = true;
                         break;
                     case Key.S:
-                        vm.NextLabelCommand.Execute(null);
+                        vm.SelectedImage?.NextLabelCommand.Execute(null);
                         e.Handled = true;
                         break;
                     case Key.R:
@@ -381,6 +320,7 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 自动保存功能
+        private DispatcherTimer? _autoSaveTimer;
         private void InitializeAutoSave()
         {
             _autoSaveTimer = new DispatcherTimer

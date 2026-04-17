@@ -12,41 +12,29 @@
     d:DesignWidth="220"
     mc:Ignorable="d">
     <UserControl.Resources>
+        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}" />
+        <Style TargetType="ToggleButton" BasedOn="{StaticResource IconToggleButtonStyle}" />
+        <Style TargetType="RadioButton" BasedOn="{StaticResource IconRadioButtonStyle}" />
         <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
     </UserControl.Resources>
     <StackPanel Orientation="Vertical">
-        <!--  标签点样式  -->
+        <!-- 标签点样式 -->
         <TextBlock Margin="16,16,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签点样式" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
-            <RadioButton GroupName="DotStyle" IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Circle, Mode=TwoWay}" Style="{StaticResource IconRadioButtonStyle}" Tag="Circle" />
-            <RadioButton GroupName="DotStyle" IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Square, Mode=TwoWay}" Style="{StaticResource IconRadioButtonStyle}" Tag="Square" />
-            <RadioButton GroupName="DotStyle" IsChecked="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Transparent, Mode=TwoWay}" Style="{StaticResource IconRadioButtonStyle}" Tag="Select" />
+            <RadioButton GroupName="DotStyle" IsChecked="{Binding DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Circle, Mode=TwoWay}" Tag="Circle" />
+            <RadioButton GroupName="DotStyle" IsChecked="{Binding DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Square, Mode=TwoWay}" Tag="Square" />
+            <RadioButton GroupName="DotStyle" IsChecked="{Binding DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Transparent, Mode=TwoWay}" Tag="Select" />
         </StackPanel>
 
-        <!--  文字背景颜色  -->
+        <!-- 文字背景颜色 -->
         <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="背景颜色" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
-            <Button
-                Margin="0,0,4,0"
-                Background="White"
-                Click="BgColor_Click"
-                Style="{StaticResource ColorPickerButtonStyle}"
-                Tag="White" />
-            <Button
-                Margin="0,0,4,0"
-                Background="Black"
-                Click="BgColor_Click"
-                Style="{StaticResource ColorPickerButtonStyle}"
-                Tag="Black" />
-            <Button
-                Margin="0,0,4,0"
-                Background="RoyalBlue"
-                Click="BgColor_Click"
-                Style="{StaticResource ColorPickerButtonStyle}"
-                Tag="RoyalBlue" />
+            <Button Background="White" Command="{Binding SetBackgroundColorCommand}" CommandParameter="White" Style="{StaticResource ColorPickerButtonStyle}" />
+            <Button Background="Black" Command="{Binding SetBackgroundColorCommand}" CommandParameter="Black" Style="{StaticResource ColorPickerButtonStyle}" />
+            <Button Background="RoyalBlue" Command="{Binding SetBackgroundColorCommand}" CommandParameter="RoyalBlue" Style="{StaticResource ColorPickerButtonStyle}" />
         </StackPanel>
 
-        <!--  文字背景透明度  -->
+        <!-- 文字背景透明度 -->
         <TextBlock Margin="16,8,16,4" FontWeight="SemiBold" Opacity="0.8" Text="背景透明度" />
         <Slider
             Margin="16,0,16,8"
@@ -54,44 +42,30 @@
             Maximum="1"
             Minimum="0"
             TickFrequency="0.1"
-            Value="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity, Mode=TwoWay}" />
+            Value="{Binding TextBackgroundOpacity, Mode=TwoWay}" />
 
-        <!--  文字前景颜色  -->
+        <!-- 文字前景颜色 -->
         <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="文字颜色" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
-            <Button
-                Margin="0,0,4,0"
-                Background="White"
-                Click="FgColor_Click"
-                Style="{StaticResource ColorPickerButtonStyle}"
-                Tag="White" />
-            <Button
-                Margin="0,0,4,0"
-                Background="Black"
-                Click="FgColor_Click"
-                Style="{StaticResource ColorPickerButtonStyle}"
-                Tag="Black" />
-            <Button
-                Margin="0,0,4,0"
-                Background="RoyalBlue"
-                Click="FgColor_Click"
-                Style="{StaticResource ColorPickerButtonStyle}"
-                Tag="RoyalBlue" />
+            <Button Background="White" Command="{Binding SetForegroundColorCommand}" CommandParameter="White" Style="{StaticResource ColorPickerButtonStyle}" />
+            <Button Background="Black" Command="{Binding SetForegroundColorCommand}" CommandParameter="Black" Style="{StaticResource ColorPickerButtonStyle}" />
+            <Button Background="RoyalBlue" Command="{Binding SetForegroundColorCommand}" CommandParameter="RoyalBlue" Style="{StaticResource ColorPickerButtonStyle}" />
         </StackPanel>
 
-        <!--  标签缩放  -->
+        <!-- 标签缩放 -->
         <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签缩放" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
-            <Button Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ZoomInLabelCommand}" Style="{StaticResource IconButtonStyle}" Tag="Plus" ToolTip="放大标签" />
-            <Button Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ZoomOutLabelCommand}" Style="{StaticResource IconButtonStyle}" Tag="Minus" ToolTip="缩小标签" />
+            <Button Command="{Binding ZoomInLabelCommand}" Tag="Plus" ToolTip="放大标签" />
+            <Button Command="{Binding ZoomOutLabelCommand}" Tag="Minus" ToolTip="缩小标签" />
 
 
         </StackPanel>
 
         <Button
             Margin="16,0,16,8"
+            Tag="Restore"
             Background="RoyalBlue"
-            Command="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=ResetToDefaultsCommand}"
+            Command="{Binding ResetToDefaultsCommand}"
             Content="恢复默认样式"
             FontWeight="Bold" />
     </StackPanel>

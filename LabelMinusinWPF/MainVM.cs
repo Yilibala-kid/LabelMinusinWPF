@@ -1,19 +1,22 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.IO;
-using System.Linq;
-using System.Diagnostics;
-using System.Windows;
-using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using LabelMinusinWPF.Common;
 using LabelMinusinWPF.SelfControls;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Windows;
+using System.Windows.Threading;
 using Constants = LabelMinusinWPF.Common.Constants;
+using GroupManager = LabelMinusinWPF.Common.GroupManager;
+using GroupConstants = LabelMinusinWPF.Common.GroupConstants;
 using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
 using WorkSpace = LabelMinusinWPF.Common.ProjectManager.WorkSpace;
 
@@ -26,18 +29,53 @@ namespace LabelMinusinWPF
         #region 初始化
 
         [ObservableProperty]
-        private ISnackbarMessageQueue _mainMessageQueue;
+        private ISnackbarMessageQueue _MsgQueue;
 
         public MainVM()
         {
-            MainMessageQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(2));
-            SyncGroupColors();
+            MsgQueue = new SnackbarMessageQueue(TimeSpan.FromSeconds(2));
+
+            // 注册 GroupManager 消息处理器
+            WeakReferenceMessenger.Default.Register<GroupManager.GroupManagerShowMessageMessage>(this, (r, m) =>
+            {
+                MsgQueue.Enqueue(m.Message);
+            });
+
+            WeakReferenceMessenger.Default.Register<GroupManager.GroupManagerSelectedGroupChangedMessage>(this, (r, m) =>
+            {
+                if (SelectedImage?.SelectedLabel != null && m.GroupName != null)
+                    SelectedImage.SelectedLabel.Group = m.GroupName;
+            });
+
+            // DeleteGroup 查询响应
+            WeakReferenceMessenger.Default.Register<GroupManager.DeleteGroupQueryMessage>(this, (r, m) =>
+            {
+                var labels = ImageList
+                    .SelectMany(img => img.Labels)
+                    .Where(lbl => !lbl.IsDeleted && lbl.Group == m.GroupName)
+                    .ToList();
+
+                if (labels.Count > 0)
+                {
+                    var locations = labels.Select((lbl, idx) =>
+                    {
+                        var img = ImageList.FirstOrDefault(i => i.Labels.Contains(lbl));
+                        int labelIdx = img?.Labels.IndexOf(lbl) + 1 ?? 0;
+                        return $"[{img?.ImageName ?? "?"}-{labelIdx}]";
+                    });
+                    string locationStr = string.Join(", ", locations);
+                    WeakReferenceMessenger.Default.Send(new GroupManager.GroupManagerShowMessageMessage(
+                        $"组【{m.GroupName}】被以下标签使用：{locationStr}"));
+                }
+
+                WeakReferenceMessenger.Default.Send(new GroupManager.DeleteGroupResponseMessage(m.GroupName, labels, m.Tcs));
+            });
         }
         #endregion
 
         // --- 项目上下文 ---
         [ObservableProperty]
-        [NotifyCanExecuteChangedFor(nameof(OpenCurrentFolderCommand))]
+        [NotifyCanExecuteChangedFor(nameof(OpenWorkFolderCommand))]
         [NotifyCanExecuteChangedFor(nameof(SaveCommand))]
         [NotifyCanExecuteChangedFor(nameof(AdjustImageSetCommand))]
         [NotifyCanExecuteChangedFor(nameof(LinkZipCommand))]
@@ -48,156 +86,9 @@ namespace LabelMinusinWPF
         public BindingList<OneImage> ImageList { get; } = [];
 
         [ObservableProperty]
+        [NotifyCanExecuteChangedFor(nameof(PreviousImageCommand))]
+        [NotifyCanExecuteChangedFor(nameof(NextImageCommand))]
         private OneImage? _selectedImage;// 当前图片
-        partial void OnSelectedImageChanged(OneImage? value)
-        {
-            NotifySelectedGroupChanged();
-            PreviousImageCommand.NotifyCanExecuteChanged();
-            NextImageCommand.NotifyCanExecuteChanged();
-        }
-
-        partial void OnSelectedImageChanging(OneImage? oldValue, OneImage? newValue)
-        {
-            if (oldValue != null)
-                oldValue.PropertyChanged -= OnSelectedImagePropertyChanged;
-            if (newValue != null)
-                newValue.PropertyChanged += OnSelectedImagePropertyChanged;
-        }
-
-        private void OnSelectedImagePropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName != nameof(OneImage.SelectedLabel) || sender is not OneImage image) return;
-            if (image.SelectedLabel is { } label)
-                image.ActiveGroup = GroupColorManager.NormalizeGroupName(label.Group);
-            NotifySelectedGroupChanged();
-        }
-
-        #region 组别
-
-        public ObservableCollection<string> AllGroups { get; } =
-            new([.. Constants.Groups.Required]);
-
-        public string SelectedGroupName
-        {
-            get => GroupColorManager.NormalizeGroupName(
-                SelectedImage?.SelectedLabel?.Group
-                ?? SelectedImage?.ActiveGroup
-                ?? Constants.Groups.Default);
-            set
-            {
-                if (SelectedImage == null) return;
-                string normalized = GroupColorManager.NormalizeGroupName(value);
-                bool changed = EnsureGroupExists(normalized);
-                if (changed) SyncGroupColors();
-
-                if (!string.Equals(SelectedImage.ActiveGroup, normalized, StringComparison.Ordinal))
-                {
-                    SelectedImage.ActiveGroup = normalized;
-                    changed = true;
-                }
-
-                if (SelectedImage.SelectedLabel is { } label && label.Group != normalized)
-                {
-                    label.Group = normalized;
-                    changed = true;
-                }
-
-                if (changed) OnPropertyChanged(nameof(SelectedGroupName));
-            }
-        }
-        [ObservableProperty]
-        private bool _isAddingGroup;
-        [ObservableProperty]
-        private string? _newGroupName;
-
-        /// <summary>从标签重建组别列表；可选择保留当前未被标签使用的自定义组别</summary>
-        private void SyncGroupsFromLabels(bool preserveExistingCustomGroups = false)
-        {
-            IEnumerable<string> groups = ImageList
-                .SelectMany(img => img.Labels)
-                .Where(lbl => !lbl.IsDeleted)
-                .Select(lbl => lbl.Group);
-
-            if (preserveExistingCustomGroups)
-                groups = AllGroups
-                    .Where(group => !Constants.Groups.Required.Contains(group))
-                    .Concat(groups);
-
-            ResetGroups(groups);
-
-            SyncGroupColors();
-        }
-
-        private static IEnumerable<string> GetCustomGroups(IEnumerable<string> groupNames) =>
-            groupNames
-                .Select(GroupColorManager.NormalizeGroupName)
-                .Where(group => !Constants.Groups.Required.Contains(group))
-                .Distinct();
-
-        private void NotifySelectedGroupChanged()
-        {
-            if (EnsureGroupExists(SelectedGroupName))
-                SyncGroupColors();
-
-            OnPropertyChanged(nameof(SelectedGroupName));
-        }
-
-        private void ResetGroups(IEnumerable<string>? customGroups = null)
-        {
-            AllGroups.Clear();
-            foreach (string group in Constants.Groups.Required
-                .Concat(GetCustomGroups(customGroups ?? [])))
-                AllGroups.Add(group);
-        }
-
-        private bool EnsureGroupExists(string groupName)
-        {
-            string normalized = GroupColorManager.NormalizeGroupName(groupName);
-            if (AllGroups.Contains(normalized))
-                return false;
-
-            AllGroups.Add(normalized);
-            return true;
-        }
-
-        private void SyncGroupColors()
-        {
-            GroupColorManager.SetGroupOrder(AllGroups);
-
-            foreach (OneLabel label in ImageList.SelectMany(img => img.Labels))
-                label.RefreshGroupBrush();
-        }
-
-        [RelayCommand]
-        private void AddGroup()
-        {
-            string name = NewGroupName?.Trim() ?? "";
-            NewGroupName = "";
-            IsAddingGroup = false;
-            if (string.IsNullOrWhiteSpace(name)) return;
-            if (AllGroups.Contains(name)) { MainMessageQueue.Enqueue("组别已存在"); return; }
-            if (EnsureGroupExists(name))
-                SyncGroupColors();
-            SelectedGroupName = GroupColorManager.NormalizeGroupName(name);
-        }
-
-        [RelayCommand]
-        private void DeleteGroup()
-        {
-            string groupName = GroupColorManager.NormalizeGroupName(SelectedGroupName);
-            if (Constants.Groups.Required.Contains(groupName))
-                { MainMessageQueue.Enqueue("默认组别不可删除"); return; }
-            if (ImageList.Any(img => img.Labels.Any(l => !l.IsDeleted && l.Group == groupName)))
-                { MainMessageQueue.Enqueue("有标签正在使用该组别"); return; }
-            AllGroups.Remove(groupName);
-            SyncGroupColors();
-            if (SelectedImage != null)
-                SelectedGroupName = Constants.Groups.Default;
-            else
-                OnPropertyChanged(nameof(SelectedGroupName));
-        }
-
-        #endregion
 
         #region 图片切换
         private int CurrentImageIndex => SelectedImage != null ? ImageList.IndexOf(SelectedImage) : -1;
@@ -218,67 +109,19 @@ namespace LabelMinusinWPF
         }
         private bool CanGoToNext() => CurrentImageIndex >= 0 && CurrentImageIndex < ImageList.Count - 1;
         #endregion
-
-        #region 标签切换
-        [RelayCommand(CanExecute = nameof(CanGoToPreviousLabel))]
-        public void PreviousLabel()
-        {
-            if (SelectedImage == null) return;
-            var labels = SelectedImage.ActiveLabels;
-            if (labels.Count == 0) return;
-
-            if (SelectedImage.SelectedLabel == null)
-            {
-                SelectedImage.SelectedLabel = labels[^1];
-                return;
-            }
-            int idx = labels.IndexOf(SelectedImage.SelectedLabel);
-            if (idx > 0) SelectedImage.SelectedLabel = labels[idx - 1];
-        }
-
-        private bool CanGoToPreviousLabel()
-        {
-            if (SelectedImage == null || SelectedImage.ActiveLabels.Count == 0) return false;
-            if (SelectedImage.SelectedLabel == null) return true;
-            return SelectedImage.ActiveLabels.IndexOf(SelectedImage.SelectedLabel) > 0;
-        }
-
-        [RelayCommand(CanExecute = nameof(CanGoToNextLabel))]
-        public void NextLabel()
-        {
-            if (SelectedImage == null) return;
-            var labels = SelectedImage.ActiveLabels;
-            if (labels.Count == 0) return;
-
-            if (SelectedImage.SelectedLabel == null)
-            {
-                SelectedImage.SelectedLabel = labels.First();
-                return;
-            }
-            int idx = labels.IndexOf(SelectedImage.SelectedLabel);
-            if (idx >= 0 && idx < labels.Count - 1) SelectedImage.SelectedLabel = labels[idx + 1];
-        }
-
-        private bool CanGoToNextLabel()
-        {
-            if (SelectedImage == null || SelectedImage.ActiveLabels.Count == 0) return false;
-            if (SelectedImage.SelectedLabel == null) return true;
-            int idx = SelectedImage.ActiveLabels.IndexOf(SelectedImage.SelectedLabel);
-            return idx >= 0 && idx < SelectedImage.ActiveLabels.Count - 1;
-        }
-        #endregion
     }
 
     #region 文件处理
     public partial class MainVM
     {
         #region 菜单命令：新建 / 打开 / 保存
-
-
         [RelayCommand]
         private void NewFolder()
         {
-            var dialog = new OpenFolderDialog { Title = "选择要新建翻译的文件夹" };
+            var dialog = new OpenFolderDialog 
+            { 
+                Title = "选择要新建翻译的文件夹" 
+            };
             string? folder = dialog.ShowDialog() == true ? dialog.FolderName : null;
             if (!string.IsNullOrEmpty(folder))
                 OpenResourceByPath([folder], true);
@@ -313,24 +156,13 @@ namespace LabelMinusinWPF
         [RelayCommand]
         private void OpenFolder()
         {
-            var dialog = new OpenFolderDialog { Title = "选择要预览的文件夹" };
+            var dialog = new OpenFolderDialog 
+            { 
+                Title = "选择要预览的文件夹" 
+            };
             string? folder = dialog.ShowDialog() == true ? dialog.FolderName : null;
             if (!string.IsNullOrEmpty(folder))
                 OpenResourceByPath([folder], false);
-        }
-
-        [RelayCommand]
-        private void OpenResource()
-        {
-            var dialog = new OpenFileDialog
-            {
-                Filter = Constants.FileFilters.ImageAndArchive,
-                Title = "选择要预览的图片（多张）或压缩包（单个）",
-                Multiselect = true,
-            };
-            string[]? filepaths = dialog.ShowDialog() == true ? dialog.FileNames : null;
-            if (filepaths is { Length: > 0 })
-                OpenResourceByPath(filepaths, false);
         }
 
         [RelayCommand]
@@ -375,13 +207,13 @@ namespace LabelMinusinWPF
 
         #region 其他文件操作：打开文件夹、清空、调整图集、关联压缩包
         [RelayCommand(CanExecute = nameof(CanSave))]
-        private void OpenCurrentFolder()
+        private void OpenWorkFolder()
         {
             string pathToOpen = WorkSpace.BaseFolderPath;
             if (!string.IsNullOrEmpty(pathToOpen) && Directory.Exists(pathToOpen))
                 Process.Start(new ProcessStartInfo { FileName = pathToOpen, UseShellExecute = true, Verb = "open" });
             else
-                MainMessageQueue.Enqueue(Constants.Msg.NoFolderPath);
+                MsgQueue.Enqueue("当前项目没有有效的文件夹路径可打开");
         }
 
         [RelayCommand(CanExecute = nameof(CanSave))]
@@ -396,42 +228,16 @@ namespace LabelMinusinWPF
                 else if (result == MessageBoxResult.Cancel) return;
             }
 
-            ImageList.RaiseListChangedEvents = false;
             ImageList.Clear();
-            ImageList.RaiseListChangedEvents = true;
-            ImageList.ResetBindings();
             SelectedImage = null;
             WorkSpace = WorkSpace.Empty;
-            ResetGroups();
-            SyncGroupColors();
-            OnPropertyChanged(nameof(SelectedGroupName));
-            MainMessageQueue.Enqueue(Constants.Msg.WorkspaceCleared);
+            MsgQueue.Enqueue("工作区已清空");
         }
 
         public bool HasUnsavedChanges() =>
-            ImageList.Any(img => img.Labels.Any(l => l.IsModified));
+            ImageList.Any(img => img.History.UndoCount != img.SavedVersionCount);
 
-        private void ReloadImages(List<OneImage> newImages, bool updateImagePath = false)
-        {
-            var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
-            ImageList.RaiseListChangedEvents = false;
-            ImageList.Clear();
 
-            foreach (var img in newImages)
-            {
-                if (existingData.TryGetValue(img.ImageName, out var existingImg))
-                {
-                    if (updateImagePath) existingImg.ImagePath = img.ImagePath;
-                    ImageList.Add(existingImg);
-                }
-                else ImageList.Add(img);
-            }
-
-            ImageList.RaiseListChangedEvents = true;
-            ImageList.ResetBindings();
-            SyncGroupsFromLabels(preserveExistingCustomGroups: true);
-            SelectedImage = ImageList.FirstOrDefault();
-        }
 
         [RelayCommand(CanExecute = nameof(CanSave))]
         private void AdjustImageSet()
@@ -445,7 +251,7 @@ namespace LabelMinusinWPF
                 availableImages = ProjectManager.ScanFolder(WorkSpace.BaseFolderPath);
             else
             {
-                MainMessageQueue.Enqueue(Constants.Msg.NoImageSource);
+                MsgQueue.Enqueue("无法找到有效的图片源");
                 return;
             }
 
@@ -454,7 +260,7 @@ namespace LabelMinusinWPF
             if (dialog.ShowDialog() == true)
             {
                 ReloadImages(dialog.SelectedImages);
-                MainMessageQueue.Enqueue(string.Format(Constants.Msg.ImageSetUpdated, ImageList.Count));
+                MsgQueue.Enqueue(string.Format("已更新图集，当前包含 {0} 张图片", ImageList.Count));
             }
         }
 
@@ -463,20 +269,20 @@ namespace LabelMinusinWPF
         {
             if (!Directory.Exists(WorkSpace.BaseFolderPath))
             {
-                MainMessageQueue.Enqueue(Constants.Msg.NoValidFolderPathForZip);
+                MsgQueue.Enqueue("当前项目没有有效的文件夹路径");
                 return;
             }
 
             // 获取当前文件夹中的所有压缩包
             var zipFiles = Directory
                 .GetFiles(WorkSpace.BaseFolderPath)
-                .Where(f => ProjectManager.ZipExtensions.Contains(Path.GetExtension(f)))
+                .Where(f => Constants.ArchiveExtensions.Contains(Path.GetExtension(f)))
                 .Select(f => Path.GetFileName(f))
                 .ToList();
 
             if (zipFiles.Count == 0)
             {
-                MainMessageQueue.Enqueue(Constants.Msg.NoZipFilesFound);
+                MsgQueue.Enqueue("当前文件夹中没有找到压缩包文件");
                 return;
             }
 
@@ -496,14 +302,14 @@ namespace LabelMinusinWPF
                     {
                         var zipImages = ProjectManager.ScanZip(WorkSpace.ZipPath);
                         ReloadImages(zipImages, updateImagePath: true);
-                        MainMessageQueue.Enqueue(
-                            string.Format(Constants.Msg.ZipLinked, selectedZip)
+                        MsgQueue.Enqueue(
+                            string.Format("已关联压缩包：{0}", selectedZip)
                         );
                     }
                     catch (Exception ex)
                     {
-                        MainMessageQueue.Enqueue(
-                            string.Format(Constants.Msg.ZipLoadFailed, ex.Message)
+                        MsgQueue.Enqueue(
+                            string.Format("加载压缩包失败: {0}", ex.Message)
                         );
                     }
                 }
@@ -512,9 +318,17 @@ namespace LabelMinusinWPF
                     // 取消关联，切换到文件夹模式
                     var folderImages = ProjectManager.ScanFolder(WorkSpace.BaseFolderPath);
                     ReloadImages(folderImages, updateImagePath: true);
-                    MainMessageQueue.Enqueue(Constants.Msg.ZipLinkCanceled);
+                    MsgQueue.Enqueue("已取消压缩包关联，在当前文件夹获取图片");
                 }
             }
+        }
+
+        [RelayCommand(CanExecute = nameof(CanSave))]
+        private void ExportTxt(string? modeStr)
+        {
+            if (!Enum.TryParse<ExportMode>(modeStr, out var mode))
+                return;
+            SaveCore(null, mode, updateContext: false);
         }
         #endregion
 
@@ -522,33 +336,39 @@ namespace LabelMinusinWPF
 
 
         #region 核心函数：加载与保存
+        private void ReloadImages(List<OneImage> newImages, bool updateImagePath = false)
+        {
+            var existingData = ImageList.ToDictionary(img => img.ImageName, img => img);
+            ImageList.Clear();
 
+            foreach (var img in newImages)
+            {
+                if (existingData.TryGetValue(img.ImageName, out var existingImg))
+                {
+                    if (updateImagePath) existingImg.ImagePath = img.ImagePath;
+                    ImageList.Add(existingImg);
+                }
+                else ImageList.Add(img);
+            }
+
+            SelectedImage = ImageList.FirstOrDefault();
+        }
 
         private void LoadProject(WorkSpace context, List<OneImage> images, string successMsg)
         {
-            if (!Application.Current.Dispatcher.CheckAccess())
-            {
-                Application.Current.Dispatcher.Invoke(() => LoadProject(context, images, successMsg));
-                return;
-            }
-
             if (images.Count == 0)
             {
-                MainMessageQueue.Enqueue(Constants.Msg.NoImages);
+                MsgQueue.Enqueue("该路径下未找到支持的图片文件");
                 return;
             }
-
             WorkSpace = context;
-
-            ImageList.RaiseListChangedEvents = false;
             ImageList.Clear();
             images.ForEach(ImageList.Add);
-            ImageList.RaiseListChangedEvents = true;
-            ImageList.ResetBindings();
 
-            SyncGroupsFromLabels();
+            var groups = ImageList.SelectMany(img => img.Labels).Where(lbl => !lbl.IsDeleted).Select(lbl => lbl.Group);
+            GroupManager.Instance.SyncGroupsFromLabels(customGroups: groups);
             SelectedImage = ImageList.FirstOrDefault();
-            MainMessageQueue.Enqueue(string.Format(Constants.Msg.LoadSuccess, successMsg, images.Count));
+            MsgQueue.Enqueue(string.Format("{0} (已加载 {1} 张图片)", successMsg, images.Count));
         }
 
         // 统一资源入口
@@ -565,7 +385,7 @@ namespace LabelMinusinWPF
             // --- 1. 图片组：只要输入中包含支持的图片，就直接加载这些图片 ---
             var imageFiles = paths
                 .Where(p =>
-                    File.Exists(p) && ProjectManager.ImageExtensions.Contains(Path.GetExtension(p))
+                    File.Exists(p) && Constants.ImageExtensions.Contains(Path.GetExtension(p))
                 )
                 .ToList();
 
@@ -593,20 +413,18 @@ namespace LabelMinusinWPF
             {
                 try
                 {
-                    var (context, images) = ProjectManager.LoadProjectFromTxt(firstPath);
+                    var (context, images) = ProjectManager.GetProjectFromTxt(firstPath);
                     LoadProject(context, images, $"已加载翻译：{context.TxtName}");
                 }
                 catch (Exception ex)
                 {
-                    MainMessageQueue.Enqueue(
-                        string.Format(Constants.Msg.ParseTxtFailed, ex.Message)
-                    );
+                    MsgQueue.Enqueue(string.Format("解析 TXT 失败: {0}", ex.Message));
                 }
                 return;
             }
 
             // --- 3. 压缩包 (.zip, .rar, .7z) ---
-            if (ProjectManager.ZipExtensions.Contains(ext) && File.Exists(firstPath))
+            if (Constants.ArchiveExtensions.Contains(ext) && File.Exists(firstPath))
             {
                 try
                 {
@@ -630,7 +448,7 @@ namespace LabelMinusinWPF
                 }
                 catch (Exception ex)
                 {
-                    MainMessageQueue.Enqueue(string.Format(Constants.Msg.ReadZipErr, ex.Message));
+                    MsgQueue.Enqueue(string.Format("读取压缩包失败: {0}", ex.Message));
                 }
                 return;
             }
@@ -709,6 +527,7 @@ namespace LabelMinusinWPF
                         Path.GetFileName(targetPath),
                         WorkSpace.ZipName
                     );
+                    ImageList.ToList().ForEach(img => img.MarkAsSaved());
                 }
 
                 string modeText = mode switch
@@ -717,23 +536,17 @@ namespace LabelMinusinWPF
                     ExportMode.Diff => "修改文档",
                     _ => "翻译",
                 };
-                MainMessageQueue.Enqueue(
-                    string.Format(Constants.Msg.Saved, modeText, Path.GetFileName(targetPath))
+                MsgQueue.Enqueue(
+                    string.Format("已保存{0}到 {1}", modeText, Path.GetFileName(targetPath))
                 );
             }
             catch (Exception ex)
             {
-                MainMessageQueue.Enqueue(string.Format(Constants.Msg.SaveErr, ex.Message));
+                MsgQueue.Enqueue(string.Format("保存失败: {0}", ex.Message));
             }
         }
 
-        [RelayCommand(CanExecute = nameof(CanSave))]
-        private void ExportTxt(string? modeStr)
-        {
-            if (!Enum.TryParse<ExportMode>(modeStr, out var mode))
-                return;
-            SaveCore(null, mode, updateContext: false);
-        }
+
         #endregion
     }
     #endregion

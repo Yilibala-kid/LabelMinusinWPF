@@ -23,7 +23,6 @@ namespace LabelMinusinWPF
             }
 
             base.OnStartup(e);
-            LabelStyleManager.Instance.LoadSettings();
 
             MainWindow mainWindow = new();
             mainWindow.Show();

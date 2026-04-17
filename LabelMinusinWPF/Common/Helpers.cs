@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -41,6 +42,18 @@ namespace LabelMinusinWPF.Common
             return false;
         }
     }
+
+    public class ImageRelativePositionConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values[0] is not double relative || values[1] is not Image img || img.Source == null)
+                return 0.0;
+            bool isX = (string)parameter == "X";
+            return relative * (isX ? img.ActualWidth : img.ActualHeight);
+        }
+        public object[]? ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => null;
+    }
     #endregion
 
     #region 右键菜单注册
@@ -60,7 +73,7 @@ namespace LabelMinusinWPF.Common
 
         private static IEnumerable<string> GetTargetExtensions() =>
             TargetExtensions
-                .Concat(ProjectManager.ImageExtensions)
+                .Concat(Constants.ImageExtensions)
                 .Where(ext => !string.IsNullOrWhiteSpace(ext))
                 .Select(ext => ext.StartsWith('.') ? ext : "." + ext)
                 .Distinct(StringComparer.OrdinalIgnoreCase);
@@ -168,21 +181,18 @@ namespace LabelMinusinWPF.Common
             }
         }
 
-        public static readonly HashSet<string> ImageExtensions = Constants.ImageExtensions;
-        public static readonly HashSet<string> ZipExtensions = Constants.ArchiveExtensions;
-
         public static List<OneImage> ScanFolder(string path) =>
             [
                 .. Directory
                     .EnumerateFiles(path)
-                    .Where(f => ImageExtensions.Contains(Path.GetExtension(f)))
+                    .Where(f => Constants.ImageExtensions.Contains(Path.GetExtension(f)))
                     .Select(f => new OneImage { ImagePath = f }),
             ];
 
         public static List<OneImage> ScanZip(string zipPath) =>
             [.. ResourceHelper.GetImagePath(zipPath).Select(f => new OneImage { ImagePath = f })];
 
-        public static (WorkSpace Context, List<OneImage> Images) LoadProjectFromTxt(string txtFilePath)
+        public static (WorkSpace Context, List<OneImage> Images) GetProjectFromTxt(string txtFilePath)
         {
             string content = File.ReadAllText(txtFilePath);
             string baseFolder = Path.GetDirectoryName(txtFilePath) ?? "";
@@ -346,53 +356,5 @@ namespace LabelMinusinWPF.Common
         }
     }
     #endregion
-
-
-    #region 组别管理
-    public static class GroupColorManager
-    {
-        private static readonly Dictionary<string, SolidColorBrush> _cache = [];
-
-        public static void SetGroupOrder(IEnumerable<string> groupNames)
-        {
-            _cache.Clear();
-
-            SolidColorBrush[] palette = Constants.Groups.Brushes;
-            int index = 0;
-
-            foreach (string groupName in groupNames
-                .Select(NormalizeGroupName)
-                .Distinct())
-            {
-                _cache[groupName] = palette[index % palette.Length];
-                index++;
-            }
-        }
-
-        public static SolidColorBrush GetBrush(string groupName)
-        {
-            string normalized = NormalizeGroupName(groupName);
-            if (_cache.TryGetValue(normalized, out var cached)) return cached;
-
-            var brush = Constants.Groups.Brushes[_cache.Count % Constants.Groups.Brushes.Length];
-            _cache[normalized] = brush;
-            return brush;
-        }
-
-        public static string NormalizeGroupName(string? groupName) =>
-            string.IsNullOrWhiteSpace(groupName) ? Constants.Groups.Default : groupName.Trim();
-    }
-
-    public class GroupNameToBrushConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-            => GroupColorManager.GetBrush(value as string ?? "");
-
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-            => throw new NotImplementedException();
-    }
-
-    #endregion
-
 
 }

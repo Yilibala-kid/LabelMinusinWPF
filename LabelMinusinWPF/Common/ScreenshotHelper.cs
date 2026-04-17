@@ -244,53 +244,5 @@ public static class ScreenshotHelper
         catch { return null; }
     }
 
-    /// <summary>裁剪区域 + 标签渲染</summary>
-    public static (BitmapSource? Image, List<OneLabel> Labels)? CaptureRegionWithLabels(BitmapSource? bmp, Rect r, IEnumerable<OneLabel> labels)
-    {
-        if (bmp == null) return null;
-        var cropped = CropRegion(bmp, r);
-        if (cropped == null) return null;
-
-        var regionLabels = GetLabelsInRegion(r, labels);
-        if (regionLabels.Count == 0) return (cropped, regionLabels);
-
-        try
-        {
-            var style = SelfControls.LabelStyleManager.Instance;
-            int w = cropped.PixelWidth, h = cropped.PixelHeight;
-            double scale = style.LabelScale, rw = r.Width, rh = r.Height;
-            var dotStyle = style.DotStyle;
-            var tf = new Typeface(new FontFamily("Microsoft YaHei"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
-
-            var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
-            var visual = new DrawingVisual();
-            using (var dc = visual.RenderOpen())
-            {
-                dc.DrawImage(cropped, new Rect(0, 0, w, h));
-                double dpi = VisualTreeHelper.GetDpi(visual).PixelsPerDip;
-                foreach (var lb in regionLabels)
-                {
-                    double lx = (lb.X - r.X) / rw * w, ly = (lb.Y - r.Y) / rh * h;
-                    var brush = lb.GroupBrush ?? Brushes.Red;
-                    if (dotStyle == SelfControls.DotStyleType.Circle)
-                        dc.DrawEllipse(brush, new Pen(Brushes.White, Math.Max(1, scale)), new Point(lx, ly), 9 * scale, 9 * scale);
-                    else if (dotStyle == SelfControls.DotStyleType.Square)
-                        dc.DrawRectangle(brush, new Pen(Brushes.White, Math.Max(1, scale)), new Rect(lx - 9 * scale, ly - 9 * scale, 18 * scale, 18 * scale));
-
-                    var ft = new FormattedText(lb.Index.ToString(), System.Globalization.CultureInfo.CurrentCulture, FlowDirection.LeftToRight, tf, 10 * scale, Brushes.White, dpi);
-                    dc.DrawText(ft, new Point(lx - ft.Width / 2, ly - ft.Height / 2));
-                }
-            }
-            rtb.Render(visual);
-            rtb.Freeze();
-            return (rtb, regionLabels);
-        }
-        catch { return (cropped, regionLabels); }
-    }
-
-    /// <summary>获取区域内的标签</summary>
-    private static List<OneLabel> GetLabelsInRegion(Rect r, IEnumerable<OneLabel> labels)
-        => [.. labels.Where(l => l.X >= r.X && l.X <= r.X + r.Width && l.Y >= r.Y && l.Y <= r.Y + r.Height)];
-
     #endregion
 }

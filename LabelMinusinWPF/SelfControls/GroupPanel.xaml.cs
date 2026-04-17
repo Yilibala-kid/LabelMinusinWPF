@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF.SelfControls
 {
@@ -9,37 +10,46 @@ namespace LabelMinusinWPF.SelfControls
         public GroupPanel()
         {
             InitializeComponent();
+            DataContext = GroupManager.Instance;
         }
 
-        // 获取视图模型
-        private MainVM? ViewModel => DataContext as MainVM;
-
-        // 添加组别按钮点击
         private void AddGroup_Click(object sender, RoutedEventArgs e)
         {
-            if (ViewModel is null) return;
-
-            ViewModel.IsAddingGroup = true;
             NewGroupTextBox.Clear();
+            AddGroupPanel.Visibility = Visibility.Visible;
+            IdleButtonPanel.Visibility = Visibility.Collapsed;
             NewGroupTextBox.Focus();
         }
 
-        // 新建组别文本框按键事件
-        private void NewGroupTextBox_KeyDown(object sender, KeyEventArgs e)
+        private void SetIdleMode()
         {
-            if (ViewModel is null) return;
-
-            if (e.Key == Key.Escape)
-                ViewModel.IsAddingGroup = false;
-            else if (e.Key == Key.Enter)
-                ViewModel.AddGroupCommand.Execute(null);
+            NewGroupTextBox.Clear();
+            AddGroupPanel.Visibility = Visibility.Collapsed;
+            IdleButtonPanel.Visibility = Visibility.Visible;
         }
 
-        // 新建组别文本框失去焦点事件
-        private void NewGroupTextBox_LostFocus(object sender, RoutedEventArgs e)
+        private void NewGroupTextBox_KeyDown(object sender, KeyEventArgs e)
         {
-            if (ViewModel?.IsAddingGroup == true)
-                ViewModel.AddGroupCommand.Execute(null);
+            if (e.Key == Key.Escape)
+                CancelAdd_Click(sender, new RoutedEventArgs());
+            else if (e.Key == Key.Enter)
+                ConfirmAdd_Click(sender, new RoutedEventArgs());
+        }
+
+        private void ConfirmAdd_Click(object sender, RoutedEventArgs e)
+        {
+            GroupManager.Instance.AddGroupCommand.Execute(NewGroupTextBox.Text);
+            SetIdleMode();
+        }
+
+        private void CancelAdd_Click(object sender, RoutedEventArgs e)
+        {
+            SetIdleMode();
+        }
+
+        private async void DeleteGroup_Click(object sender, RoutedEventArgs e)
+        {
+            await GroupManager.Instance.DeleteGroupAsync(GroupManager.Instance.SelectedGroup);
         }
     }
 }

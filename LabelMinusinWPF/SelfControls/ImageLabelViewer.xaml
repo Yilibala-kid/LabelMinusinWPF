@@ -5,15 +5,16 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:local="clr-namespace:LabelMinusinWPF"
+    xmlns:common="clr-namespace:LabelMinusinWPF.Common"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
+    x:Name="self"
     d:DesignHeight="450"
     d:DesignWidth="800"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <local:ImageRelativePositionConverter x:Key="PosConverter" />
+        <common:ImageRelativePositionConverter x:Key="PosConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
-        <local:AllBoolToVisibilityConverter x:Key="AllBoolToVis" />
     </UserControl.Resources>
 
     <Grid
@@ -28,21 +29,22 @@
         <Grid x:Name="ContentGrid" Background="Transparent">
             <Grid.RenderTransform>
                 <TransformGroup>
-                    <ScaleTransform ScaleX="{Binding ZoomScale, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" ScaleY="{Binding ZoomScale, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" />
-                    <TranslateTransform X="{Binding OffsetX, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" Y="{Binding OffsetY, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" />
+                    <ScaleTransform ScaleX="{Binding ZoomScale, ElementName=self}" ScaleY="{Binding ZoomScale, ElementName=self}" />
+                    <TranslateTransform X="{Binding OffsetX, ElementName=self}" Y="{Binding OffsetY, ElementName=self}" />
                 </TransformGroup>
             </Grid.RenderTransform>
-            <!--  图片  -->
+            <!-- 图片 -->
             <Image x:Name="TargetImage" Source="{Binding DisplayImage}" />
 
-            <!--  标记层  -->
+            <!-- 标记层 -->
             <ItemsControl
                 x:Name="LabelItemsControl"
                 Width="{Binding ActualWidth, ElementName=TargetImage}"
                 Height="{Binding ActualHeight, ElementName=TargetImage}"
                 ItemsSource="{Binding ActiveLabels}"
                 MouseLeftButtonUp="OnLabelContainerUp"
-                MouseMove="OnLabelContainerMove">
+                MouseMove="OnLabelContainerMove"
+                Visibility="{Binding CanLabel, ElementName=self, Converter={StaticResource BoolToVis}}">
 
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -50,7 +52,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
 
-                <!--  定位  -->
+                <!-- 定位 -->
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter">
                         <Setter Property="Canvas.Left">
@@ -77,50 +79,38 @@
                     </Style>
                 </ItemsControl.ItemContainerStyle>
 
-                <!--  标记内容  -->
+                <!-- 标记内容 -->
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <!--  外层 StackPanel 用于整体缩放  -->
+                        <!-- 外层 StackPanel 用于整体缩放 -->
                         <StackPanel Orientation="Horizontal" RenderTransformOrigin="0,0.5">
                             <StackPanel.RenderTransform>
-                                <ScaleTransform ScaleX="{Binding LabelScale, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" ScaleY="{Binding LabelScale, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}}" />
+                                <ScaleTransform ScaleX="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelScale}" ScaleY="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelScale}" />
                             </StackPanel.RenderTransform>
-                            <StackPanel Orientation="Horizontal">
-                                <!--  未选中时半透明  -->
+                            <StackPanel Orientation="Horizontal" Background="Transparent" x:Name="LabelStackPanel">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Opacity" Value="0.8" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                            <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter Property="Opacity" Value="1.0" />
-                                            </DataTrigger>
+                                            </Trigger>
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-                                <!--  点：颜色跟随组别，悬停显示拖动光标  -->
-                                <Border
-                                    Cursor="Hand"
-                                    MouseLeftButtonDown="LabelNode_LeftMouseDown"
-                                    MouseRightButtonDown="LabelNode_RightMouseDown"
-                                    Style="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}"
-                                    Visibility="{Binding IsIndexVisible, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}, Converter={StaticResource BoolToVis}}">
+                                <!-- 点：颜色跟随组别 -->
+                                <Border Cursor="Hand" MouseLeftButtonDown="LabelNode_LeftMouseDown" MouseRightButtonDown="LabelNode_RightMouseDown" Style="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}">
                                     <TextBlock Text="{Binding Index}" />
                                 </Border>
-                                <!--  文字：仅选中时显示  -->
-                                <Border MouseLeftButtonDown="LabelText_MouseLeftDown" Style="{Binding LabelTextStyle, RelativeSource={RelativeSource AncestorType=local:ImageLabelViewer}, TargetNullValue={StaticResource DefaultTextStyle}}">
+                                <!-- 文字：点的opacity=1时（悬停）显示 -->
+                                <Border Style="{StaticResource DefaultTextStyle}" Visibility="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource BoolToVis}}">
                                     <Border.Background>
-                                        <SolidColorBrush Opacity="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundOpacity}" Color="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextBackgroundColor}" />
+                                        <SolidColorBrush Opacity="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextBackgroundOpacity}" Color="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextBackgroundColor}" />
                                     </Border.Background>
-                                    <Border.Visibility>
-                                        <MultiBinding Converter="{StaticResource AllBoolToVis}">
-                                            <Binding Path="IsSelected" />
-                                            <Binding Path="IsTextVisible" RelativeSource="{RelativeSource AncestorType=local:ImageLabelViewer}" />
-                                        </MultiBinding>
-                                    </Border.Visibility>
 
                                     <TextBlock Text="{Binding Text}">
                                         <TextBlock.Foreground>
-                                            <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStyleManager.Instance}, Path=TextForegroundColor}" />
+                                            <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextForegroundColor}" />
                                         </TextBlock.Foreground>
                                     </TextBlock>
                                 </Border>
@@ -131,13 +121,15 @@
 
             </ItemsControl>
         </Grid>
+        <!-- 截图层 -->
         <Canvas
             x:Name="SnipCanvas"
             Background="Transparent"
+            Cursor="Cross"
             MouseLeftButtonDown="SnipCanvas_MouseLeftButtonDown"
             MouseLeftButtonUp="SnipCanvas_MouseLeftButtonUp"
             MouseMove="SnipCanvas_MouseMove"
-            Visibility="Collapsed">
+            Visibility="{Binding IsScreenShotMode, ElementName=self, Converter={StaticResource BoolToVis}}">
             <Rectangle
                 x:Name="SnipRectangle"
                 Fill="#200078D7"
