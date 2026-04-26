@@ -21,9 +21,20 @@ namespace LabelMinusinWPF
         public ImageLabelViewer()
         {
             InitializeComponent();
+            DataContextChanged += (_, _) => EditingLabel = null;
         }
 
         public OneImage? ShowingImage => DataContext as OneImage;
+
+        public OneLabel? EditingLabel
+        {
+            get => (OneLabel?)GetValue(EditingLabelProperty);
+            set => SetValue(EditingLabelProperty, value);
+        }
+
+        public static readonly DependencyProperty EditingLabelProperty =
+            DependencyProperty.Register(nameof(EditingLabel), typeof(OneLabel), typeof(ImageLabelViewer),
+                new PropertyMetadata(null));
 
         #region 第一层：整体拖动与缩放
         private Point _lastMousePosition; // 记录鼠标按下时的坐标（用于计算位移量）
@@ -33,6 +44,7 @@ namespace LabelMinusinWPF
         {
             _mouseDownPosition = _lastMousePosition = e.GetPosition(ViewportGrid);
 
+            EditingLabel = null;
             ShowingImage?.SelectedLabel = null;
 
             ViewportGrid.CaptureMouse();
@@ -126,6 +138,7 @@ namespace LabelMinusinWPF
         {
             if (sender is FrameworkElement elm && elm.DataContext is OneLabel label && ShowingImage != null)
             {
+                EditingLabel = null;
                 ShowingImage.SelectedLabel = label;
                 _draggingLabel = label;
                 _dragStartPoint = e.GetPosition(LabelItemsControl);
@@ -138,9 +151,51 @@ namespace LabelMinusinWPF
         {
             if (sender is FrameworkElement { DataContext: OneLabel label } && ShowingImage != null)
             {
+                EditingLabel = null;
                 ShowingImage.SelectedLabel = label;
                 if (ShowingImage.DeleteLabelCommand.CanExecute(label))
                     ShowingImage.DeleteLabelCommand.Execute(label);
+            }
+        }
+        #endregion
+
+        #region 第三层(下)：标签编辑
+        private void LabelText_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { DataContext: OneLabel label } || ShowingImage == null) return;
+
+            ShowingImage.SelectedLabel = label;
+            if (e.ClickCount >= 2)
+                EditingLabel = label;
+
+            e.Handled = true;
+        }
+
+        private void LabelTextEditBox_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.NewValue is not true || sender is not TextBox textBox) return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!textBox.IsVisible || !ReferenceEquals(textBox.DataContext, EditingLabel)) return;
+                textBox.Focus();
+                textBox.CaretIndex = textBox.Text.Length;
+            });
+        }
+
+        private void LabelTextEditBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+        {
+            EditingLabel = null;
+        }
+
+        private void LabelTextEditBox_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Enter && Keyboard.Modifiers != ModifierKeys.Shift
+                || e.Key == Key.Escape)
+            {
+                EditingLabel = null;
+                Keyboard.ClearFocus();
+                e.Handled = true;
             }
         }
         #endregion
@@ -212,17 +267,14 @@ namespace LabelMinusinWPF
                 if (IsSyncRequired)
                     Snipped?.Invoke(this, normRect);
                 else if (CaptureRegion(normRect) is { } myBmp)
-                    _ = ScreenshotHelper.TrySetClipboardImage(myBmp);
+                    _ = ScreenshotHelper.SetClipboard(myBmp);
             }
         }
 
-        // 供外部调用，用于实现"同步"裁剪相同区域
-        public BitmapSource? GetImageRegion(Rect normRect) => CaptureRegion(normRect);
-
-        private BitmapSource? CaptureRegion(Rect normRect)
+        public BitmapSource? CaptureRegion(Rect normRect)// 供外部调用，用于实现"同步"裁剪相同区域
         {
             if (TargetImage.Source is not BitmapSource bitmapSource) return null;
-            return ScreenshotHelper.CropRegion(bitmapSource, normRect);
+            return ScreenshotHelper.Crop(bitmapSource, normRect);
         }
 
         #endregion

@@ -46,8 +46,6 @@ namespace LabelMinusinWPF.Common
             command.Execute();
             _undoStack.Push(command);
         }
-
-        public void Clear() { _undoStack.Clear(); _redoStack.Clear(); }
     }
 
     // 新增标注命令
@@ -86,18 +84,16 @@ namespace LabelMinusinWPF.Common
         private readonly OneLabel _target;
         private readonly LabelSnapshot _oldState;
         private readonly LabelSnapshot _newState;
-        private readonly Action _refreshAction;
 
-        public UpdateLabelCommand(OneLabel target, LabelSnapshot oldState, Action refresh)
+        public UpdateLabelCommand(OneLabel target, LabelSnapshot oldState)
         {
             _target = target;
             _oldState = oldState;
             _newState = new LabelSnapshot(target);
-            _refreshAction = refresh;
         }
 
-        public void Execute() { _newState.RestoreTo(_target); _refreshAction(); }
-        public void Undo() { _oldState.RestoreTo(_target); _refreshAction(); }
+        public void Execute() { _newState.RestoreTo(_target); }
+        public void Undo() { _oldState.RestoreTo(_target); }
     }
 
     // 标注状态快照（记录 Text、Group、Position）

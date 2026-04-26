@@ -23,7 +23,23 @@ public partial class OneImage : ObservableObject
 {
     public OneImage()
     {
-        Labels.ListChanged += (s, e) => { if (!_isRefreshing) RefreshIndices(); };
+        Labels.ListChanged += OnLabelsChanged;
+    }
+
+    private void OnLabelsChanged(object? sender, ListChangedEventArgs e)
+    {
+        bool changesActiveSet =
+            e.ListChangedType is ListChangedType.ItemAdded
+                or ListChangedType.ItemDeleted
+                or ListChangedType.ItemMoved
+                or ListChangedType.Reset
+            || e.ListChangedType == ListChangedType.ItemChanged
+                && e.PropertyDescriptor?.Name == nameof(OneLabel.IsDeleted);
+
+        if (changesActiveSet)
+        {
+            OnPropertyChanged(nameof(ActiveLabels));
+        }
     }
 
     #region 图片自身属性
@@ -63,48 +79,6 @@ public partial class OneImage : ObservableObject
         return ResourceHelper.LoadFromPath(ImagePath);
     }
 
-    #endregion
-
-    #region 标签管理/切换
-    private bool _isRefreshing;
-    // 刷新所有标签的索引（已删除的标签索引排在最后）
-    public void RefreshIndices()
-    {
-        if (_isRefreshing) return;
-        _isRefreshing = true;
-        try
-        {
-            int nextIndex = 1;
-            foreach (var lbl in Labels.OrderBy(l => l.IsDeleted).ThenBy(l => l.Index))
-                lbl.Index = nextIndex++;
-        }
-        finally { _isRefreshing = false; }
-        Application.Current.Dispatcher.BeginInvoke(
-            () => OnPropertyChanged(nameof(ActiveLabels)));
-    }
-
-    // 根据方向查找下一个可用的标签
-    private OneLabel? GetNeighbor(bool forward)
-    {
-        int index = SelectedLabel == null ? (forward ? -1 : Labels.Count) : Labels.IndexOf(SelectedLabel);// 确定起始索引：如果没选中，向后找从 -1 开始，向前找从 Count 开始
-        int step = forward ? 1 : -1;
-
-        
-        for (int i = index + step; i >= 0 && i < Labels.Count; i += step)// 一个循环处理两个方向
-        {
-            if (!Labels[i].IsDeleted) return Labels[i];
-        }
-        return null;
-    }
-    private bool CanPreviousLabel() => GetNeighbor(forward: false) != null;
-
-    [RelayCommand(CanExecute = nameof(CanPreviousLabel))]
-    private void PreviousLabel() => SelectedLabel = GetNeighbor(forward: false);
-
-    private bool CanNextLabel() => GetNeighbor(forward: true) != null;
-
-    [RelayCommand(CanExecute = nameof(CanNextLabel))]
-    private void NextLabel() => SelectedLabel = GetNeighbor(forward: true);
     #endregion
 
     //TODO：撤消重做逻辑待审查
@@ -160,8 +134,7 @@ public partial class OneImage : ObservableObject
     public void AddLabel(Point? pos)
     {
         TryCommitCurrentSnapshot();
-        int nextIndex = Labels.Count(l => !l.IsDeleted) + 1;
-        var newLabel = new OneLabel(nextIndex, "", GroupManager.Instance.SelectedGroup ?? GroupConstants.InBox, pos ?? new Point(0.5, 0.5));
+        var newLabel = new OneLabel("", GroupManager.Instance.SelectedGroup ?? GroupConstants.InBox, pos ?? new Point(0.5, 0.5));
         History.Execute(new AddCommand(Labels, newLabel));
         SelectedLabel = newLabel;
     }
@@ -169,6 +142,14 @@ public partial class OneImage : ObservableObject
     public void DeleteLabel(OneLabel? label)
     {
         if ((label ?? SelectedLabel) is not { } target) return;
+        // 未保存的新标签（原文为空）直接移除，不进软删除历史
+        if (string.IsNullOrEmpty(target.OriginalText) && string.IsNullOrEmpty(target.Text))
+        {
+            Labels.Remove(target);
+            if (SelectedLabel == target) SelectedLabel = null;
+            NotifyCommands();
+            return;
+        }
         TryCommitCurrentSnapshot();
         History.Execute(new DeleteCommand(target));
         if (SelectedLabel == target) SelectedLabel = null;
@@ -195,7 +176,7 @@ public partial class OneImage : ObservableObject
     {
         if (IsSelectedLabelDirty())
         {
-            History.Execute(new UpdateLabelCommand(SelectedLabel!, _labelSnapshot!, RefreshIndices));
+            History.Execute(new UpdateLabelCommand(SelectedLabel!, _labelSnapshot!));
             UpdateSnapshot();
         }
     }

@@ -5,11 +5,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
-    <UserControl.Resources>
-        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}" />
-        <Style TargetType="ToggleButton" BasedOn="{StaticResource IconToggleButtonStyle}" />
-        <Style TargetType="RadioButton" BasedOn="{StaticResource IconRadioButtonStyle}" />
-    </UserControl.Resources>
     <StackPanel VerticalAlignment="Center" Orientation="Horizontal">
         <ListBox ItemContainerStyle="{StaticResource GroupBadgeItemStyle}" ItemsSource="{Binding AllGroups}" SelectedValue="{Binding SelectedGroup, Mode=TwoWay}">
             <ListBox.ItemsPanel>
@@ -19,11 +14,7 @@
             </ListBox.ItemsPanel>
         </ListBox>
         <StackPanel x:Name="AddGroupPanel" Orientation="Horizontal" Visibility="Collapsed">
-            <TextBox
-                x:Name="NewGroupTextBox"
-                Width="80"
-                Margin="5,0,0,0"
-                KeyDown="NewGroupTextBox_KeyDown"/>
+            <TextBox x:Name="NewGroupTextBox" Width="80" Margin="5,0,0,0" KeyDown="NewGroupTextBox_KeyDown" />
             <Button Tag="Check" Click="ConfirmAdd_Click" ToolTip="确认添加" />
             <Button Tag="Close" Click="CancelAdd_Click" ToolTip="取消添加" />
         </StackPanel>

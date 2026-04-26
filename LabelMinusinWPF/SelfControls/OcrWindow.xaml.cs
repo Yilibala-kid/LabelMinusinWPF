@@ -48,15 +48,14 @@ namespace LabelMinusinWPF
             }
         }
 
-        private void SaveImageToOcrTemp(BitmapSource bitmapSource)
+        private void SaveImageToOcrTemp(BitmapSource bitmapSource)//这个是为了能够在拖动窗口时把图片文件拖出去用的，所以必须要有个物理文件存在，不能直接拖BitmapSource
         {
             try
             {
-                _tempImagePath = ScreenshotHelper.SaveBitmapAsPng(bitmapSource, Constants.TempFolders.OcrTemp);
+                _tempImagePath = ScreenshotHelper.SaveSnip(bitmapSource, null, Constants.TempFolders.OcrTemp)?.FilePath;
             }
             catch (Exception ex)
             {
-                // 这里可以调用你 ViewModel 里的消息队列报错
                 MessageBox.Show($"图片缓存失败：{ex.Message}");
             }
         }

@@ -39,7 +39,7 @@ namespace LabelMinusinWPF.Common
             {
                 if (isCollectingText && currentImgName != null)
                 {
-                    var label = new OneLabel(tempIndex, textBuffer.ToString().Trim(), tempGroup, tempPos);
+                    var label = new OneLabel(textBuffer.ToString().Trim(), tempGroup, tempPos);
                     database[currentImgName].Labels.Add(label);
 
                     // 重置缓冲
@@ -135,13 +135,14 @@ namespace LabelMinusinWPF.Common
 
                 sb.AppendLine($">>>>>>>>[{imageInfo.ImageName}]<<<<<<<<");
 
-                foreach (var label in imageInfo.Labels.OrderBy(l => l.Index))
+                int rowNum = 1;
+                foreach (var label in imageInfo.Labels)
                 {
                     if (mode == ExportMode.Diff && !(label.IsDeleted || label.Text != label.OriginalText || label.Group != label.OriginalGroup)) continue;
                     if (mode != ExportMode.Diff && label.IsDeleted) continue;
 
                     int groupValue = groupToIdMap.GetValueOrDefault(label.Group, 1);
-                    sb.AppendLine($"----------------[{label.Index}]----------------[{label.X:F3},{label.Y:F3},{groupValue}]");
+                    sb.AppendLine($"----------------[{rowNum++}]----------------[{label.X:F3},{label.Y:F3},{groupValue}]");
 
                     if (mode == ExportMode.Diff)
                     {

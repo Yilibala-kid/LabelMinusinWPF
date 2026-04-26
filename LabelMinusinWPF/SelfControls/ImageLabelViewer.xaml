@@ -15,6 +15,8 @@
     <UserControl.Resources>
         <common:ImageRelativePositionConverter x:Key="PosConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <common:LabelTextVisibilityConverter x:Key="LabelTextVisibilityConverter" />
+        <common:LabelReferenceVisibilityConverter x:Key="LabelReferenceVisibilityConverter" />
     </UserControl.Resources>
 
     <Grid
@@ -42,6 +44,7 @@
                 Width="{Binding ActualWidth, ElementName=TargetImage}"
                 Height="{Binding ActualHeight, ElementName=TargetImage}"
                 ItemsSource="{Binding ActiveLabels}"
+                AlternationCount="1000"
                 MouseLeftButtonUp="OnLabelContainerUp"
                 MouseMove="OnLabelContainerMove"
                 Visibility="{Binding CanLabel, ElementName=self, Converter={StaticResource BoolToVis}}">
@@ -87,7 +90,7 @@
                             <StackPanel.RenderTransform>
                                 <ScaleTransform ScaleX="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelScale}" ScaleY="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelScale}" />
                             </StackPanel.RenderTransform>
-                            <StackPanel Orientation="Horizontal" Background="Transparent" x:Name="LabelStackPanel">
+                            <StackPanel x:Name="LabelStackPanel" Orientation="Horizontal" Background="Transparent">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Opacity" Value="0.8" />
@@ -95,24 +98,70 @@
                                             <Trigger Property="IsMouseOver" Value="True">
                                                 <Setter Property="Opacity" Value="1.0" />
                                             </Trigger>
+                                            <DataTrigger Value="Visible">
+                                                <DataTrigger.Binding>
+                                                    <MultiBinding Converter="{StaticResource LabelReferenceVisibilityConverter}">
+                                                        <Binding />
+                                                        <Binding ElementName="self" Path="DataContext.SelectedLabel" />
+                                                    </MultiBinding>
+                                                </DataTrigger.Binding>
+                                                <Setter Property="Opacity" Value="1.0" />
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
                                 <!-- 点：颜色跟随组别 -->
                                 <Border Cursor="Hand" MouseLeftButtonDown="LabelNode_LeftMouseDown" MouseRightButtonDown="LabelNode_RightMouseDown" Style="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}">
-                                    <TextBlock Text="{Binding Index}" />
+                                    <TextBlock Text="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource IndexPlusOneConverter}}" />
                                 </Border>
-                                <!-- 文字：点的opacity=1时（悬停）显示 -->
-                                <Border Style="{StaticResource DefaultTextStyle}" Visibility="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=StackPanel}, Converter={StaticResource BoolToVis}}">
+                                <!-- 文字：悬停或选中时显示 -->
+                                <Border Style="{StaticResource DefaultTextStyle}" MouseLeftButtonDown="LabelText_MouseLeftButtonDown">
+                                    <Border.Visibility>
+                                        <MultiBinding Converter="{StaticResource LabelTextVisibilityConverter}">
+                                            <Binding Path="IsMouseOver" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                            <Binding />
+                                            <Binding ElementName="self" Path="DataContext.SelectedLabel" />
+                                        </MultiBinding>
+                                    </Border.Visibility>
                                     <Border.Background>
                                         <SolidColorBrush Opacity="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextBackgroundOpacity}" Color="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextBackgroundColor}" />
                                     </Border.Background>
 
-                                    <TextBlock Text="{Binding Text}">
-                                        <TextBlock.Foreground>
-                                            <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextForegroundColor}" />
-                                        </TextBlock.Foreground>
-                                    </TextBlock>
+                                    <Grid>
+                                        <TextBlock Text="{Binding Text}" MinWidth="20">
+                                            <TextBlock.Visibility>
+                                                <MultiBinding Converter="{StaticResource LabelReferenceVisibilityConverter}" ConverterParameter="Inverse">
+                                                    <Binding />
+                                                    <Binding ElementName="self" Path="EditingLabel" />
+                                                </MultiBinding>
+                                            </TextBlock.Visibility>
+                                            <TextBlock.Foreground>
+                                                <SolidColorBrush Color="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=TextForegroundColor}" />
+                                            </TextBlock.Foreground>
+                                        </TextBlock>
+
+                                        <TextBox
+                                            MinWidth="30"
+                                            MaxWidth="200"
+                                            AcceptsReturn="True"
+                                            Background="White"
+                                            BorderThickness="0"
+                                            Foreground="Black"
+                                            IsVisibleChanged="LabelTextEditBox_IsVisibleChanged"
+                                            LostKeyboardFocus="LabelTextEditBox_LostKeyboardFocus"
+                                            Padding="2"
+                                            PreviewKeyDown="LabelTextEditBox_PreviewKeyDown"
+                                            Style="{x:Null}"
+                                            Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
+                                            TextWrapping="Wrap">
+                                            <TextBox.Visibility>
+                                                <MultiBinding Converter="{StaticResource LabelReferenceVisibilityConverter}">
+                                                    <Binding />
+                                                    <Binding ElementName="self" Path="EditingLabel" />
+                                                </MultiBinding>
+                                            </TextBox.Visibility>
+                                        </TextBox>
+                                    </Grid>
                                 </Border>
                             </StackPanel>
                         </StackPanel>

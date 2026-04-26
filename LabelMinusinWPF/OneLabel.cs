@@ -11,12 +11,8 @@ namespace LabelMinusinWPF
 {
     public partial class OneLabel : ObservableObject
     {
-        public OneLabel()
+        public OneLabel(string text, string group, Point pos)
         {
-        }
-        public OneLabel(int index, string text, string group, Point pos)
-        {
-            _index = index;
             _text = _originalText = text;
             _group = _originalGroup = group;
             _position = _originalPosition = pos;
@@ -25,9 +21,6 @@ namespace LabelMinusinWPF
         }
 
         #region 基本属性
-        [ObservableProperty]
-        private int _index;
-
         [ObservableProperty]
         private string _originalText = "";
         [ObservableProperty]

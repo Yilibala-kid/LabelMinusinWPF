@@ -12,7 +12,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using static LabelMinusinWPF.MainVM;
+using static LabelMinusinWPF.OneProject;
 using LabelMinusinWPF.Common;
 using AppConstants = LabelMinusinWPF.Common.Constants;
 
@@ -23,9 +23,9 @@ namespace LabelMinusinWPF
 
     public partial class CompareImgControl : UserControl
     {
-        private const string ScreenshotFolderName = AppConstants.TempFolders.ScreenShotTemp;
         private DispatcherTimer _closeTimer;
         private string _currentImgPath = string.Empty;
+        private bool _isSplitFollowMouse;
 
         public CompareImgControl()
         {
@@ -61,6 +61,15 @@ namespace LabelMinusinWPF
                 window.PreviewKeyUp += OnKeyUp;
             }
             if (DualImageSplitter != null) DualImageSplitter.Focusable = false;
+
+            if (DataContext is CompareImgVM vm)
+            {
+                vm.PropertyChanged += (s, args) =>
+                {
+                    if (args.PropertyName == nameof(CompareImgVM.IsDualReViewEnabled))
+                        _isSplitFollowMouse = vm.IsDualReViewEnabled;
+                };
+            }
         }
 
         private void OnKeyDown(object sender, KeyEventArgs e)
@@ -74,6 +83,23 @@ namespace LabelMinusinWPF
         {
             if (e.Key == Key.Q && DataContext is CompareImgVM vm) vm.IsScreenShotEnabled = false;
         }
+
+        private void OnMouseMoveForSplit(object sender, MouseEventArgs e)
+        {
+            if (!_isSplitFollowMouse || DataContext is not CompareImgVM vm) return;
+            if (vm.IsScreenShotEnabled) return;
+
+            var container = sender as FrameworkElement;
+            if (container == null) return;
+
+            double mouseX = e.GetPosition(container).X;
+            double totalWidth = container.ActualWidth;
+            if (totalWidth <= 0) return;
+
+            double ratio = Math.Max(0.05, Math.Min(0.95, mouseX / totalWidth));
+            vm.LeftColumnWidth = new GridLength(ratio, GridUnitType.Star);
+            vm.RightColumnWidth = new GridLength(1 - ratio, GridUnitType.Star);
+        }
         #endregion
 
         #region 一起截图
@@ -84,22 +110,17 @@ namespace LabelMinusinWPF
         {
             try
             {
-                var bmpLeft = LeftPicView.GetImageRegion(logicRect);
-                var bmpRight = RightPicView.GetImageRegion(logicRect);
+                var bmpLeft = LeftPicView.CaptureRegion(logicRect);
+                var bmpRight = RightPicView.CaptureRegion(logicRect);
 
                 if (bmpLeft != null || bmpRight != null)
                 {
                     string currentImgName = DualNameCombobox.SelectedItem?.ToString() ?? "截图";
+                    // Freeze on UI thread before passing to background task
                     var frozenLeft = ScreenshotHelper.Freeze(bmpLeft);
                     var frozenRight = ScreenshotHelper.Freeze(bmpRight);
-                    var result = await Task.Run(() => ScreenshotHelper.SaveTwoImagesResult(
-                        frozenLeft,
-                        frozenRight,
-                        currentImgName,
-                        ScreenshotFolderName,
-                        85,
-                        70,
-                        2 * 1024 * 1024));
+                    var result = await Task.Run(() => ScreenshotHelper.SaveSnip(
+                        ScreenshotHelper.Combine([frozenLeft, frozenRight], currentImgName)));
 
                     ApplyScreenshotResult(result);
                 }
@@ -120,7 +141,7 @@ namespace LabelMinusinWPF
             {
                 try
                 {
-                    _ = ScreenshotHelper.TrySetClipboardImage(result.PreviewImage);
+                    _ = ScreenshotHelper.SetClipboard(result.PreviewImage);
                     ImgThumb.Source = result.PreviewImage;
                 }
                 catch (Exception ex)
@@ -134,7 +155,7 @@ namespace LabelMinusinWPF
         {
             try
             {
-                var result = ScreenshotHelper.SaveWithCompressionResult(bitmap, null, ScreenshotFolderName);
+                var result = ScreenshotHelper.SaveSnip(bitmap);
                 ApplyScreenshotResult(result);
             }
             catch (UnauthorizedAccessException ex)
@@ -160,7 +181,7 @@ namespace LabelMinusinWPF
 
             if (!PreviewPopup.IsOpen)
             {
-                var bitmap = LoadBitmapImage(_currentImgPath);
+                var bitmap = ResourceHelper.LoadFromPath(_currentImgPath);
                 if (bitmap == null) return;
 
                 EditImage.Source = bitmap;
@@ -230,32 +251,13 @@ namespace LabelMinusinWPF
 
 
         #region 简单功能
-        private static BitmapImage? LoadBitmapImage(string path)
-        {
-            try
-            {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.UriSource = new Uri(path, UriKind.Absolute);
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.EndInit();
-                bitmap.Freeze();
-                return bitmap;
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"图片加载失败: {ex.Message}");
-                return null;
-            }
-        }
-
         private void TempChangePic_Click(bool isLeft)
         {
             var dialog = new OpenFileDialog { Filter = "图片文件|*.jpg;*.png;*.bmp;*.webp", Title = "暂时替换当前图片" };
             string? picPath = dialog.ShowDialog() == true ? dialog.FileName : null;
             if (string.IsNullOrEmpty(picPath)) return;
 
-            var bitmap = LoadBitmapImage(picPath);
+            var bitmap = ResourceHelper.LoadFromPath(picPath);
             if (bitmap == null) return;
 
             var target = isLeft ? LeftPicView.TargetImage : RightPicView.TargetImage;
@@ -273,7 +275,7 @@ namespace LabelMinusinWPF
 
         private void OpenScreenshotFolder_Click(object sender, RoutedEventArgs e)
         {
-            string folderPath = ScreenshotHelper.GetFolderPath(ScreenshotFolderName);
+            string folderPath = ScreenshotHelper.GetFolder();
 
             Process.Start(new ProcessStartInfo
             {

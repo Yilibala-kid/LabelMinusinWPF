@@ -40,9 +40,10 @@
         <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
         <common:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <common:IsNullOrEmptyConverter x:Key="IsNullOrEmptyConverter" />
     </Window.Resources>
     <Window.DataContext>
-        <local:MainVM />
+        <local:OneProject />
     </Window.DataContext>
     <Grid x:Name="RootGrid">
         <DockPanel>
@@ -85,7 +86,7 @@
 
                     <Separator />
 
-                    <MenuItem Command="{Binding OpenWorkFolderCommand}" Header="工作文件夹" Icon="{materialDesign:PackIcon Kind=FolderMultipleImage}"/>
+                    <MenuItem Command="{Binding OpenWorkFolderCommand}" Header="工作文件夹" Icon="{materialDesign:PackIcon Kind=FolderMultipleImage}" />
 
                     <Separator />
 
@@ -121,6 +122,8 @@
 
                 <!-- 5. 高级 -->
                 <MenuItem Header="高级" Icon="{materialDesign:PackIcon Kind=Cogs}">
+                    <MenuItem Click="AutoOcr_Click" Header="一键 OCR 当前项目" Icon="{materialDesign:PackIcon Kind=TextRecognition}" ToolTip="扫描程序目录下的 Model 文件夹并对当前项目图片执行 OCR" />
+                    <Separator />
                     <MenuItem x:Name="RegisterMenu" Click="OnToggleContextMenu" Header="右键打开" IsCheckable="True" ToolTip="勾选后可在文件右键菜单中使用LabelMinus打开文件" />
                 </MenuItem>
 
@@ -133,7 +136,7 @@
                     Width="40"
                     VerticalAlignment="Center"
                     Cursor="Hand"
-                    IsChecked="{Binding IsDarkMode, RelativeSource={RelativeSource AncestorType=local:MainWindow}}"
+                    IsChecked="{Binding (sc:DarkModeBehavior.IsDarkMode), RelativeSource={RelativeSource AncestorType=Window}}"
                     Style="{StaticResource MaterialDesignActionToggleButton}"
                     ToolTip="切换深色模式">
                     <materialDesign:ToggleButtonAssist.OnContent>
@@ -187,7 +190,9 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
+                                    <ToggleButton x:Name="TextReviewToggle" Content="文校" Tag="FileCompare" ToolTip="文本校对" />
                                     <Button Click="OpenImageReview_Click" Content="图校" Tag="Compare" ToolTip="图片对比" />
+
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -221,6 +226,7 @@
                                         materialDesign:HintAssist.Hint="选择图片"
                                         DisplayMemberPath="ImageName"
                                         FontSize="12"
+                                        Foreground="{DynamicResource MaterialDesignBody}"
                                         ItemsSource="{Binding ImageList}"
                                         SelectedItem="{Binding SelectedImage}" />
                                     <Button Command="{Binding PreviousImageCommand}" Style="{StaticResource IconButtonStyle}" Tag="ArrowUp" ToolTip="上一张" />
@@ -234,7 +240,7 @@
                         <materialDesign:DrawerHost x:Name="ImageAreaDrawer" IsLeftDrawerOpen="{Binding IsChecked, ElementName=DrawerTrigger, Mode=TwoWay}">
                             <materialDesign:DrawerHost.LeftDrawerContent>
                                 <DockPanel LastChildFill="False">
-                                    <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Center" Orientation="Horizontal">
+                                    <StackPanel HorizontalAlignment="Center" DockPanel.Dock="Bottom" Orientation="Horizontal">
                                         <Button Click="FitToPage_Click" Style="{StaticResource IconButtonStyle}" Tag="FitToPageOutline" ToolTip="适应视图" />
                                         <Button Click="FitWidth_Click" Style="{StaticResource IconButtonStyle}" Tag="ArrowExpandHorizontal" ToolTip="适应宽度" />
                                         <Button Click="FitHeight_Click" Style="{StaticResource IconButtonStyle}" Tag="ArrowExpandVertical" ToolTip="适应高度" />
@@ -256,83 +262,7 @@
                 </Border>
                 <GridSplitter x:Name="MiddleSplitter" Grid.Column="1" Width="5" Background="Transparent" ResizeBehavior="PreviousAndNext" />
                 <!-- 右侧列表与文本 -->
-                <Grid Grid.Column="2">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="35" />
-                        <RowDefinition x:Name="DataGridRow" Height="4*" />
-                        <RowDefinition x:Name="SplitterRow" Height="5" />
-                        <RowDefinition x:Name="TextBoxRow" Height="1*" />
-                    </Grid.RowDefinitions>
-                    <!-- 组别栏 -->
-                    <sc:GroupPanel Grid.Row="0" VerticalAlignment="Center" />
-                    <!-- 列表 -->
-                    <DataGrid
-                        x:Name="LabelDataGrid"
-                        Grid.Row="1"
-                        Margin="0,0,5,0"
-                        AutoGenerateColumns="False"
-                        BorderBrush="RoyalBlue"
-                        BorderThickness="2"
-                        CanUserAddRows="False"
-                        CanUserDeleteRows="False"
-                        GridLinesVisibility="Horizontal"
-                        HeadersVisibility="None"
-                        ItemsSource="{Binding SelectedImage.ActiveLabels}"
-                        SelectedItem="{Binding SelectedImage.SelectedLabel, Mode=TwoWay}"
-                        SelectionMode="Single"
-                        Style="{StaticResource MaterialDesignDataGrid}">
-                        <DataGrid.RowStyle>
-                            <Style BasedOn="{StaticResource MaterialDesignDataGridRow}" TargetType="DataGridRow">
-                                <Style.Triggers>
-                                    <Trigger Property="IsSelected" Value="True">
-                                        <Setter Property="FontWeight" Value="Bold" />
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </DataGrid.RowStyle>
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Binding="{Binding Index}" ElementStyle="{StaticResource CenteredCellStyle}" Header="序号" IsReadOnly="True" />
-                            <DataGridTemplateColumn Width="*" Header="内容">
-                                <DataGridTemplateColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellTemplate>
-
-                                <DataGridTemplateColumn.CellEditingTemplate>
-                                    <DataTemplate>
-                                        <TextBox
-                                            AcceptsReturn="True"
-                                            Background="White"
-                                            BorderThickness="0"
-                                            Foreground="Black"
-                                            Style="{x:Null}"
-                                            Text="{Binding Text, UpdateSourceTrigger=LostFocus}"
-                                            TextWrapping="Wrap" />
-                                    </DataTemplate>
-                                </DataGridTemplateColumn.CellEditingTemplate>
-                            </DataGridTemplateColumn>
-
-                            <DataGridTextColumn MinWidth="60" Binding="{Binding Group}" ElementStyle="{StaticResource CenteredCellStyle}" Header="组" IsReadOnly="True" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <GridSplitter Grid.Row="2" Height="5" HorizontalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" />
-                    <!-- 文本框 -->
-                    <TextBox
-                        x:Name="LabelTextBox"
-                        Grid.Row="3"
-                        Margin="0,0,5,5"
-                        materialDesign:HintAssist.FontFamily="微软雅黑"
-                        materialDesign:HintAssist.Hint="{Binding SelectedImage.SelectedLabel.Index}"
-                        AcceptsReturn="True"
-                        FontSize="16"
-                        Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                        Text="{Binding SelectedImage.SelectedLabel.Text, UpdateSourceTrigger=LostFocus}"
-                        TextAlignment="Left"
-                        TextWrapping="Wrap"
-                        VerticalScrollBarVisibility="Auto" />
-
-                </Grid>
+                <sc:LabelEditPanel x:Name="LabelEditPanel" Grid.Column="2" IsReviewMode="{Binding IsChecked, ElementName=TextReviewToggle}" />
             </Grid>
         </DockPanel>
         <!-- 图校界面 -->

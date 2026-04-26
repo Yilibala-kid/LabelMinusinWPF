@@ -42,13 +42,13 @@ namespace LabelMinusinWPF.Common
         private string? _selectedGroup = GroupConstants.Default[0];
 
         // --- 消息定义 ---
-        // DeleteGroup 查询请求：GroupManager → MainVM
+        // DeleteGroup 查询请求：GroupManager → OneProject
         public record DeleteGroupQueryMessage(string GroupName, TaskCompletionSource<List<OneLabel>> Tcs);
-        // DeleteGroup 查询响应：MainVM → GroupManager
+        // DeleteGroup 查询响应：OneProject → GroupManager
         public record DeleteGroupResponseMessage(string GroupName, List<OneLabel> Labels, TaskCompletionSource<List<OneLabel>> Tcs);
         // GroupManager 显示提示消息
         public record GroupManagerShowMessageMessage(string Message);
-        // GroupManager SelectedGroup 改变 → MainVM 更新 label group
+        // GroupManager SelectedGroup 改变 → OneProject 更新 label group
         public record GroupManagerSelectedGroupChangedMessage(string GroupName);
 
         public static string NormalizeGroupName(string? groupName) =>

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LabelMinusinWPF.Common;
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -9,15 +10,13 @@ using System.Windows;
 
 namespace LabelMinusinWPF
 {
-    public partial class CompareImgVM : ObservableObject, IDisposable
+    public partial class CompareImgVM : ObservableObject
     {
-        private bool _disposed;
+        [ObservableProperty]
+        private OneProject _leftImageVM = new();
 
         [ObservableProperty]
-        private MainVM _leftImageVM = new();
-
-        [ObservableProperty]
-        private MainVM _rightImageVM = new();
+        private OneProject _rightImageVM = new();
 
         #region combobox绑定
         public ObservableCollection<string> AllImageNames { get; } = [];
@@ -60,23 +59,21 @@ namespace LabelMinusinWPF
         #endregion
 
         #region 上下切换
-        private int CurrentNameIndex => SelectedMergedName != null ? AllImageNames.IndexOf(SelectedMergedName) : -1;
-
         [RelayCommand(CanExecute = nameof(CanGoToPrevious))]
         private void PreviousImage()
         {
-            int idx = CurrentNameIndex;
-            if (idx > 0) SelectedMergedName = AllImageNames[idx - 1];
+            int idx = NavigationHelper.NavigateIndex(AllImageNames.IndexOf(SelectedMergedName!), AllImageNames.Count, forward: false);
+            if (idx >= 0) SelectedMergedName = AllImageNames[idx];
         }
-        private bool CanGoToPrevious() => CurrentNameIndex > 0;
+        private bool CanGoToPrevious() => NavigationHelper.NavigateIndex(AllImageNames.IndexOf(SelectedMergedName!), AllImageNames.Count, forward: false) >= 0;
 
         [RelayCommand(CanExecute = nameof(CanGoToNext))]
         private void NextImage()
         {
-            int idx = CurrentNameIndex;
-            if (idx >= 0 && idx < AllImageNames.Count - 1) SelectedMergedName = AllImageNames[idx + 1];
+            int idx = NavigationHelper.NavigateIndex(AllImageNames.IndexOf(SelectedMergedName!), AllImageNames.Count, forward: true);
+            if (idx >= 0) SelectedMergedName = AllImageNames[idx];
         }
-        private bool CanGoToNext() => CurrentNameIndex >= 0 && CurrentNameIndex < AllImageNames.Count - 1;
+        private bool CanGoToNext() => NavigationHelper.NavigateIndex(AllImageNames.IndexOf(SelectedMergedName!), AllImageNames.Count, forward: true) >= 0;
         #endregion
 
         #region 底栏功能
@@ -194,25 +191,6 @@ namespace LabelMinusinWPF
         {
             IsDualReViewEnabled = !IsDualReViewEnabled;
             if (IsDualReViewEnabled) IsSyncEnabled = true;
-        }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (!_disposed)
-            {
-                if (disposing)
-                {
-                    LeftImageVM.ImageList.ListChanged -= ImageList_ListChanged;
-                    RightImageVM.ImageList.ListChanged -= ImageList_ListChanged;
-                }
-                _disposed = true;
-            }
         }
     }
 }

@@ -7,17 +7,13 @@
     xmlns:local="clr-namespace:LabelMinusinWPF"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:common="clr-namespace:LabelMinusinWPF.Common"
     d:DesignHeight="800"
     d:DesignWidth="1200"
     Background="{DynamicResource MaterialDesignPaper}"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}" />
-        <Style TargetType="ToggleButton" BasedOn="{StaticResource IconToggleButtonStyle}" />
-        <Style TargetType="RadioButton" BasedOn="{StaticResource IconRadioButtonStyle}" />
-        <Style TargetType="StackPanel">
-            <Setter Property="Orientation" Value="Horizontal" />
-        </Style>
+        <common:InverseBoolConverter x:Key="InverseBoolConverter" />
 
         <Style TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center" />
@@ -149,7 +145,7 @@
                 </Grid>
             </materialDesign:DrawerHost.TopDrawerContent>
             <!-- 图片对比区域 -->
-            <Grid x:Name="DualImageGrid" Grid.Row="1">
+            <Grid x:Name="DualImageGrid" Grid.Row="1" MouseMove="OnMouseMoveForSplit">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="{Binding LeftColumnWidth, Mode=TwoWay}" />
                     <ColumnDefinition Width="5" />
@@ -231,7 +227,8 @@
                     VerticalAlignment="Stretch"
                     Background="RoyalBlue"
                     Cursor="SizeWE"
-                    Focusable="False">
+                    Focusable="False"
+                    IsEnabled="{Binding IsDualReViewEnabled, Converter={StaticResource InverseBoolConverter}}">
                     <GridSplitter.Template>
                         <ControlTemplate TargetType="GridSplitter">
                             <Grid Background="{TemplateBinding Background}">

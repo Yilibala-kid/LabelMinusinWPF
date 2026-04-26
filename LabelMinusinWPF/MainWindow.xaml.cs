@@ -2,21 +2,17 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LabelMinusinWPF.Common;
 using LabelMinusinWPF.SelfControls;
-using MahApps.Metro.Controls;
 using MaterialDesignThemes.Wpf;
 using Microsoft.Win32;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using static MaterialDesignThemes.Wpf.Theme;
 using Constants = LabelMinusinWPF.Common.Constants;
 using ExportMode = LabelMinusinWPF.Common.LabelPlusParser.ExportMode;
 using WorkSpace = LabelMinusinWPF.Common.ProjectManager.WorkSpace;
@@ -44,7 +40,7 @@ namespace LabelMinusinWPF
                 Constants.TempFolders.ScreenShotTemp,
                 Constants.TempFolders.ArchiveTemp));
             Closing += MainWindow_Closing;
-            RegisterMenu.IsChecked = ContextMenuRegistrar.IsRegistered();
+            RegisterMenu.IsChecked = RightClickOpenService.IsRegistered();
             LabelStylePanel.Instance.LoadSettings();
             InitializeAutoSave();
         }
@@ -52,7 +48,7 @@ namespace LabelMinusinWPF
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
             // 获取 ViewModel
-            if (DataContext is MainVM viewModel && viewModel.HasUnsavedChanges())
+            if (DataContext is OneProject viewModel && viewModel.HasUnsavedChanges())
             {
                 var result = MessageBox.Show(
                     "当前翻译有未保存的修改，是否保存？",
@@ -71,46 +67,6 @@ namespace LabelMinusinWPF
                 }
             }
         }
-        #region 黑白模式控制
-        // 定义依赖属性
-        public static readonly DependencyProperty IsDarkModeProperty =
-            DependencyProperty.Register("IsDarkMode", typeof(bool), typeof(MainWindow),
-                new PropertyMetadata(false, OnDarkModeChanged));
-
-        public bool IsDarkMode
-        {
-            get { return (bool)GetValue(IsDarkModeProperty); }
-            set { SetValue(IsDarkModeProperty, value); }
-        }
-
-        // 当属性改变时，自动触发主题切换
-        private static void OnDarkModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            bool isDark = (bool)e.NewValue;
-            var paletteHelper = new PaletteHelper();
-            var theme = paletteHelper.GetTheme();
-            theme.SetBaseTheme(isDark ? BaseTheme.Dark : BaseTheme.Light);
-            paletteHelper.SetTheme(theme);
-            // 同时更新标题栏颜色
-            if (d is MainWindow mainWindow)
-            {
-                mainWindow.UpdateTitleBarColor(isDark);
-            }
-        }
-        [DllImport("dwmapi.dll")]
-        private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
-
-        private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
-        private const int IntPtrSize = 4;
-
-        private void UpdateTitleBarColor(bool isDark)
-        {
-            IntPtr hWnd = new WindowInteropHelper(this).Handle;
-            int darkMode = isDark ? 1 : 0;
-            _ = DwmSetWindowAttribute(hWnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ref darkMode, IntPtrSize);
-        }
-        #endregion
-
         #region 菜单栏：显示控制
         private void OnLayoutModeClicked(object sender, RoutedEventArgs e)
         {
@@ -139,21 +95,18 @@ namespace LabelMinusinWPF
                     break;
 
                 case DisplayMode.ListAndTextBox:
-                    DataGridRow.Height = new GridLength(4, GridUnitType.Star);
-                    SplitterRow.Height = new GridLength(1, GridUnitType.Auto);
-                    TextBoxRow.Height = new GridLength(1, GridUnitType.Star);
+                    LabelEditPanel.IsListVisible = true;
+                    LabelEditPanel.IsTextBoxVisible = true;
                     break;
 
                 case DisplayMode.ListOnly:
-                    DataGridRow.Height = new GridLength(4, GridUnitType.Star);
-                    SplitterRow.Height = new GridLength(0);
-                    TextBoxRow.Height = new GridLength(0);
+                    LabelEditPanel.IsListVisible = true;
+                    LabelEditPanel.IsTextBoxVisible = false;
                     break;
 
                 case DisplayMode.TextBoxOnly:
-                    DataGridRow.Height = new GridLength(0);
-                    SplitterRow.Height = new GridLength(0);
-                    TextBoxRow.Height = new GridLength(1, GridUnitType.Star);
+                    LabelEditPanel.IsListVisible = false;
+                    LabelEditPanel.IsTextBoxVisible = true;
                     break;
             }
         }
@@ -178,22 +131,20 @@ namespace LabelMinusinWPF
             {
                 if (shouldRegister)
                 {
-                    ContextMenuRegistrar.RegisterAll();
+                    RightClickOpenService.RegisterAll();
                     MessageBox.Show("右键菜单注册成功！", "提示",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
-                    ContextMenuRegistrar.UnregisterAll();
+                    RightClickOpenService.UnregisterAll();
                     MessageBox.Show("右键菜单已取消注册", "提示",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
-                // 回滚勾选状态
                 menuItem.IsChecked = !shouldRegister;
-
                 MessageBox.Show($"操作失败：{ex.Message}",
                     "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -206,8 +157,8 @@ namespace LabelMinusinWPF
 
         private void Recognize_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is not MainVM vm) return;
-            var screenshot = ScreenshotHelper.TryGetClipboardImage();
+            if (DataContext is not OneProject vm) return;
+            var screenshot = ScreenshotHelper.GetClipboard();
             if (screenshot == null) { vm.MsgQueue.Enqueue("请先截图，再点击识别"); return; }
 
             string websiteName = OcrWebsiteSelector.SelectedItem as string ?? Constants.OcrWebsites.DefaultWebsite;
@@ -219,6 +170,41 @@ namespace LabelMinusinWPF
         }
 
 
+        private async void AutoOcr_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is not OneProject vm) return;
+            if (vm.ImageList.Count == 0)
+            {
+                vm.MsgQueue.Enqueue("当前项目没有可 OCR 的图片");
+                return;
+            }
+
+            var service = new AutoOcrService();
+            var models = service.ScanModels();
+            if (models.Count == 0)
+            {
+                vm.MsgQueue.Enqueue($"未找到可用 OCR 模型，请将模型放入程序目录下的 Model 文件夹：{service.ModelRoot}");
+                return;
+            }
+
+            try
+            {
+                var options = AutoOcrOptions.JapaneseManga;
+                var model = service.SelectPreferredModel(models, options) ?? models[0];
+                vm.MsgQueue.Enqueue($"OCR 模型：{model.Name}（日漫预设）");
+                var result = await service.RunAsync(vm, model, options);
+                vm.MsgQueue.Enqueue(result.Message);
+            }
+            catch (OperationCanceledException)
+            {
+                vm.MsgQueue.Enqueue("OCR 已取消");
+            }
+            catch (Exception ex)
+            {
+                vm.MsgQueue.Enqueue($"OCR 失败: {ex.Message}");
+            }
+        }
+
         #region 拖放文件支持
         private void OnFileDragOver(object sender, DragEventArgs e)
         {
@@ -229,7 +215,7 @@ namespace LabelMinusinWPF
         private void OnFileDrop(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop) && e.Data.GetData(DataFormats.FileDrop) is string[] files && files.Length > 0)
-                if (DataContext is MainVM viewModel) viewModel.OpenResourceByPath(files, false);
+                if (DataContext is OneProject viewModel) viewModel.OpenResourceByPath(files, false);
         }
         #endregion
         private void OnOpenWebsite(object sender, RoutedEventArgs e)
@@ -242,44 +228,8 @@ namespace LabelMinusinWPF
         }
         private void About_Click(object sender, RoutedEventArgs e)
         {
-            if (DataContext is MainVM vm) vm.MsgQueue.Enqueue("本程序由No-Hifuu友情赞助");
+            if (DataContext is OneProject vm) vm.MsgQueue.Enqueue("本程序由No-Hifuu友情赞助");
         }
-
-        #region 命令行启动支持
-        public void OpenFilesOnStartup(string[] paths)
-        {
-            if (DataContext is MainVM vm && paths.Length > 0)
-            {
-                if (FullScreenReview.IsOpen) FullScreenReview.IsOpen = false;
-                vm.OpenResourceByPath(paths, false);
-            }
-        }
-        public void OpenImageReviewSmart(string newPath)
-        {
-            if (DataContext is not MainVM vm) return;
-            if (!FullScreenReview.IsOpen) FullScreenReview.IsOpen = true;
-
-            Dispatcher.BeginInvoke(() =>
-            {
-                if (FullScreenReview.DataContext is CompareImgVM reviewVm)
-                {
-                    if (reviewVm.LeftImageVM.ImageList.Count == 0)
-                        reviewVm.LeftImageVM.OpenResourceByPath([newPath], false);
-                    else
-                        reviewVm.RightImageVM.OpenResourceByPath([newPath], false);
-
-                    FocusWindow();
-                }
-            }, DispatcherPriority.Loaded);
-        }
-        public void FocusWindow()
-        {
-            if (this.WindowState == WindowState.Minimized)
-                this.WindowState = WindowState.Normal;
-
-            this.Activate(); // 尝试获取焦点
-        }
-        #endregion
 
         #region 快捷键
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -287,7 +237,7 @@ namespace LabelMinusinWPF
             // 【重要防护】如果用户当前正在 TextBox 里输入文字，则不触发快捷键
             if (e.OriginalSource is System.Windows.Controls.TextBox) return;
             if (FullScreenReview.IsOpen) return; // 图校界面打开时禁用快捷键，避免冲突
-            if (DataContext is MainVM vm)
+            if (DataContext is OneProject vm)
             {
                 switch (e.Key)
                 {
@@ -302,14 +252,6 @@ namespace LabelMinusinWPF
                         break;
 
                     // --- 标签切换 (W: 上一个, S: 下一个) ---
-                    case Key.W:
-                        vm.SelectedImage?.PreviousLabelCommand.Execute(null);
-                        e.Handled = true;
-                        break;
-                    case Key.S:
-                        vm.SelectedImage?.NextLabelCommand.Execute(null);
-                        e.Handled = true;
-                        break;
                     case Key.R:
                         PicView.FitToView();
                         e.Handled = true;
@@ -318,56 +260,5 @@ namespace LabelMinusinWPF
             }
         }
         #endregion
-
-        #region 自动保存功能
-        private DispatcherTimer? _autoSaveTimer;
-        private void InitializeAutoSave()
-        {
-            _autoSaveTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMinutes(Constants.AutoSave.IntervalMinutes)
-            };
-            _autoSaveTimer.Tick += AutoSaveTimer_Tick;
-            _autoSaveTimer.Start();
-        }
-
-        private void AutoSaveTimer_Tick(object? sender, EventArgs e)
-        {
-            if (DataContext is not MainVM vm) return;
-            if (vm.WorkSpace == WorkSpace.Empty || !vm.HasUnsavedChanges()) return;
-            if (FullScreenReview.IsOpen) return;
-
-            try
-            {
-                string autoSaveFolder = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "AutoSave");
-                Directory.CreateDirectory(autoSaveFolder);
-
-                string originalFileName = string.IsNullOrEmpty(vm.WorkSpace.TxtName)
-                    ? "未命名翻译"
-                    : Path.GetFileNameWithoutExtension(vm.WorkSpace.TxtName);
-                string autoSavePath = Path.Combine(autoSaveFolder, $"{originalFileName}_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
-
-                File.WriteAllText(autoSavePath, LabelPlusParser.LabelsToText(vm.ImageList, vm.WorkSpace.ZipName, ExportMode.Current));
-                CleanupOldAutoSaveFiles(autoSaveFolder, originalFileName);
-            }
-            catch (Exception ex) { Debug.WriteLine($"自动保存失败: {ex.Message}"); }
-        }
-
-        private static void CleanupOldAutoSaveFiles(string autoSaveFolder, string baseFileName)
-        {
-            try
-            {
-                var files = Directory.GetFiles(autoSaveFolder, $"{baseFileName}_*.txt")
-                    .Select(f => new FileInfo(f))
-                    .OrderByDescending(f => f.CreationTime)
-                    .Skip(Constants.AutoSave.MaxFiles);
-
-                foreach (var file in files)
-                    try { file.Delete(); } catch { /* 删除失败不影响程序运行 */ }
-            }
-            catch (Exception ex) { Debug.WriteLine($"清理旧自动保存文件失败: {ex.Message}"); }
-        }
-        #endregion
-
     }
 }

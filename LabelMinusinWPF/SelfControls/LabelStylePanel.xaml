@@ -12,12 +12,9 @@
     d:DesignWidth="220"
     mc:Ignorable="d">
     <UserControl.Resources>
-        <Style TargetType="Button" BasedOn="{StaticResource IconButtonStyle}" />
-        <Style TargetType="ToggleButton" BasedOn="{StaticResource IconToggleButtonStyle}" />
-        <Style TargetType="RadioButton" BasedOn="{StaticResource IconRadioButtonStyle}" />
         <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
     </UserControl.Resources>
-    <StackPanel Orientation="Vertical">
+    <StackPanel Orientation="Vertical" TextElement.Foreground="{DynamicResource MaterialDesignBody}">
         <!-- 标签点样式 -->
         <TextBlock Margin="16,16,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签点样式" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
