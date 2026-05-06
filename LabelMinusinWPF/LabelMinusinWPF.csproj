@@ -15,8 +15,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="models\v5\**\*.*" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="models\manga-ocr\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\手动安装模型指南.txt" Link="models\手动安装模型指南.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\ocr_help.txt" Link="models\ocr_help.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\v5\model.json" Link="models\v5\model.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\v5\ppocrv5_dict.txt" Link="models\v5\ppocrv5_dict.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\manga-ocr\manga_ocr_infer.py" Link="models\manga-ocr\manga_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\manga-ocr\model.json" Link="models\manga-ocr\model.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

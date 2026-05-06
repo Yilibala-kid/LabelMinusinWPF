@@ -31,22 +31,6 @@ namespace LabelMinusinWPF.Common
         }
         #endregion
 
-        #region OCR 识别
-        public static ICollection<string> OcrWebsiteKeys => OcrWebsites.Websites.Keys;
-        public static class OcrWebsites
-        {
-            public static readonly Dictionary<string, string> Websites = new()
-            {
-                ["识字体网 (LikeFont)"] = "https://www.likefont.com/",
-                ["AI识别 (YuzuMarker)"] = "https://huggingface.co/spaces/gyrojeff/YuzuMarker.FontDetection",
-                ["必应"] = "https://www.bing.com/visualsearch"
-            };
-
-            public static ICollection<string> Keys => Websites.Keys;
-            public const string DefaultWebsite = "AI识别 (YuzuMarker)";
-        }
-        #endregion
-
         #region UI 显示
         public const string AppName = "LabelMinus";
 
@@ -60,7 +44,6 @@ namespace LabelMinusinWPF.Common
         public static class TempFolders
         {
             public const string ArchiveTemp = "ArchiveTemp";
-            public const string OcrTemp = "OCRtemp";
             public const string ScreenShotTemp = "ScreenShottemp";
         }
         #endregion

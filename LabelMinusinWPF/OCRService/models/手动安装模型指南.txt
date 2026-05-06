@@ -1,0 +1,97 @@
+====================================================
+  LabelMinus OCR 模型手动安装指南
+====================================================
+
+若"配置 OCR 环境"自动下载失败（网络问题等），
+可参照本指南手动下载并放置模型文件。
+
+----------------------------------------------------
+【1. PP-OCRv5 ONNX 模型】（用于一键打点和中英文OCR）
+----------------------------------------------------
+
+来源：ModelScope (RapidAI/RapidOCR master)
+基础地址：
+https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/master/onnx/PP-OCRv5/
+
+需要下载 3 个文件：
+
+  文件                                  子目录    目标位置
+  ────────────────────────────────────  ────────  ─────────────────
+  ch_PP-OCRv5_det_server.onnx          det/      放到 models/v5/
+  ch_PP-LCNet_x1_0_textline_ori_cls_server.onnx  cls/      放到 models/v5/
+  ch_PP-OCRv5_rec_server.onnx          rec/      放到 models/v5/
+
+完整直接下载链接：
+https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/master/onnx/PP-OCRv5/det/ch_PP-OCRv5_det_server.onnx
+https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/master/onnx/PP-OCRv5/cls/ch_PP-LCNet_x1_0_textline_ori_cls_server.onnx
+https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/master/onnx/PP-OCRv5/rec/ch_PP-OCRv5_rec_server.onnx
+
+----------------------------------------------------
+【2. MangaOCR 模型】（用于日文 OCR 识别）
+----------------------------------------------------
+
+来源：HuggingFace (kha-white/manga-ocr-base)
+主页：https://huggingface.co/kha-white/manga-ocr-base
+
+下载该仓库的全部文件，放到 models/manga-ocr/model/ 目录下。
+（至少需要 pytorch_model.bin / model.safetensors 和 config.json）
+
+如果你的机器有 git-lfs：
+  git lfs install
+  git clone https://huggingface.co/kha-white/manga-ocr-base
+  然后把下载的文件复制到 models/manga-ocr/model/
+
+或者在浏览器中逐个下载 HuggingFace 页面上的所有文件。
+
+----------------------------------------------------
+【3. Python 嵌入版（手动安装 pip + torch + manga-ocr）】
+----------------------------------------------------
+
+来源：https://www.python.org/ftp/python/3.10.11/python-3.10.11-embed-amd64.zip
+
+解压到 python/ 目录，然后：
+  a) 修改 python310._pth，末尾添加：
+     import site
+     Lib\site-packages
+
+  b) 下载并运行 get-pip.py：
+     https://bootstrap.pypa.io/get-pip.py
+
+  c) 安装依赖：
+     python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+     python -m pip install manga-ocr Pillow huggingface_hub
+
+----------------------------------------------------
+【最终目录结构】（在程序目录下，与 exe 同级）
+----------------------------------------------------
+
+models/
+  v5/
+    model.json                          （自带，无需下载）
+    ppocrv5_dict.txt                    （自带，无需下载）
+    ch_PP-OCRv5_det_server.onnx         （手动下载）
+    ch_PP-LCNet_x1_0_textline_ori_cls_server.onnx （手动下载）
+    ch_PP-OCRv5_rec_server.onnx         （手动下载）
+  manga-ocr/
+    model.json                          （自带，无需下载）
+    manga_ocr_infer.py                  （自带，无需下载）
+    model/                              （手动下载，从 HuggingFace）
+      pytorch_model.bin / model.safetensors
+      config.json
+      preprocessor_config.json
+      vocab.json
+      merges.txt
+      ...
+
+python/
+  python.exe
+  Lib/
+    site-packages/
+      torch/
+      manga_ocr/
+      PIL/
+      huggingface_hub/
+      ...
+
+----------------------------------------------------
+配置完成后，重启应用即可使用 OCR 功能。
