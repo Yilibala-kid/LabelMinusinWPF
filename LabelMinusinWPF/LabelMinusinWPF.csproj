@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
@@ -15,10 +15,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="Model\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="models\v5\**\*.*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="models\manga-ocr\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-<ItemGroup>
+  <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
     <PackageReference Include="MaterialDesignColors" Version="5.3.0" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
@@ -26,4 +27,5 @@
     <PackageReference Include="RapidOcrNet" Version="1.0.2" />
     <PackageReference Include="SharpCompress" Version="0.46.0" />
   </ItemGroup>
+
 </Project>

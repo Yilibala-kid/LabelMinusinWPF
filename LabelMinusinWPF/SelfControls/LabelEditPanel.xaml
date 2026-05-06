@@ -14,6 +14,8 @@
         <common:IsModifiedLabelConverter x:Key="IsModifiedLabelConverter" />
         <common:SelectedLabelIndexConverter x:Key="SelectedLabelIndexConverter" />
         <common:LabelEditPanelIndexConverter x:Key="LabelEditPanelIndexConverter" />
+        <common:LabelsSourceConverter x:Key="LabelsSourceConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
 
         <SolidColorBrush x:Key="ReviewNewBrush" Color="#404CAF50" />
         <SolidColorBrush x:Key="ReviewDeletedBrush" Color="#40F44336" />
@@ -97,23 +99,24 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <DataGrid
-                x:Name="MainDataGrid"
-                Grid.Row="0"
-                Style="{StaticResource LabelDataGridStyle}"
-                SelectedItem="{Binding SelectedImage.SelectedLabel, Mode=TwoWay}"
-                Tag="{Binding IsReviewMode, RelativeSource={RelativeSource AncestorType=UserControl}}">
+            <DataGrid x:Name="MainDataGrid" Grid.Row="0" Style="{StaticResource LabelDataGridStyle}" SelectedItem="{Binding SelectedImage.SelectedLabel, Mode=TwoWay}" Tag="{Binding IsReviewMode, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                <DataGrid.ItemsSource>
+                    <MultiBinding Converter="{StaticResource LabelsSourceConverter}">
+                        <Binding Path="IsReviewMode" RelativeSource="{RelativeSource AncestorType=UserControl}" />
+                        <Binding Path="SelectedImage" />
+                    </MultiBinding>
+                </DataGrid.ItemsSource>
                 <DataGrid.Columns>
                     <DataGridTextColumn ElementStyle="{StaticResource CenteredCellStyle}" Header="序号" IsReadOnly="True">
                         <DataGridTextColumn.Binding>
                             <MultiBinding Converter="{StaticResource LabelEditPanelIndexConverter}">
                                 <Binding />
                                 <Binding Path="IsDeleted" />
-                                <Binding Path="DataContext.SelectedImage.ActiveLabels" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
+                                <Binding Path="DataContext.SelectedImage.ActiveLabelsView" RelativeSource="{RelativeSource AncestorType=DataGrid}" />
                             </MultiBinding>
                         </DataGridTextColumn.Binding>
                     </DataGridTextColumn>
-                    <DataGridTemplateColumn Width="*" Header="内容" >
+                    <DataGridTemplateColumn Width="*" Header="内容">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap" />
@@ -133,52 +136,67 @@
                             </DataTemplate>
                         </DataGridTemplateColumn.CellEditingTemplate>
                     </DataGridTemplateColumn>
-                    <DataGridTextColumn x:Name="OriginalTextColumn" Binding="{Binding OriginalText}" Header="原文" IsReadOnly="True" Width="*" Foreground="Gray"
-                        ElementStyle="{StaticResource WrapCellStyle}" Visibility="Collapsed" />
+                    <DataGridTextColumn
+                        x:Name="OriginalTextColumn"
+                        Width="*"
+                        Binding="{Binding OriginalText}"
+                        Header="原文"
+                        IsReadOnly="True"
+                        Foreground="Gray"
+                        ElementStyle="{StaticResource WrapCellStyle}"
+                        Visibility="Collapsed" />
 
                     <DataGridTextColumn MinWidth="60" Binding="{Binding Group}" ElementStyle="{StaticResource CenteredCellStyle}" Header="组" IsReadOnly="True" />
                 </DataGrid.Columns>
             </DataGrid>
 
-            <!-- 文校模式原文 -->
-            <Grid Grid.Row="1" x:Name="ReviewBottomPanel" Margin="0,0,5,5" Visibility="Collapsed">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" FontWeight="Bold" Text="原文" Margin="0,0,0,2" Foreground="{DynamicResource MaterialDesignBodyLight}" />
-                <Border
-                    Grid.Row="1"
-                    BorderThickness="1"
-                    BorderBrush="{DynamicResource MaterialDesignBodyLight}"
-                    CornerRadius="4"
-                    Padding="8">
-                    <TextBlock
-                        FontSize="14"
-                        Foreground="{DynamicResource MaterialDesignBodyLight}"
-                        Text="{Binding SelectedImage.SelectedLabel.OriginalText}"
-                        TextWrapping="Wrap" />
-                </Border>
-            </Grid>
         </Grid>
 
         <GridSplitter Grid.Row="2" HorizontalAlignment="Stretch" Background="Transparent" ResizeBehavior="PreviousAndNext" />
 
-        <!-- 文本框 -->
-        <TextBox
-            x:Name="LabelTextBox"
-            Grid.Row="3"
-            Margin="0,0,5,5"
-            materialDesign:HintAssist.FontFamily="微软雅黑"
-            materialDesign:HintAssist.Hint="{Binding SelectedImage.SelectedLabel, Converter={StaticResource SelectedLabelIndexConverter}}"
-            AcceptsReturn="True"
-            FontSize="16"
-            IsEnabled="{Binding SelectedImage.SelectedLabel, Converter={StaticResource IsNullOrEmptyConverter}, ConverterParameter=Disable}"
-            Style="{StaticResource MaterialDesignOutlinedTextBox}"
-            Foreground="{DynamicResource MaterialDesignBody}"
-            Text="{Binding SelectedImage.SelectedLabel.Text, UpdateSourceTrigger=PropertyChanged}"
-            TextAlignment="Left"
-            TextWrapping="Wrap"
-            VerticalScrollBarVisibility="Auto" />
+        <!-- 文本框 + 文校原文 -->
+        <Grid Grid.Row="3" Margin="0,0,5,5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0" Padding="10,6" Background="{DynamicResource MaterialDesignDivider}" CornerRadius="6,6,0,0" Visibility="{Binding IsReviewMode, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock FontSize="14" Foreground="{DynamicResource MaterialDesignBodyLight}" Text="{Binding SelectedImage.SelectedLabel.OriginalText}" TextWrapping="Wrap" />
+            </Border>
+
+            <Grid Grid.Row="1">
+                <TextBox
+                    x:Name="LabelTextBox"
+                    AcceptsReturn="True"
+                    FontSize="16"
+                    IsEnabled="{Binding SelectedImage.SelectedLabel, Converter={StaticResource IsNullOrEmptyConverter}, ConverterParameter=Disable}"
+                    Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                    Foreground="{DynamicResource MaterialDesignBody}"
+                    Text="{Binding SelectedImage.SelectedLabel.Text, UpdateSourceTrigger=PropertyChanged}"
+                    TextAlignment="Left"
+                    TextWrapping="Wrap"
+                    VerticalScrollBarVisibility="Auto" />
+
+                <!-- 圆形序号 badge（左侧边框上） -->
+                <Border
+                    Width="26"
+                    Height="26"
+                    Margin="-12,14,0,0"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    CornerRadius="30"
+                    Background="RoyalBlue"
+                    ToolTip="当前标签序号">
+                    <TextBlock
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Text="{Binding SelectedImage.SelectedLabel, Converter={StaticResource SelectedLabelIndexConverter}}"
+                        Foreground="White"
+                        FontSize="15"
+                        FontWeight="Bold" />
+                </Border>
+            </Grid>
+        </Grid>
     </Grid>
 </UserControl>

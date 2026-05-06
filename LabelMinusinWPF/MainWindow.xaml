@@ -41,6 +41,7 @@
         <common:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVisibility" />
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
         <common:IsNullOrEmptyConverter x:Key="IsNullOrEmptyConverter" />
+        <common:AnyTrueConverter x:Key="AnyTrueConverter" />
     </Window.Resources>
     <Window.DataContext>
         <local:OneProject />
@@ -86,7 +87,7 @@
 
                     <Separator />
 
-                    <MenuItem Command="{Binding OpenWorkFolderCommand}" Header="工作文件夹" Icon="{materialDesign:PackIcon Kind=FolderMultipleImage}" />
+                    <MenuItem Command="{Binding OpenWorkFolderCommand}" Header="图片所在文件夹" Icon="{materialDesign:PackIcon Kind=FolderMultipleImage}" />
 
                     <Separator />
 
@@ -113,21 +114,29 @@
                     </MenuItem.Icon>
 
                     <!-- 布局模式 -->
+                    <MenuItem Click="OnLayoutModeClicked" Header="全部显示" IsCheckable="True" IsChecked="True" Tag="{x:Static local:DisplayMode.ListAndTextBox}" />
                     <MenuItem x:Name="OnlyPicMenuItem" Click="OnLayoutModeClicked" Header="仅图片" IsCheckable="True" Tag="{x:Static local:DisplayMode.ImageOnly}" />
-                    <MenuItem Click="OnLayoutModeClicked" Header="列表与文本框" IsCheckable="True" IsChecked="True" Tag="{x:Static local:DisplayMode.ListAndTextBox}" />
                     <MenuItem Click="OnLayoutModeClicked" Header="仅列表" IsCheckable="True" Tag="{x:Static local:DisplayMode.ListOnly}" />
                     <MenuItem Click="OnLayoutModeClicked" Header="仅文本框" IsCheckable="True" Tag="{x:Static local:DisplayMode.TextBoxOnly}" />
 
                 </MenuItem>
 
-                <!-- 5. 高级 -->
-                <MenuItem Header="高级" Icon="{materialDesign:PackIcon Kind=Cogs}">
-                    <MenuItem Click="AutoOcr_Click" Header="一键 OCR 当前项目" Icon="{materialDesign:PackIcon Kind=TextRecognition}" ToolTip="扫描程序目录下的 Model 文件夹并对当前项目图片执行 OCR" />
+                <!-- 5. OCR -->
+                <MenuItem Header="OCR" Icon="{materialDesign:PackIcon Kind=Ocr}">
+                    <MenuItem Click="AutoOcr_Click" Header="一键打点" Icon="{materialDesign:PackIcon Kind=Numeric1Circle}" ToolTip="PaddleOCR 仅位置标签（日漫排序）" />
+                    <MenuItem Click="AutoOcr_Batch" Tag="CNEN" Header="一键中英识别" Icon="{materialDesign:PackIcon Kind=Alphabetical}" ToolTip="PaddleOCR v5 中/英文检测+识别（无需 Python）" />
+                    <MenuItem Click="AutoOcr_Batch" Tag="JP" Header="一键日文识别" Icon="{materialDesign:PackIcon Kind=Translate}" ToolTip="manga-ocr 日文检测+识别（需 Python）" />
                     <Separator />
+                    <MenuItem Click="SetupOcrEnv_Click" Header="配置 OCR 环境" Icon="{materialDesign:PackIcon Kind=Cog}" ToolTip="下载/安装 Python + manga-ocr 环境" />
+                    <MenuItem Click="OcrHelp_Click" Header="OCR 说明" Icon="{materialDesign:PackIcon Kind=HelpCircleOutline}" />
+                </MenuItem>
+
+                <!-- 6. 高级 -->
+                <MenuItem Header="高级" Icon="{materialDesign:PackIcon Kind=Cogs}">
                     <MenuItem x:Name="RegisterMenu" Click="OnToggleContextMenu" Header="右键打开" IsCheckable="True" ToolTip="勾选后可在文件右键菜单中使用LabelMinus打开文件" />
                 </MenuItem>
 
-                <!-- 6. 帮助 -->
+                <!-- 7. 帮助 -->
                 <MenuItem Header="帮助" Icon="{materialDesign:PackIcon Kind=Help}">
                     <MenuItem Click="OnOpenWebsite" Header="官网" Icon="{materialDesign:PackIcon Kind=Web}" Tag="https://github.com/Yilibala-kid/LabelMinusinWPF" />
                     <MenuItem Click="About_Click" Header="关于" Icon="{materialDesign:PackIcon Kind=InformationOutline}" />
@@ -190,8 +199,16 @@
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
-                                    <ToggleButton x:Name="TextReviewToggle" Content="文校" Tag="FileCompare" ToolTip="文本校对" />
-                                    <Button Click="OpenImageReview_Click" Content="图校" Tag="Compare" ToolTip="图片对比" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton x:Name="ScreenshotOcrToggle" Tag="Ocr" ToolTip="截图 OCR 开关" />
+                                        <ComboBox x:Name="OcrEngineSelector" Width="45" Margin="3,0,0,0" ToolTip="识别引擎"
+                                                  Visibility="{Binding IsChecked, ElementName=ScreenshotOcrToggle, Converter={StaticResource BoolToVisibility}}">
+                                            <ComboBoxItem Content="中英" IsSelected="True" />
+                                            <ComboBoxItem Content="日" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <ToggleButton x:Name="TextReviewToggle" Content="" Tag="FileCompare" ToolTip="文本校对" />
+                                    <Button Click="OpenImageReview_Click" Content="" Tag="Compare" ToolTip="图片校对" />
 
                                 </StackPanel>
                             </Grid>
@@ -252,7 +269,14 @@
                             </materialDesign:DrawerHost.LeftDrawerContent>
                             <!-- 图片！！！！！ -->
                             <Grid x:Name="ImageParent" AllowDrop="True" ClipToBounds="True" DragOver="OnFileDragOver" Drop="OnFileDrop">
-                                <local:ImageLabelViewer x:Name="PicView" DataContext="{Binding SelectedImage}" IsScreenShotMode="{Binding IsChecked, ElementName=OcrBtn}" IsSyncRequired="False" CanLabel="{Binding IsChecked, ElementName=LabelBtn}" />
+                                <local:ImageLabelViewer x:Name="PicView" DataContext="{Binding SelectedImage}" IsScreenShotMode="{Binding IsChecked, ElementName=OcrBtn}" IsSyncRequired="False">
+                                    <local:ImageLabelViewer.CanLabel>
+                                        <MultiBinding Converter="{StaticResource AnyTrueConverter}">
+                                            <Binding ElementName="LabelBtn" Path="IsChecked" />
+                                            <Binding ElementName="OcrBtn" Path="IsChecked" />
+                                        </MultiBinding>
+                                    </local:ImageLabelViewer.CanLabel>
+                                </local:ImageLabelViewer>
 
                                 <!-- 在底部显示消息 -->
                                 <materialDesign:Snackbar x:Name="MessageShow" MaxWidth="1600" MessageQueue="{Binding MsgQueue}" />

@@ -43,7 +43,7 @@
                 x:Name="LabelItemsControl"
                 Width="{Binding ActualWidth, ElementName=TargetImage}"
                 Height="{Binding ActualHeight, ElementName=TargetImage}"
-                ItemsSource="{Binding ActiveLabels}"
+                ItemsSource="{Binding ActiveLabelsView}"
                 AlternationCount="1000"
                 MouseLeftButtonUp="OnLabelContainerUp"
                 MouseMove="OnLabelContainerMove"
@@ -128,7 +128,7 @@
                                     </Border.Background>
 
                                     <Grid>
-                                        <TextBlock Text="{Binding Text}" MinWidth="20">
+                                        <TextBlock MinWidth="30" MaxWidth="195" Text="{Binding Text}" TextWrapping="Wrap">
                                             <TextBlock.Visibility>
                                                 <MultiBinding Converter="{StaticResource LabelReferenceVisibilityConverter}" ConverterParameter="Inverse">
                                                     <Binding />
@@ -143,13 +143,13 @@
                                         <TextBox
                                             MinWidth="30"
                                             MaxWidth="200"
+                                            Padding="2"
                                             AcceptsReturn="True"
                                             Background="White"
                                             BorderThickness="0"
                                             Foreground="Black"
                                             IsVisibleChanged="LabelTextEditBox_IsVisibleChanged"
                                             LostKeyboardFocus="LabelTextEditBox_LostKeyboardFocus"
-                                            Padding="2"
                                             PreviewKeyDown="LabelTextEditBox_PreviewKeyDown"
                                             Style="{x:Null}"
                                             Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"

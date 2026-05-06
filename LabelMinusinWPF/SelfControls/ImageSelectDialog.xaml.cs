@@ -41,9 +41,12 @@ namespace LabelMinusinWPF
         public ObservableCollection<SelectableImage> Items { get; }
         public List<OneImage> SelectedImages { get; private set; }
 
-        public ImageSelectDialog(List<OneImage> availableImages, List<OneImage> currentImages)
+        public ImageSelectDialog(List<OneImage> availableImages, List<OneImage> currentImages,
+            string title = "选择图片", string description = "请选择要包含在翻译中的图片：")
         {
             InitializeComponent();
+            Title = title;
+            DescriptionText.Text = description;
 
             // 根据已有图片名称构建集合，快速判断是否已被选中
             HashSet<string> currentNames = new(currentImages.Select(img => img.ImageName));

@@ -26,13 +26,19 @@ namespace LabelMinusinWPF
         [NotifyCanExecuteChangedFor(nameof(NextImageCommand))]
         private string? _selectedMergedName;
 
+        [ObservableProperty]
+        private bool _isFuzzyMatchEnabled = true;
+
+        partial void OnIsFuzzyMatchEnabledChanged(bool value)
+        {
+            ImageList_ListChanged(null, null!);
+        }
+
         partial void OnSelectedMergedNameChanged(string? value)
         {
             if (string.IsNullOrEmpty(value)) return;
-            LeftImageVM.SelectedImage = LeftImageVM.ImageList.FirstOrDefault(img =>
-                Path.GetFileNameWithoutExtension(img.ImageName).Equals(value, StringComparison.OrdinalIgnoreCase));
-            RightImageVM.SelectedImage = RightImageVM.ImageList.FirstOrDefault(img =>
-                Path.GetFileNameWithoutExtension(img.ImageName).Equals(value, StringComparison.OrdinalIgnoreCase));
+            LeftImageVM.SelectedImage = FindBestMatch(LeftImageVM.ImageList, value);
+            RightImageVM.SelectedImage = FindBestMatch(RightImageVM.ImageList, value);
         }
 
         public CompareImgVM()
@@ -43,10 +49,7 @@ namespace LabelMinusinWPF
 
         private void ImageList_ListChanged(object? sender, ListChangedEventArgs e)
         {
-            var union = LeftImageVM.ImageList.Select(x => Path.GetFileNameWithoutExtension(x.ImageName))
-                .Union(RightImageVM.ImageList.Select(x => Path.GetFileNameWithoutExtension(x.ImageName)))
-                .OrderBy(n => n)
-                .ToList();
+            var union = BuildUnionList();
 
             Application.Current.Dispatcher.Invoke(() =>
             {
@@ -55,6 +58,43 @@ namespace LabelMinusinWPF
                 if (SelectedMergedName == null && AllImageNames.Count > 0)
                     SelectedMergedName = AllImageNames.First();
             });
+        }
+
+        private List<string> BuildUnionList()
+        {
+            if (IsFuzzyMatchEnabled)
+            {
+                var keyToDisplay = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var img in LeftImageVM.ImageList)
+                {
+                    var key = FileNameNormalizer.Normalize(Path.GetFileNameWithoutExtension(img.ImageName));
+                    keyToDisplay.TryAdd(key, Path.GetFileNameWithoutExtension(img.ImageName));
+                }
+                foreach (var img in RightImageVM.ImageList)
+                {
+                    var key = FileNameNormalizer.Normalize(Path.GetFileNameWithoutExtension(img.ImageName));
+                    keyToDisplay.TryAdd(key, Path.GetFileNameWithoutExtension(img.ImageName));
+                }
+                return keyToDisplay.Values.OrderBy(n => n).ToList();
+            }
+
+            return LeftImageVM.ImageList.Select(x => Path.GetFileNameWithoutExtension(x.ImageName))
+                .Union(RightImageVM.ImageList.Select(x => Path.GetFileNameWithoutExtension(x.ImageName)))
+                .OrderBy(n => n)
+                .ToList();
+        }
+
+        private OneImage? FindBestMatch(BindingList<OneImage> imageList, string selectedName)
+        {
+            if (IsFuzzyMatchEnabled)
+            {
+                var selectedKey = FileNameNormalizer.Normalize(selectedName);
+                return imageList.FirstOrDefault(img =>
+                    FileNameNormalizer.Normalize(Path.GetFileNameWithoutExtension(img.ImageName)) == selectedKey);
+            }
+
+            return imageList.FirstOrDefault(img =>
+                Path.GetFileNameWithoutExtension(img.ImageName).Equals(selectedName, StringComparison.OrdinalIgnoreCase));
         }
         #endregion
 
@@ -161,36 +201,5 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-        [ObservableProperty]
-        private bool _isScreenShotEnabled;
-
-        [ObservableProperty]
-        private bool _isDualReViewEnabled;
-
-        [ObservableProperty]
-        private bool _isMenuOpen;
-
-        [ObservableProperty]
-        private GridLength _leftColumnWidth = new(1, GridUnitType.Star);
-
-        [ObservableProperty]
-        private GridLength _rightColumnWidth = new(1, GridUnitType.Star);
-
-        [RelayCommand]
-        private void ResetLayout()
-        {
-            LeftColumnWidth = new GridLength(1, GridUnitType.Star);
-            RightColumnWidth = new GridLength(1, GridUnitType.Star);
-        }
-
-        [RelayCommand]
-        private void ToggleTopDrawer() => IsMenuOpen = !IsMenuOpen;
-
-        [RelayCommand]
-        private void ToggleMode()
-        {
-            IsDualReViewEnabled = !IsDualReViewEnabled;
-            if (IsDualReViewEnabled) IsSyncEnabled = true;
-        }
     }
 }

@@ -130,8 +130,19 @@ namespace LabelMinusinWPF.Common
             if (label.IsDeleted) return "-";
 
             var vm = Application.Current.MainWindow?.DataContext as OneProject;
-            int idx = vm?.SelectedImage?.ActiveLabels.IndexOf(label) ?? -1;
-            return idx >= 0 ? $"{idx + 1}" : "*";
+            if (vm?.SelectedImage?.ActiveLabelsView is IEnumerable activeLabels)
+            {
+                int index = 1;
+                foreach (var activeLabel in activeLabels)
+                {
+                    if (ReferenceEquals(activeLabel, label))
+                        return index.ToString(culture);
+
+                    index++;
+                }
+            }
+
+            return "*";
         }
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
     }
@@ -164,6 +175,15 @@ namespace LabelMinusinWPF.Common
             => null;
     }
 
+    public class AnyTrueConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+            => values.Any(v => v is true);
+
+        public object[]? ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            => null;
+    }
+
     public class ImageRelativePositionConverter : IMultiValueConverter
     {
         public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
@@ -173,6 +193,20 @@ namespace LabelMinusinWPF.Common
             bool isX = (string)parameter == "X";
             return relative * (isX ? img.ActualWidth : img.ActualHeight);
         }
+        public object[]? ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => null;
+    }
+
+    public class LabelsSourceConverter : IMultiValueConverter
+    {
+        public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (values.Length < 2) return null!;
+            bool isReviewMode = values[0] is bool b && b;
+            var image = values[1] as OneImage;
+            if (image == null) return null!;
+            return isReviewMode ? image.Labels : image.ActiveLabelsView;
+        }
+
         public object[]? ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => null;
     }
 

@@ -56,7 +56,7 @@ namespace LabelMinusinWPF.Common
         // ---- 注册表操作 ----
 
         private static string GetExecutablePath() =>
-            Assembly.GetExecutingAssembly().Location.Replace(".dll", ".exe");
+            Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "LabelMinusinWPF.exe");
 
         private static string BuildOpenCommand(string exePath)   => $"\"{exePath}\" \"%1\"";
         private static string BuildReviewCommand(string exePath) => $"\"{exePath}\" --review \"%1\"";

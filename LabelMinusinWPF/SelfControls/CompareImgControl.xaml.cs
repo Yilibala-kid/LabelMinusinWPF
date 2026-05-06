@@ -1,20 +1,14 @@
-﻿using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using MaterialDesignThemes.Wpf;
 using System;
-using System.Linq;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
-using static LabelMinusinWPF.OneProject;
 using LabelMinusinWPF.Common;
-using AppConstants = LabelMinusinWPF.Common.Constants;
 
 namespace LabelMinusinWPF
 {
@@ -25,7 +19,6 @@ namespace LabelMinusinWPF
     {
         private DispatcherTimer _closeTimer;
         private string _currentImgPath = string.Empty;
-        private bool _isSplitFollowMouse;
 
         public CompareImgControl()
         {
@@ -49,7 +42,7 @@ namespace LabelMinusinWPF
             this.Loaded += OnLoaded;
 
         }
-        # region Q键控制截图
+        # region 快捷键
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             var window = Window.GetWindow(this);
@@ -61,44 +54,145 @@ namespace LabelMinusinWPF
                 window.PreviewKeyUp += OnKeyUp;
             }
             if (DualImageSplitter != null) DualImageSplitter.Focusable = false;
-
-            if (DataContext is CompareImgVM vm)
-            {
-                vm.PropertyChanged += (s, args) =>
-                {
-                    if (args.PropertyName == nameof(CompareImgVM.IsDualReViewEnabled))
-                        _isSplitFollowMouse = vm.IsDualReViewEnabled;
-                };
-            }
         }
 
         private void OnKeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key != Key.Q || e.IsRepeat) return;
-            if (FocusManager.GetFocusedElement(Window.GetWindow(this)) is TextBox) return;
-            if (DataContext is CompareImgVM vm) vm.IsScreenShotEnabled = true;
+            if (!IsShortcutScopeActive() || IsTextInputFocused()) return;
+            if (DataContext is not CompareImgVM vm) return;
+
+            var key = GetActualKey(e);
+            var modifiers = Keyboard.Modifiers;
+
+            if (TryHandleShortcut(key, modifiers, vm, e.IsRepeat))
+                e.Handled = true;
+        }
+
+        private bool TryHandleShortcut(Key key, ModifierKeys modifiers, CompareImgVM vm, bool isRepeat)
+        {
+            switch (key)
+            {
+                case Key.Q when modifiers == ModifierKeys.None:
+                    if (!isRepeat) SetScreenShotEnabled(true);
+                    return true;
+
+                case Key.Left when modifiers == ModifierKeys.None:
+                case Key.A when modifiers == ModifierKeys.None:
+                    ExecuteCommand(vm.PreviousImageCommand);
+                    return true;
+
+                case Key.Right when modifiers == ModifierKeys.None:
+                case Key.D when modifiers == ModifierKeys.None:
+                    ExecuteCommand(vm.NextImageCommand);
+                    return true;
+
+                case Key.R when modifiers == ModifierKeys.None:
+                    ExecuteCommand(vm.ResetSyncCommand);
+                    return true;
+
+                case Key.R when modifiers == ModifierKeys.Control:
+                    ResetSplitterLayout();
+                    return true;
+
+                case Key.G when modifiers == ModifierKeys.None:
+                    ToggleMode();
+                    return true;
+
+                case Key.C when modifiers == ModifierKeys.None:
+                    ExecuteCommand(vm.SwapImagesCommand);
+                    return true;
+
+                case Key.P when modifiers == ModifierKeys.None:
+                    ExecuteCommand(vm.ClearImagesCommand);
+                    return true;
+
+                case Key.H when modifiers == ModifierKeys.None:
+                    ToggleSplitFollowMouse();
+                    return true;
+
+                case Key.F1 when modifiers == ModifierKeys.None:
+                    ToggleTopDrawer();
+                    return true;
+
+                default:
+                    return false;
+            }
         }
 
         private void OnKeyUp(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Q && DataContext is CompareImgVM vm) vm.IsScreenShotEnabled = false;
+            if (GetActualKey(e) != Key.Q) return;
+            SetScreenShotEnabled(false);
+            if (IsShortcutScopeActive()) e.Handled = true;
         }
 
+        private bool IsShortcutScopeActive() => IsOpen && IsVisible;
+
+        private bool IsTextInputFocused()
+        {
+            var window = Window.GetWindow(this);
+            return Keyboard.FocusedElement is TextBox
+                || (window != null && FocusManager.GetFocusedElement(window) is TextBox);
+        }
+
+        private static Key GetActualKey(KeyEventArgs e) => e.Key switch
+        {
+            Key.System => e.SystemKey,
+            Key.ImeProcessed => e.ImeProcessedKey,
+            Key.DeadCharProcessed => e.DeadCharProcessedKey,
+            _ => e.Key
+        };
+
+        private static void ExecuteCommand(ICommand command)
+        {
+            if (command.CanExecute(null)) command.Execute(null);
+        }
+        #endregion
+
+        #region 视图状态
+        private void ToggleTopDrawer() => Toggle(ImageReviewMenu);
+
+        private void ToggleMode() => Toggle(ModeToggle);
+
+        private void ModeToggle_Checked(object sender, RoutedEventArgs e)
+        {
+            if (DataContext is CompareImgVM vm) vm.IsSyncEnabled = true;
+        }
+
+        private void ToggleSplitFollowMouse() => Toggle(SplitFollowMouseToggle);
+
+        private static void Toggle(ToggleButton toggle) => toggle.IsChecked = toggle.IsChecked != true;
+
+        private void SetScreenShotEnabled(bool isEnabled) => DualScreenShot.IsChecked = isEnabled;
+
+        private bool IsScreenShotEnabled() => DualScreenShot.IsChecked == true;
+
+        private void ResetSplitter_Click(object sender, RoutedEventArgs e) => ResetSplitterLayout();
+
+        private void ResetSplitterLayout()
+        {
+            LeftReviewColumn.Width = new GridLength(1, GridUnitType.Star);
+            RightReviewColumn.Width = new GridLength(1, GridUnitType.Star);
+        }
+        #endregion
+
+        #region 分割线跟随鼠标
         private void OnMouseMoveForSplit(object sender, MouseEventArgs e)
         {
-            if (!_isSplitFollowMouse || DataContext is not CompareImgVM vm) return;
-            if (vm.IsScreenShotEnabled) return;
+            if (SplitFollowMouseToggle.IsChecked != true) return;
+            if (IsScreenShotEnabled()) return;
 
-            var container = sender as FrameworkElement;
-            if (container == null) return;
+            if (sender is not FrameworkElement { ActualWidth: > 0 } container) return;
 
-            double mouseX = e.GetPosition(container).X;
-            double totalWidth = container.ActualWidth;
-            if (totalWidth <= 0) return;
+            double ratio = GetSplitRatio(container, e);
+            LeftReviewColumn.Width = new GridLength(ratio, GridUnitType.Star);
+            RightReviewColumn.Width = new GridLength(1 - ratio, GridUnitType.Star);
+        }
 
-            double ratio = Math.Max(0.05, Math.Min(0.95, mouseX / totalWidth));
-            vm.LeftColumnWidth = new GridLength(ratio, GridUnitType.Star);
-            vm.RightColumnWidth = new GridLength(1 - ratio, GridUnitType.Star);
+        private static double GetSplitRatio(FrameworkElement container, MouseEventArgs e)
+        {
+            double ratio = e.GetPosition(container).X / container.ActualWidth;
+            return Math.Clamp(ratio, 0.05, 0.95);
         }
         #endregion
 
@@ -244,7 +338,10 @@ namespace LabelMinusinWPF
 
         private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            ((CompareImgControl)d).Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
+            var control = (CompareImgControl)d;
+            bool isOpen = (bool)e.NewValue;
+            control.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
+            if (!isOpen) control.SetScreenShotEnabled(false);
         }
         private void ExitBtn_Click(object sender, RoutedEventArgs e) => IsOpen = false;
         #endregion

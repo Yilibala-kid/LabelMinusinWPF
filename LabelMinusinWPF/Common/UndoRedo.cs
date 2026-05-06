@@ -1,5 +1,5 @@
 using System;
-using System.ComponentModel;
+using System.Collections.Generic;
 
 namespace LabelMinusinWPF.Common
 {
@@ -51,10 +51,10 @@ namespace LabelMinusinWPF.Common
     // 新增标注命令
     public class AddCommand : IUndoCommand
     {
-        private readonly BindingList<OneLabel> _list;
+        private readonly IList<OneLabel> _list;
         private readonly OneLabel _label;
 
-        public AddCommand(BindingList<OneLabel> list, OneLabel label)
+        public AddCommand(IList<OneLabel> list, OneLabel label)
         {
             _list = list;
             _label = label;

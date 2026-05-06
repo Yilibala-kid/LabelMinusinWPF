@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -6,7 +5,7 @@ namespace LabelMinusinWPF.SelfControls
 {
     public partial class LabelEditPanel : UserControl
     {
-        #region ģʽ�л�
+        #region 模式切换
         public static readonly DependencyProperty IsReviewModeProperty =
             DependencyProperty.Register(nameof(IsReviewMode), typeof(bool), typeof(LabelEditPanel),
                 new PropertyMetadata(false, OnIsReviewModeChanged));
@@ -42,9 +41,6 @@ namespace LabelMinusinWPF.SelfControls
             bool isReview = (bool)e.NewValue;
 
             panel.OriginalTextColumn.Visibility = isReview ? Visibility.Visible : Visibility.Collapsed;
-            panel.ReviewBottomPanel.Visibility = isReview ? Visibility.Visible : Visibility.Collapsed;
-
-            panel.RefreshItemsSource();
         }
 
         private static void OnIsListVisibleChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -69,78 +65,9 @@ namespace LabelMinusinWPF.SelfControls
         }
         #endregion
 
-
-
-        private OneProject? _project;
-        private OneImage? _image;
-
         public LabelEditPanel()
         {
             InitializeComponent();
-            DataContextChanged += OnDataContextChanged;
         }
-
-        private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
-        {
-            if (_project != null)
-                _project.PropertyChanged -= OnProjectPropertyChanged;
-
-            DetachFromCurrentImage();
-
-            _project = e.NewValue as OneProject;
-
-            if (_project != null)
-                _project.PropertyChanged += OnProjectPropertyChanged;
-
-            AttachToImage(_project?.SelectedImage);
-            RefreshItemsSource();
-        }
-
-        private void OnProjectPropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(OneProject.SelectedImage))
-            {
-                DetachFromCurrentImage();
-                AttachToImage(_project?.SelectedImage);
-                RefreshItemsSource();
-            }
-        }
-
-        private void OnImagePropertyChanged(object? sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == nameof(OneImage.ActiveLabels))
-                Dispatcher.Invoke(RefreshItemsSource);
-        }
-
-        private void AttachToImage(OneImage? image)
-        {
-            _image = image;
-            if (_image != null)
-                _image.PropertyChanged += OnImagePropertyChanged;
-        }
-
-        private void DetachFromCurrentImage()
-        {
-            if (_image != null)
-            {
-                _image.PropertyChanged -= OnImagePropertyChanged;
-                _image = null;
-            }
-        }
-
-        private void RefreshItemsSource()
-        {
-            if (DataContext is not OneProject vm || vm.SelectedImage == null)
-            {
-                MainDataGrid.ItemsSource = null;
-                return;
-            }
-
-            MainDataGrid.ItemsSource = IsReviewMode
-                ? vm.SelectedImage.Labels
-                : vm.SelectedImage.ActiveLabels;
-        }
-
-
     }
 }

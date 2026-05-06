@@ -2,8 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Windows.Data;
 using System.IO;
@@ -23,23 +23,23 @@ public partial class OneImage : ObservableObject
 {
     public OneImage()
     {
-        Labels.ListChanged += OnLabelsChanged;
+        ActiveLabelsView = new CollectionViewSource { Source = Labels }.View;
+        ActiveLabelsView.Filter = item => item is OneLabel label && !label.IsDeleted;
+
+        if (ActiveLabelsView is ICollectionViewLiveShaping liveView && liveView.CanChangeLiveFiltering)
+        {
+            liveView.LiveFilteringProperties.Add(nameof(OneLabel.IsDeleted));
+            liveView.IsLiveFiltering = true;
+        }
+
+        if (ActiveLabelsView is INotifyCollectionChanged activeLabelsChanged)
+            activeLabelsChanged.CollectionChanged += ActiveLabelsView_CollectionChanged;
     }
 
-    private void OnLabelsChanged(object? sender, ListChangedEventArgs e)
+    private void ActiveLabelsView_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
-        bool changesActiveSet =
-            e.ListChangedType is ListChangedType.ItemAdded
-                or ListChangedType.ItemDeleted
-                or ListChangedType.ItemMoved
-                or ListChangedType.Reset
-            || e.ListChangedType == ListChangedType.ItemChanged
-                && e.PropertyDescriptor?.Name == nameof(OneLabel.IsDeleted);
-
-        if (changesActiveSet)
-        {
-            OnPropertyChanged(nameof(ActiveLabels));
-        }
+        OnPropertyChanged(nameof(ActiveLabelsView));
+        OnPropertyChanged(nameof(SelectedLabel));
     }
 
     #region 图片自身属性
@@ -57,10 +57,10 @@ public partial class OneImage : ObservableObject
     #endregion
 
     #region 携带标签
-    public BindingList<OneLabel> Labels { get; } = [];// 标签列表
-    [ObservableProperty] 
+    public ObservableCollection<OneLabel> Labels { get; } = [];// 标签列表
+    [ObservableProperty]
     private OneLabel? _selectedLabel;// 当前选中的标签
-    public List<OneLabel> ActiveLabels => [.. Labels.Where(l => !l.IsDeleted)];// 活跃标签列表（排除已删除的）
+    public ICollectionView ActiveLabelsView { get; }// 活跃标签视图（排除已删除的）
 
     #endregion
 

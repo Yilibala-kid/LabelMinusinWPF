@@ -23,18 +23,6 @@
     <UserControl.DataContext>
         <local:CompareImgVM />
     </UserControl.DataContext>
-    <UserControl.InputBindings>
-        <KeyBinding Key="Left" Command="{Binding PreviousImageCommand}" />
-        <KeyBinding Key="Right" Command="{Binding NextImageCommand}" />
-        <KeyBinding Key="A" Command="{Binding PreviousImageCommand}" />
-        <KeyBinding Key="D" Command="{Binding NextImageCommand}" />
-        <KeyBinding Key="R" Command="{Binding ResetSyncCommand}" />
-        <KeyBinding Key="R" Command="{Binding ResetLayoutCommand}" Modifiers="Control" />
-        <KeyBinding Key="G" Command="{Binding ToggleModeCommand}" />
-        <KeyBinding Key="C" Command="{Binding SwapImagesCommand}" />
-        <KeyBinding Key="P" Command="{Binding ClearImagesCommand}" />
-        <KeyBinding Key="F1" Command="{Binding ToggleTopDrawerCommand}" />
-    </UserControl.InputBindings>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -63,7 +51,7 @@
 
             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                 <!-- 截图 -->
-                <ToggleButton x:Name="DualScreenShot" Content="截图(Q)" IsChecked="{Binding IsScreenShotEnabled}" Tag="Camera" ToolTip="截图自动复制到剪贴板" />
+                <ToggleButton x:Name="DualScreenShot" Content="截图(Q)" Tag="Camera" ToolTip="截图自动复制到剪贴板" />
 
                 <ComboBox
                     x:Name="DualNameCombobox"
@@ -76,7 +64,7 @@
                 <Button Command="{Binding PreviousImageCommand}" Tag="ArrowUp" ToolTip="上一张" />
                 <!-- 下一张 -->
                 <Button Command="{Binding NextImageCommand}" Tag="ArrowDown" ToolTip="下一张" />
-                <ToggleButton x:Name="ImageReviewMenu" Focusable="False" IsChecked="{Binding IsMenuOpen}" Tag="Menu" ToolTip="菜单" />
+                <ToggleButton x:Name="ImageReviewMenu" Focusable="False" Tag="Menu" ToolTip="菜单" />
             </StackPanel>
 
             <StackPanel Grid.Column="3" HorizontalAlignment="Right">
@@ -96,15 +84,28 @@
                 <Grid Height="35" Background="{DynamicResource MaterialDesignPaper}" Focusable="False">
                     <StackPanel HorizontalAlignment="Center">
                         <ToggleButton
+                            x:Name="FuzzyMatchToggle"
+                            IsChecked="{Binding IsFuzzyMatchEnabled}"
+                            Content="模糊匹配"
+                            Focusable="False"
+                            Tag="BlurLinear"
+                            ToolTip="模糊文件名匹配&#x0A;开启后可匹配仅前导零/分隔符差异的图片&#x0A;(如 0001.jpg ↔ 01.png)" />
+                        <ToggleButton
+                            x:Name="SplitFollowMouseToggle"
+                            Content="鼠标跟随"
+                            Focusable="False"
+                            Tag="CursorMove"
+                            ToolTip="分割线跟随鼠标 (H)" />
+                        <ToggleButton
                             x:Name="ModeToggle"
                             Content="单图校对"
+                            Checked="ModeToggle_Checked"
                             Focusable="False"
-                            IsChecked="{Binding IsDualReViewEnabled}"
                             Tag="compare"
                             ToolTip="单/双图校对&#x0A;建议打开同步显示" />
                         <Button
                             x:Name="ResetSplitter"
-                            Command="{Binding ResetLayoutCommand}"
+                            Click="ResetSplitter_Click"
                             Content="重置分割线布局"
                             Focusable="False"
                             Tag="ArrowSplitVertical"
@@ -125,6 +126,7 @@
                                     <StackPanel Orientation="Vertical">
                                         <TextBlock FontWeight="Bold" Text="快捷键：" />
                                         <TextBlock Text="按住Q:截图" />
+                                        <TextBlock Text="H:分割线跟随鼠标" />
                                         <TextBlock Text="G:切换单/双图校对" />
                                         <TextBlock Text="C:交换左右图片" />
                                         <TextBlock Text="P:清空图片" />
@@ -147,9 +149,9 @@
             <!-- 图片对比区域 -->
             <Grid x:Name="DualImageGrid" Grid.Row="1" MouseMove="OnMouseMoveForSplit">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="{Binding LeftColumnWidth, Mode=TwoWay}" />
+                    <ColumnDefinition x:Name="LeftReviewColumn" Width="1*" />
                     <ColumnDefinition Width="5" />
-                    <ColumnDefinition Width="{Binding RightColumnWidth, Mode=TwoWay}" />
+                    <ColumnDefinition x:Name="RightReviewColumn" Width="1*" />
                 </Grid.ColumnDefinitions>
 
                 <local:ImageLabelViewer
@@ -228,7 +230,7 @@
                     Background="RoyalBlue"
                     Cursor="SizeWE"
                     Focusable="False"
-                    IsEnabled="{Binding IsDualReViewEnabled, Converter={StaticResource InverseBoolConverter}}">
+                    IsEnabled="{Binding IsChecked, ElementName=ModeToggle, Converter={StaticResource InverseBoolConverter}}">
                     <GridSplitter.Template>
                         <ControlTemplate TargetType="GridSplitter">
                             <Grid Background="{TemplateBinding Background}">

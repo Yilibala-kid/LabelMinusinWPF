@@ -52,6 +52,14 @@ public static class ScreenshotHelper
         catch { return null; }
     }
 
+    public static void SaveBitmapFile(BitmapSource bitmap, string filePath)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(bitmap));
+        using var fs = new FileStream(filePath, FileMode.Create);
+        encoder.Save(fs);
+    }
+
 
     #region 图片合并
 

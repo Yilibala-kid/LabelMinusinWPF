@@ -16,7 +16,7 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="请选择要包含在翻译中的图片：" Style="{StaticResource MaterialDesignHeadline6TextBlock}" />
+            <TextBlock x:Name="DescriptionText" Style="{StaticResource MaterialDesignHeadline6TextBlock}" />
             <TextBlock Margin="0,4,0,0" Opacity="0.7" Text="已选中的图片将保留其标注数据，未选中的图片将失去标注数据" />
         </StackPanel>
 

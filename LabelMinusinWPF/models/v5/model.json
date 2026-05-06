@@ -1,0 +1,9 @@
+{
+  "id": "ppocrv5",
+  "name": "PP-OCRv5",
+  "engine": "PpOcrV5RapidOcr",
+  "detModel": "ch_PP-OCRv5_det_server.onnx",
+  "clsModel": "ch_PP-LCNet_x1_0_textline_ori_cls_server.onnx",
+  "recModel": "ch_PP-OCRv5_rec_server.onnx",
+  "dict": "ppocrv5_dict.txt"
+}

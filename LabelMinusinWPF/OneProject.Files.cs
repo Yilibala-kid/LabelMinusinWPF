@@ -243,6 +243,15 @@ namespace LabelMinusinWPF
             if (paths is not { Length: > 0 })
                 return;
 
+            if (HasUnsavedChanges())
+            {
+                var result = MessageBox.Show(
+                    "当前翻译有未保存的修改，是否保存？", "提示",
+                    MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes) Save(null);
+                else if (result == MessageBoxResult.Cancel) return;
+            }
+
             string firstPath = paths.First();
             string ext = Path.GetExtension(firstPath);
 

@@ -267,7 +267,10 @@ namespace LabelMinusinWPF
                 if (IsSyncRequired)
                     Snipped?.Invoke(this, normRect);
                 else if (CaptureRegion(normRect) is { } myBmp)
+                {
                     _ = ScreenshotHelper.SetClipboard(myBmp);
+                    ScreenshotCaptured?.Invoke(this, new(myBmp, normRect));
+                }
             }
         }
 
@@ -282,6 +285,10 @@ namespace LabelMinusinWPF
         // ==================== 事件 ====================
         // 当截图完成时，通知外部（父窗口）
         public event EventHandler<Rect>? Snipped;
+        // 截图完成后带 BitmapSource 的事件（MainWindow 用）
+        public event EventHandler<ScreenshotEventArgs>? ScreenshotCaptured;
+
+        public sealed record ScreenshotEventArgs(BitmapSource Bitmap, Rect NormalizedRect);
 
         // ==================== 锁定状态 ====================
         public bool IsXLocked { get; set; }

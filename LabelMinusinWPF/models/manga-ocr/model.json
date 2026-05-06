@@ -1,0 +1,6 @@
+{
+  "id": "manga-ocr",
+  "name": "MangaOCR（日漫专用）",
+  "engine": "MangaOcr",
+  "language": "ja"
+}
