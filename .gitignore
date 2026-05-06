@@ -362,3 +362,9 @@ MigrationBackup/
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
 /LabelMinusinWPF/.claude
+
+# Large binary files - should not be committed
+GGGG/LabelMinusinWPF.exe
+GGGG/LabelMinus_ver1.1.zip
+LabelMinusinWPF/models/v5/ch_PP-OCRv5_det_server.onnx
+LabelMinusinWPF/models/v5/ch_PP-OCRv5_rec_server.onnx
