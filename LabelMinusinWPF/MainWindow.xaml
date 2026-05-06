@@ -7,6 +7,7 @@
     xmlns:local="clr-namespace:LabelMinusinWPF"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:ocr="clr-namespace:LabelMinusinWPF.OCRService"
     xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     Title="{Binding WorkSpace.DisplayTitle}"
     Width="1200"
@@ -140,6 +141,7 @@
                 <MenuItem Header="帮助" Icon="{materialDesign:PackIcon Kind=Help}">
                     <MenuItem Click="OnOpenWebsite" Header="官网" Icon="{materialDesign:PackIcon Kind=Web}" Tag="https://github.com/Yilibala-kid/LabelMinusinWPF" />
                     <MenuItem Click="About_Click" Header="关于" Icon="{materialDesign:PackIcon Kind=InformationOutline}" />
+                    <MenuItem Click="License_Click" Header="开源许可" Icon="{materialDesign:PackIcon Kind=FileDocument}" />
                 </MenuItem>
                 <ToggleButton
                     Width="40"
@@ -189,7 +191,7 @@
                                             Width="150"
                                             Margin="10,0,0,0"
                                             materialDesign:HintAssist.Hint="选择网站"
-                                            ItemsSource="{x:Static common:Constants.OcrWebsiteKeys}"
+                                            ItemsSource="{x:Static ocr:OcrConstants.OcrWebsiteKeys}"
                                             SelectedIndex="0" />
                                         <Button Margin="5,0,0,0" Click="Recognize_Click" Tag="Magnify" ToolTip="将当前截图放到网站中识别" />
 

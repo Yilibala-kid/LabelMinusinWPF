@@ -7,7 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using LabelMinusinWPF.Common;
 
-namespace LabelMinusinWPF
+namespace LabelMinusinWPF.OCRService
 {
     public partial class OcrWindow : Window
     {
@@ -52,7 +52,7 @@ namespace LabelMinusinWPF
         {
             try
             {
-                _tempImagePath = ScreenshotHelper.SaveSnip(bitmapSource, null, Constants.TempFolders.OcrTemp)?.FilePath;
+                _tempImagePath = ScreenshotHelper.SaveSnip(bitmapSource, null, OcrConstants.OcrTemp)?.FilePath;
             }
             catch (Exception ex)
             {
