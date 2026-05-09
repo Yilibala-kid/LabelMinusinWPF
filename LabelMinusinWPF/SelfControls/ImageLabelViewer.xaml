@@ -2,10 +2,10 @@
     x:Class="LabelMinusinWPF.ImageLabelViewer"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:common="clr-namespace:LabelMinusinWPF.Common"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:i="http://schemas.microsoft.com/xaml/behaviors"
     xmlns:local="clr-namespace:LabelMinusinWPF"
-    xmlns:common="clr-namespace:LabelMinusinWPF.Common"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sc="clr-namespace:LabelMinusinWPF.SelfControls"
     x:Name="self"
@@ -35,16 +35,16 @@
                     <TranslateTransform X="{Binding OffsetX, ElementName=self}" Y="{Binding OffsetY, ElementName=self}" />
                 </TransformGroup>
             </Grid.RenderTransform>
-            <!-- 图片 -->
+            <!--  图片  -->
             <Image x:Name="TargetImage" Source="{Binding DisplayImage}" />
 
-            <!-- 标记层 -->
+            <!--  标记层  -->
             <ItemsControl
                 x:Name="LabelItemsControl"
                 Width="{Binding ActualWidth, ElementName=TargetImage}"
                 Height="{Binding ActualHeight, ElementName=TargetImage}"
-                ItemsSource="{Binding ActiveLabelsView}"
                 AlternationCount="1000"
+                ItemsSource="{Binding ActiveLabelsView}"
                 MouseLeftButtonUp="OnLabelContainerUp"
                 MouseMove="OnLabelContainerMove"
                 Visibility="{Binding CanLabel, ElementName=self, Converter={StaticResource BoolToVis}}">
@@ -55,7 +55,7 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
 
-                <!-- 定位 -->
+                <!--  定位  -->
                 <ItemsControl.ItemContainerStyle>
                     <Style TargetType="ContentPresenter">
                         <Setter Property="Canvas.Left">
@@ -82,15 +82,15 @@
                     </Style>
                 </ItemsControl.ItemContainerStyle>
 
-                <!-- 标记内容 -->
+                <!--  标记内容  -->
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
-                        <!-- 外层 StackPanel 用于整体缩放 -->
+                        <!--  外层 StackPanel 用于整体缩放  -->
                         <StackPanel Orientation="Horizontal" RenderTransformOrigin="0,0.5">
                             <StackPanel.RenderTransform>
                                 <ScaleTransform ScaleX="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelScale}" ScaleY="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelScale}" />
                             </StackPanel.RenderTransform>
-                            <StackPanel x:Name="LabelStackPanel" Orientation="Horizontal" Background="Transparent">
+                            <StackPanel x:Name="LabelStackPanel" Background="Transparent" Orientation="Horizontal">
                                 <StackPanel.Style>
                                     <Style TargetType="StackPanel">
                                         <Setter Property="Opacity" Value="0.8" />
@@ -110,12 +110,12 @@
                                         </Style.Triggers>
                                     </Style>
                                 </StackPanel.Style>
-                                <!-- 点：颜色跟随组别 -->
+                                <!--  点：颜色跟随组别  -->
                                 <Border Cursor="Hand" MouseLeftButtonDown="LabelNode_LeftMouseDown" MouseRightButtonDown="LabelNode_RightMouseDown" Style="{Binding Source={x:Static sc:LabelStylePanel.Instance}, Path=LabelDotStyle, TargetNullValue={StaticResource DefaultDotStyle}}">
                                     <TextBlock Text="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource IndexPlusOneConverter}}" />
                                 </Border>
-                                <!-- 文字：悬停或选中时显示 -->
-                                <Border Style="{StaticResource DefaultTextStyle}" MouseLeftButtonDown="LabelText_MouseLeftButtonDown">
+                                <!--  文字：悬停或选中时显示  -->
+                                <Border MouseLeftButtonDown="LabelText_MouseLeftButtonDown" Style="{StaticResource DefaultTextStyle}">
                                     <Border.Visibility>
                                         <MultiBinding Converter="{StaticResource LabelTextVisibilityConverter}">
                                             <Binding Path="IsMouseOver" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
@@ -170,7 +170,7 @@
 
             </ItemsControl>
         </Grid>
-        <!-- 截图层 -->
+        <!--  截图层  -->
         <Canvas
             x:Name="SnipCanvas"
             Background="Transparent"

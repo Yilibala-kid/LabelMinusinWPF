@@ -3,6 +3,7 @@ using System.Security.Cryptography; // SHA1 计算图片路径哈希
 using System.Text;                 // Encoding.UTF8
 using System.Text.Json;             // JSON 序列化（预留）
 using System.Windows;               // Size、Point、Rect 等 UI 类型
+using System.Windows.Media.Imaging;  // BitmapSource、PngBitmapEncoder
 using System.Diagnostics;           // Debug（预留）
 using LabelMinusinWPF.Common;       // GroupConstants、AddCommand 等业务类型
 using RapidOcrNet;                 // TextBlock 类型（来自 PpOcrV5 引擎）
@@ -52,15 +53,15 @@ public static class OcrPipeline
         IReadOnlyList<OneImage>? images = null, // 要处理图片列表，null 表示全部
         CancellationToken cancellationToken = default)
     {
-        // 无可处理图片时提前返回
-        if (project.ImageList.Count == 0)
-            return AutoOcrResult.Failed("当前项目没有可 OCR 的图片");
-
         int processedImages = 0;   // 已处理图片计数
         int createdLabels = 0;     // 已创建标签计数
 
         // 若未指定图片列表则处理项目全部图片
         var imageList = images ?? project.ImageList;
+        // 无可处理图片时提前返回
+        if (imageList.Count == 0)
+            return new AutoOcrResult(false, 0, 0, "当前项目没有可 OCR 的图片");
+
         int totalCount = imageList.Count;
 
         // 逐张处理图片
@@ -86,9 +87,8 @@ public static class OcrPipeline
             // 自动判断是否为竖排（日文漫画）布局
             bool vertical = IsVerticalLayout(regions);
 
-            // MangaOcrProvider 的 RecognizeAsync 内部已完成合并，跳过 OcrPipeline 的合并步骤
-            // 其他 Provider（如 PpOcrV5）需要在此做后处理合并
-            var blocks = provider is MangaOcrProvider
+            // Provider 内部已合并时跳过管线的合并步骤
+            var blocks = provider.MergesRegionsInternally
                 ? regions
                 : BuildTextBlocks(regions, imageSize, options, vertical);
 
@@ -128,15 +128,11 @@ public static class OcrPipeline
 
             processedImages++;
 
-            // 进度消息投送到 UI 线程的消息队列
-            Application.Current.Dispatcher.Invoke(() =>
-                project.MsgQueue.Enqueue(
-                    $"OCR 进度：{processedImages}/{totalCount} — {image.ImageName}"));
+            progress.Report($"OCR 进度：{processedImages}/{totalCount} — {image.ImageName}");
         }
 
         // 返回成功结果
-        return AutoOcrResult.Succeeded(
-            processedImages, createdLabels,
+        return new AutoOcrResult(true, processedImages, createdLabels,
             $"OCR 完成：处理 {processedImages} 张图片，新增 {createdLabels} 个标签");
     }
 
@@ -455,6 +451,40 @@ public static class OcrPipeline
     // ========================================================================
     // 图片工具
     // ========================================================================
+
+    internal static string SaveBitmapToTempPng(BitmapSource bitmap)
+    {
+        string tmpDir = Path.Combine(AppContext.BaseDirectory, OcrConstants.OcrTemp);
+        Directory.CreateDirectory(tmpDir);
+        string tmpPath = Path.Combine(tmpDir, $"ocr_{Guid.NewGuid():N}.png");
+
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(bitmap));
+            using var fs = new FileStream(tmpPath, FileMode.Create);
+            encoder.Save(fs);
+        });
+
+        return tmpPath;
+    }
+
+    /// <summary>
+    /// 保存 BitmapSource 为临时 PNG，执行操作，最后清理临时文件。
+    /// </summary>
+    internal static async Task<T?> WithTempPngAsync<T>(
+        BitmapSource bitmap, Func<string, Task<T?>> action)
+    {
+        string tmpPath = SaveBitmapToTempPng(bitmap);
+        try
+        {
+            return await action(tmpPath);
+        }
+        finally
+        {
+            try { File.Delete(tmpPath); } catch { }
+        }
+    }
 
     /// <summary>
     /// 解析图片路径。

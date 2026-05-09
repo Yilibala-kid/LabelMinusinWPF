@@ -17,6 +17,9 @@ public sealed class MangaOcrProvider : IOcrProvider
     // 引擎名称标识
     public const string EngineName = "MangaOcr";
 
+    // RecognizeAsync 内部已完成文本块合并，OcrPipeline 需跳过合并步骤
+    public bool MergesRegionsInternally => true;
+
     // manga-ocr Python 子进程（跨线程共享，用锁保护）
     public static Process? SharedProcess { get; private set; }
 
@@ -217,33 +220,17 @@ public sealed class MangaOcrProvider : IOcrProvider
     public static Task<string?> RecognizeScreenshot(BitmapSource bitmap)
     {
         int w = bitmap.PixelWidth, h = bitmap.PixelHeight;
+        if (SharedProcess == null || SharedProcess.HasExited)
+            return Task.FromResult<string?>(null);
 
-        return Task.Run(() =>
+        return OcrPipeline.WithTempPngAsync(bitmap, tmpPath => Task.Run(() =>
         {
-            // 进程未启动或已退出则返回空
-            if (SharedProcess == null || SharedProcess.HasExited) return null;
+            var respLine = SendOcrRequest(tmpPath, [[0, 0, w, h]]);
+            if (respLine == null) return null;
 
-            // 将截图保存为临时 PNG 文件
-            string tmpPath = OcrUIActions.SaveBitmapToTempPng(bitmap);
-
-            try
-            {
-                // 发送 OCR 请求：整图作为一个检测框 [0,0,w,h]
-                var respLine = SendOcrRequest(tmpPath, [[0, 0, w, h]]);
-
-                if (respLine == null) return null;
-
-                // 反序列化响应，取第一个文本（整图只有一个框）
-                var resp = JsonSerializer.Deserialize<MangaOcrResponse>(respLine)!;
-
-                return resp.texts is { Length: > 0 } ? resp.texts[0] : null;
-            }
-            finally
-            {
-                // 清理临时文件
-                try { File.Delete(tmpPath); } catch { }
-            }
-        });
+            var resp = JsonSerializer.Deserialize<MangaOcrResponse>(respLine)!;
+            return resp.texts is { Length: > 0 } ? resp.texts[0] : null;
+        }));
     }
 
     // 对指定图片文件执行完整日文 OCR：检测 → 合并 → 发给 manga-ocr 识别 → 返回结果
@@ -257,41 +244,20 @@ public sealed class MangaOcrProvider : IOcrProvider
         {
             ct.ThrowIfCancellationRequested();
 
-            // 解码图片获取尺寸
             using var bitmap = SKBitmap.Decode(imagePath)
                 ?? throw new InvalidOperationException($"Cannot decode: {imagePath}");
 
-            // 懒加载 PaddleOCR 检测引擎（与 manga-ocr 的识别引擎配合使用）
             EnsureDetEngine(model);
 
-            // 进程未启动则返回空
             if (SharedProcess == null || SharedProcess.HasExited)
                 return Array.Empty<OcrTextRegion>();
 
-            // 第一步：用 RapidOcr 做文字区域检测（只检测，不识别）
-            var blocks = _detEngine!.Detect(
-                bitmap,
-                RapidOcrOptions.Default with
-                {
-                    BoxScoreThresh = (float)options.MinConfidence,
-                    DoAngle = true  // 启用角度分类（竖排日文需要）
-                })
-                .TextBlocks
-                .Where(b => b.BoxScore >= options.MinConfidence)
-                .ToList();
+            var rawRegions = PpOcrV5RapidOcrProvider.RunDetection(
+                _detEngine!, bitmap, options.MinConfidence, ct);
 
-            if (blocks.Count == 0) return Array.Empty<OcrTextRegion>();
+            if (rawRegions.Count == 0) return Array.Empty<OcrTextRegion>();
 
-            // 保存图片尺寸
             var imageSize = new Size(bitmap.Width, bitmap.Height);
-
-            // 将 TextBlock 转换为 OcrTextRegion（暂存检测阶段原始文本）
-            var rawRegions = blocks.Select(b =>
-                new OcrTextRegion(
-                    b.GetText(),            // RapidOcr 自带的粗识别结果（不是最终结果）
-                    OcrPipeline.BlockToRect(b),
-                    b.BoxScore))
-                .ToList();
 
             // 检测结果后处理：过滤噪点 + 合并相邻文本块
             var mergedRegions = OcrPipeline.BuildTextBlocks(

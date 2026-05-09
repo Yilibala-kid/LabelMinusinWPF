@@ -15,7 +15,7 @@
         <common:EnumToBooleanConverter x:Key="EnumToBoolConverter" />
     </UserControl.Resources>
     <StackPanel Orientation="Vertical" TextElement.Foreground="{DynamicResource MaterialDesignBody}">
-        <!-- 标签点样式 -->
+        <!--  标签点样式  -->
         <TextBlock Margin="16,16,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签点样式" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
             <RadioButton GroupName="DotStyle" IsChecked="{Binding DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Circle, Mode=TwoWay}" Tag="Circle" />
@@ -23,7 +23,7 @@
             <RadioButton GroupName="DotStyle" IsChecked="{Binding DotStyle, Converter={StaticResource EnumToBoolConverter}, ConverterParameter=Transparent, Mode=TwoWay}" Tag="Select" />
         </StackPanel>
 
-        <!-- 文字背景颜色 -->
+        <!--  文字背景颜色  -->
         <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="背景颜色" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
             <Button Background="White" Command="{Binding SetBackgroundColorCommand}" CommandParameter="White" Style="{StaticResource ColorPickerButtonStyle}" />
@@ -31,7 +31,7 @@
             <Button Background="RoyalBlue" Command="{Binding SetBackgroundColorCommand}" CommandParameter="RoyalBlue" Style="{StaticResource ColorPickerButtonStyle}" />
         </StackPanel>
 
-        <!-- 文字背景透明度 -->
+        <!--  文字背景透明度  -->
         <TextBlock Margin="16,8,16,4" FontWeight="SemiBold" Opacity="0.8" Text="背景透明度" />
         <Slider
             Margin="16,0,16,8"
@@ -41,7 +41,7 @@
             TickFrequency="0.1"
             Value="{Binding TextBackgroundOpacity, Mode=TwoWay}" />
 
-        <!-- 文字前景颜色 -->
+        <!--  文字前景颜色  -->
         <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="文字颜色" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
             <Button Background="White" Command="{Binding SetForegroundColorCommand}" CommandParameter="White" Style="{StaticResource ColorPickerButtonStyle}" />
@@ -49,7 +49,7 @@
             <Button Background="RoyalBlue" Command="{Binding SetForegroundColorCommand}" CommandParameter="RoyalBlue" Style="{StaticResource ColorPickerButtonStyle}" />
         </StackPanel>
 
-        <!-- 标签缩放 -->
+        <!--  标签缩放  -->
         <TextBlock Margin="16,0,16,8" FontWeight="SemiBold" Opacity="0.8" Text="标签缩放" />
         <StackPanel Margin="16,0,16,8" Orientation="Horizontal">
             <Button Command="{Binding ZoomInLabelCommand}" Tag="Plus" ToolTip="放大标签" />
@@ -60,10 +60,10 @@
 
         <Button
             Margin="16,0,16,8"
-            Tag="Restore"
             Background="RoyalBlue"
             Command="{Binding ResetToDefaultsCommand}"
             Content="恢复默认样式"
-            FontWeight="Bold" />
+            FontWeight="Bold"
+            Tag="Restore" />
     </StackPanel>
 </UserControl>
