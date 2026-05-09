@@ -45,7 +45,7 @@ namespace LabelMinusinWPF
             RegisterMenu.IsChecked = RightClickOpenService.IsRegistered();
             LabelStylePanel.Instance.LoadSettings();
             InitializeAutoSave();
-            OcrUIActions.WireUp(this);
+            OcrPanel.Attach(PicView, OcrBtn, OcrPanelPopup, this);
         }
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
@@ -110,24 +110,20 @@ namespace LabelMinusinWPF
         }
         #endregion
 
-        #region OCR 功能（逻辑已移至 OcrUIActions.cs）
-        // ScreenshotOcrToggle 事件由 OcrUIActions.WireUp() 接线
+        #region OCR 功能
 
         private async void SetupOcrEnv_Click(object sender, RoutedEventArgs e)
-            => await OcrUIActions.InstallOcrEnvAsync(DataContext as OneProject);
+            => await OcrPanel.InstallEnvironmentAsync();
 
         private async void AutoOcr_Click(object sender, RoutedEventArgs e)
-            => await OcrUIActions.AutoDotAsync(DataContext as OneProject);
+            => await OcrPanel.RunAutoDotAsync();
 
         private async void AutoOcr_Batch(object sender, RoutedEventArgs e)
-            => await OcrUIActions.AutoOcrBatchAsync(ScreenshotOcrToggle, DataContext as OneProject,
-                ((MenuItem)sender).Tag as string ?? "");
+            => await OcrPanel.RunBatchAsync(
+                ((MenuItem)sender).Tag as string == "JP" ? OcrPanel.OcrEngineKind.Manga : OcrPanel.OcrEngineKind.Paddle);
 
         private void OcrHelp_Click(object sender, RoutedEventArgs e)
-            => OcrUIActions.ShowOcrHelp();
-
-        private void Recognize_Click(object sender, RoutedEventArgs e)
-            => OcrUIActions.OpenWebOcr(DataContext as OneProject, OcrWebsiteSelector);
+            => OcrPanel.ShowHelp();
         #endregion
 
         #region 拖放文件支持

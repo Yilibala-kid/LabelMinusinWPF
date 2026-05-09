@@ -18,6 +18,12 @@ public interface IOcrProvider
     // ct        : 取消令牌
     Task<IReadOnlyList<OcrTextRegion>> RecognizeAsync(
         string imagePath, OcrModelInfo model, AutoOcrOptions options, CancellationToken ct);
+
+    /// <summary>
+    /// 若 RecognizeAsync 已在内部完成文本块合并，则为 true。
+    /// true 时 OcrPipeline 会跳过自身的 BuildTextBlocks 步骤。
+    /// </summary>
+    bool MergesRegionsInternally => false;
 }
 
 // OcrModelInfo — 单个 OCR 模型的配置信息（对应一个 model.json）
@@ -122,7 +128,7 @@ public enum OcrOutputMode { RecognizedText, PositionOnly }
 // ============================================================================
 
 public sealed record AutoOcrOptions(
-    double MinConfidence = 0.5,           // 最低置信度阈值，低于此值的结果被过滤
+    double MinConfidence = 0.6,           // 最低置信度阈值，低于此值的结果被过滤
     OcrOutputMode OutputMode = OcrOutputMode.RecognizedText, // 输出模式：文字 or 仅位置
     bool MergeTextLines = false,         // 是否合并相邻文本块（横排长句需合并）
     bool RightToLeft = false,            // 横排时文字阅读方向（中文从左到右，日语漫画从右到左）
@@ -134,24 +140,9 @@ public sealed record AutoOcrOptions(
     bool DeduplicateRegions = true,      // 是否去重（过滤中心点过近的区域）
     double DeduplicateDistance = 0.003)  // 去重阈值（归一化 0~1，超过视为重复）
 {
-    // 日文漫画预置配置：竖排、右到左、宽松合并参数
-    public static AutoOcrOptions JapaneseManga { get; } = new(
-        MinConfidence: 0.4,
-        OutputMode: OcrOutputMode.PositionOnly,   // 打点模式，不需要文字
-        MergeTextLines: true,                    // 合并相邻文字块
-        RightToLeft: true,                       // 日漫从右到左
-        MergePaddingRatio: 0.008,                 // 较小间距
-        MergeMaxDistance: 16,                    // 较小绝对距离
-        MergeDistanceScale: 0.6,                  // 较小比例
-        DeduplicateRegions: true,
-        DeduplicateDistance: 0.002);
-
-    // 中英文预置配置：横排、左到右、输出识别文字
-    public static AutoOcrOptions ChineseEnglish { get; } = new(
-        MinConfidence: 0.4,
-        OutputMode: OcrOutputMode.RecognizedText, // 输出文字内容
+    public static AutoOcrOptions Default { get; } = new(
+        MinConfidence: 0.6,
         MergeTextLines: true,
-        RightToLeft: false,                      // 中文从左到右
         MergePaddingRatio: 0.008,
         MergeMaxDistance: 16,
         MergeDistanceScale: 0.6,
@@ -171,17 +162,7 @@ public sealed record OcrTextRegion(string Text, Rect Bounds, double Confidence);
 // ============================================================================
 
 public sealed record AutoOcrResult(
-    bool Success,       // 是否全部成功（部分失败仍可能为 true，看实现）
-    int ImageCount,     // 实际处理的图片数量
-    int LabelCount,     // 总共生成了多少个标签
-    string Message)     // 结果说明（成功/失败原因）
-{
-    /// <summary>创建 OCR 成功结果</summary>
-    public static AutoOcrResult Succeeded(int n, int l, string m)
-        => new(true, n, l, m);
-
-    /// <summary>创建 OCR 失败结果</summary>
-    public static AutoOcrResult Failed(string m)
-        // 失败时计数均为 0
-        => new(false, 0, 0, m);
-}
+    bool Success,
+    int ImageCount,
+    int LabelCount,
+    string Message);

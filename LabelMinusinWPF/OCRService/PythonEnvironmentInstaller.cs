@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
+using System.Text;
 
 namespace LabelMinusinWPF.OCRService;
 
@@ -20,11 +21,9 @@ public static class PythonEnvironmentInstaller
         $"https://www.python.org/ftp/python/{PythonVersion}/python-{PythonVersion}-embed-amd64.zip";
     private const string GetPipUrl = "https://bootstrap.pypa.io/get-pip.py";
 
-    private const string PipIndexUrl = "https://pypi.org/simple/";
     private const string TorchIndexUrl = "https://download.pytorch.org/whl/cpu";
 
-    private static readonly string[] Stage1Packages = ["torch", "manga-ocr", "Pillow"];
-    private static readonly string[] Stage2Packages = ["huggingface_hub"];
+    private static readonly string[] PipPackages = ["manga-ocr", "huggingface_hub"];
 
     private static readonly string[] ModelScopeTags = ["v3.7.0", "v3.4.0", "master"];
     private static readonly (string File, string SubDir)[] OnnxModels =
@@ -78,24 +77,31 @@ public static class PythonEnvironmentInstaller
         await RunPythonAsync($"\"{getPipPath}\" --no-python-version-warning", ct);
         File.Delete(getPipPath);
 
-        // Step 5: 安装 torch
-        progress.Report("安装 torch (CPU 版)...");
-        await RunPipAsync($"install torch --index-url {TorchIndexUrl}", ct);
+        // Step 5: 安装 torch (CPU)
+        progress.Report("安装 torch CPU 版（约 800MB，请耐心等待）...");
+        await RunPipWithProgressAsync($"install torch --index-url {TorchIndexUrl}", progress, ct);
 
         // Step 6: 安装其余包
-        var allPkgs = string.Join(" ", Stage1Packages.Where(p => p != "torch").Concat(Stage2Packages));
+        var allPkgs = string.Join(" ", PipPackages);
         progress.Report($"安装 Python 包: {allPkgs}");
-        await RunPipAsync($"install {allPkgs}", ct);
+        await RunPipWithProgressAsync($"install {allPkgs}", progress, ct);
 
         // Step 7: 下载 manga-ocr 模型
         progress.Report("下载 manga-ocr 模型（约 400MB）...");
         string modelDir = Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model");
         string scriptPath = Path.Combine(Path.GetTempPath(), "download_model.py");
         await File.WriteAllTextAsync(scriptPath,
-            $"import sys\nfrom huggingface_hub import snapshot_download\n" +
-            $"snapshot_download('kha-white/manga-ocr-base', local_dir=r'{modelDir}')\n", ct);
-        try { await RunPythonAsync($"\"{scriptPath}\"", ct); }
-        finally { try { File.Delete(scriptPath); } catch { } }
+            "import sys\n" +
+            "from huggingface_hub import snapshot_download\n" +
+            "import os\n" +
+            // 重定向 tqdm 输出到 stdout，方便 C# 端读取进度
+            "os.environ['TQDM_DISABLE'] = '1'\n" +
+            "os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'\n" +
+            "print('正在连接 HuggingFace...', flush=True)\n" +
+            "snapshot_download('kha-white/manga-ocr-base', local_dir=r'" + modelDir + "')\n" +
+            "print('模型下载完成', flush=True)\n", ct);
+        await RunPythonWithProgressAsync($"\"{scriptPath}\"", progress, ct);
+        try { File.Delete(scriptPath); } catch { }
 
         // Step 8: 下载 ONNX 模型
         await DownloadOnnxModelsAsync(progress, ct);
@@ -190,4 +196,46 @@ public static class PythonEnvironmentInstaller
 
     private static Task RunPipAsync(string arguments, CancellationToken ct)
         => RunPythonAsync($"-m pip {arguments}", ct);
+
+    private static async Task RunPythonWithProgressAsync(
+        string arguments, IProgress<string> progress, CancellationToken ct)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = PythonExe, Arguments = arguments,
+            UseShellExecute = false, CreateNoWindow = true,
+            RedirectStandardOutput = true, RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
+        };
+        psi.Environment["PYTHONUNBUFFERED"] = "1";
+        psi.Environment["PIP_PROGRESS_BAR"] = "on";
+
+        using var p = Process.Start(psi)!;
+
+        var outputTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await p.StandardOutput.ReadLineAsync(ct)) != null)
+                progress.Report(line.Trim());
+        }, ct);
+
+        var errorTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await p.StandardError.ReadLineAsync(ct)) != null)
+                progress.Report(line.Trim());
+        }, ct);
+
+        await outputTask;
+        await errorTask;
+        await p.WaitForExitAsync(ct);
+
+        if (p.ExitCode != 0)
+            throw new InvalidOperationException($"Python 命令失败 (exit {p.ExitCode})，请查看上方输出");
+    }
+
+    private static Task RunPipWithProgressAsync(
+        string arguments, IProgress<string> progress, CancellationToken ct)
+        => RunPythonWithProgressAsync($"-m pip {arguments}", progress, ct);
 }

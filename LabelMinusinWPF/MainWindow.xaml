@@ -124,9 +124,9 @@
 
                 <!-- 5. OCR -->
                 <MenuItem Header="OCR" Icon="{materialDesign:PackIcon Kind=Ocr}">
-                    <MenuItem Click="AutoOcr_Click" Header="一键打点" Icon="{materialDesign:PackIcon Kind=Numeric1Circle}" ToolTip="PaddleOCR 仅位置标签（日漫排序）" />
-                    <MenuItem Click="AutoOcr_Batch" Tag="CNEN" Header="一键中英识别" Icon="{materialDesign:PackIcon Kind=Alphabetical}" ToolTip="PaddleOCR v5 中/英文检测+识别（无需 Python）" />
-                    <MenuItem Click="AutoOcr_Batch" Tag="JP" Header="一键日文识别" Icon="{materialDesign:PackIcon Kind=Translate}" ToolTip="manga-ocr 日文检测+识别（需 Python）" />
+                    <MenuItem Click="AutoOcr_Click" Header="一键打点" Icon="{materialDesign:PackIcon Kind=Numeric1Circle}" ToolTip="使用 PaddleOCR 在文字区域右上角打点" />
+                    <MenuItem Click="AutoOcr_Batch" Tag="CNEN" Header="一键中英识别" Icon="{materialDesign:PackIcon Kind=Alphabetical}" ToolTip="使用 PaddleOCR v5 进行中/英文识别+打点" />
+                    <MenuItem Click="AutoOcr_Batch" Tag="JP" Header="一键日文识别" Icon="{materialDesign:PackIcon Kind=Translate}" ToolTip="使用 manga-ocr 进行日文检测+打点" />
                     <Separator />
                     <MenuItem Click="SetupOcrEnv_Click" Header="配置 OCR 环境" Icon="{materialDesign:PackIcon Kind=Cog}" ToolTip="下载/安装 Python + manga-ocr 环境" />
                     <MenuItem Click="OcrHelp_Click" Header="OCR 说明" Icon="{materialDesign:PackIcon Kind=HelpCircleOutline}" />
@@ -185,32 +185,24 @@
                                         Tag="FileEdit"
                                         ToolTip="标记图片" />
                                     <RadioButton x:Name="OcrBtn" Content="截图" GroupName="AppModes" Tag="Camera" ToolTip="截图模式" />
-                                    <StackPanel VerticalAlignment="Center" Orientation="Horizontal" Visibility="{Binding IsChecked, ElementName=OcrBtn, Converter={StaticResource BoolToVisibility}}">
-                                        <ComboBox
-                                            x:Name="OcrWebsiteSelector"
-                                            Width="150"
-                                            Margin="10,0,0,0"
-                                            materialDesign:HintAssist.Hint="选择网站"
-                                            ItemsSource="{x:Static ocr:OcrConstants.OcrWebsiteKeys}"
-                                            SelectedIndex="0" />
-                                        <Button Margin="5,0,0,0" Click="Recognize_Click" Tag="Magnify" ToolTip="将当前截图放到网站中识别" />
-
-                                    </StackPanel>
+                                    <Popup
+                                        x:Name="OcrPanelPopup"
+                                        AllowsTransparency="True"
+                                        HorizontalOffset="0"
+                                        Placement="Bottom"
+                                        PlacementTarget="{Binding ElementName=OcrBtn}"
+                                        PopupAnimation="Fade"
+                                        StaysOpen="True"
+                                        VerticalOffset="4">
+                                        <ocr:OcrPanel x:Name="OcrPanel" />
+                                    </Popup>
                                     <!-- 仅图片模式时显示组别栏 -->
                                     <sc:GroupPanel VerticalAlignment="Center" Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
-                                    <StackPanel Orientation="Horizontal">
-                                        <ToggleButton x:Name="ScreenshotOcrToggle" Tag="Ocr" ToolTip="截图 OCR 开关" />
-                                        <ComboBox x:Name="OcrEngineSelector" Width="45" Margin="3,0,0,0" ToolTip="识别引擎"
-                                                  Visibility="{Binding IsChecked, ElementName=ScreenshotOcrToggle, Converter={StaticResource BoolToVisibility}}">
-                                            <ComboBoxItem Content="中英" IsSelected="True" />
-                                            <ComboBoxItem Content="日" />
-                                        </ComboBox>
-                                    </StackPanel>
-                                    <ToggleButton x:Name="TextReviewToggle" Content="" Tag="FileCompare" ToolTip="文本校对" />
-                                    <Button Click="OpenImageReview_Click" Content="" Tag="Compare" ToolTip="图片校对" />
+                                    <ToggleButton x:Name="TextReviewToggle" Content="文校" Tag="FileCompare" ToolTip="文本校对" />
+                                    <Button Click="OpenImageReview_Click" Content="图校" Tag="Compare" ToolTip="图片校对" />
 
                                 </StackPanel>
                             </Grid>

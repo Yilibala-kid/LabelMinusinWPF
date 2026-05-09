@@ -9,13 +9,12 @@ public static class OcrEnvironment
     private static string MangaOcrScript => Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "manga_ocr_infer.py");
 
     public static bool IsPythonInstalled => File.Exists(PythonExe);
-    public static bool IsMangaOcrScriptReady => File.Exists(MangaOcrScript);
-    public static bool IsMangaOcrModelReady =>
+    private static bool IsMangaOcrScriptReady => File.Exists(MangaOcrScript);
+    private static bool IsMangaOcrModelReady =>
         Directory.Exists(Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model")) &&
         Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model")).Any();
     public static bool HasOnnxModels =>
         OcrPipeline.ScanModels().Any(m => PpOcrV5RapidOcrProvider.CanHandleEngine(m.Engine));
-    public static bool IsMangaOcrRunning => MangaOcrProvider.SharedProcess != null;
 
     public static bool ReadyForProcessStart => IsPythonInstalled && IsMangaOcrScriptReady && IsMangaOcrModelReady;
 
@@ -28,7 +27,7 @@ public static class OcrEnvironment
         if (!py) return "仅支持一键打点（一键识别和截图 OCR 需要 Python 环境）";
         if (!script) return "Python 已安装，但 manga-ocr 脚本缺失";
         if (!IsMangaOcrModelReady) return "Python 已安装，但 manga-ocr 模型未下载";
-        if (!IsMangaOcrRunning) return "环境就绪，请点击 OCR 开关启动 ocr 模型";
+        if (MangaOcrProvider.SharedProcess == null) return "环境就绪，请点击 OCR 开关启动 ocr 模型";
         return "OCR 环境已就绪";
     }
 }
