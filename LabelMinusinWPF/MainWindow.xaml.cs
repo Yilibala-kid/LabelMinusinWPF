@@ -42,23 +42,19 @@ namespace LabelMinusinWPF
                 Constants.TempFolders.ScreenShotTemp,
                 Constants.TempFolders.ArchiveTemp));
             Closing += MainWindow_Closing;
-            RegisterMenu.IsChecked = RightClickOpenService.IsRegistered();
-            LabelStylePanel.Instance.LoadSettings();
-            InitializeAutoSave();
-            OcrPanel.Attach(PicView, OcrBtn, OcrPanelPopup, this);
+            OcrPanel.Attach(PicView, this);
+            AppSettingsService.InitializeMainWindow(this);
         }
 
         private void MainWindow_Closing(object? sender, CancelEventArgs e)
         {
-            // 获取 ViewModel
             if (DataContext is OneProject viewModel && viewModel.HasUnsavedChanges())
             {
                 var result = MessageBox.Show(
                     "当前翻译有未保存的修改，是否保存？",
                     "提示",
                     MessageBoxButton.YesNoCancel,
-                    MessageBoxImage.Question
-                );
+                    MessageBoxImage.Question);
 
                 if (result == MessageBoxResult.Yes)
                 {
@@ -72,6 +68,12 @@ namespace LabelMinusinWPF
         }
         
         #region 底栏图片控制
+        private void OpenSettings_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new SettingsDialog { Owner = this };
+            window.ShowDialog();
+        }
+
         private void FitToPage_Click(object sender, RoutedEventArgs e) => PicView.FitToView();
         private void FitWidth_Click(object sender, RoutedEventArgs e) => PicView.FitToWidth();
         private void FitHeight_Click(object sender, RoutedEventArgs e) => PicView.FitToHeight();
@@ -80,35 +82,6 @@ namespace LabelMinusinWPF
         #endregion
 
 
-        #region 右键菜单：注册/注销
-        private void OnToggleContextMenu(object sender, RoutedEventArgs e)
-        {
-            var menuItem = (MenuItem)sender;
-            bool shouldRegister = menuItem.IsChecked;
-
-            try
-            {
-                if (shouldRegister)
-                {
-                    RightClickOpenService.RegisterAll();
-                    MessageBox.Show("右键菜单注册成功！", "提示",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-                else
-                {
-                    RightClickOpenService.UnregisterAll();
-                    MessageBox.Show("右键菜单已取消注册", "提示",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                menuItem.IsChecked = !shouldRegister;
-                MessageBox.Show($"操作失败：{ex.Message}",
-                    "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-        #endregion
 
         #region OCR 功能
 
@@ -120,7 +93,7 @@ namespace LabelMinusinWPF
 
         private async void AutoOcr_Batch(object sender, RoutedEventArgs e)
             => await OcrPanel.RunBatchAsync(
-                ((MenuItem)sender).Tag as string == "JP" ? OcrPanel.OcrEngineKind.Manga : OcrPanel.OcrEngineKind.Paddle);
+                ((MenuItem)sender).Tag as string == "JP" ? OcrEngineKind.Manga : OcrEngineKind.Paddle);
 
         private void OcrHelp_Click(object sender, RoutedEventArgs e)
             => OcrPanel.ShowHelp();
@@ -165,7 +138,7 @@ namespace LabelMinusinWPF
             }
             else
             {
-                MessageBox.Show("许可文件未找到", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("许可文件未找到。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
         #endregion
@@ -222,9 +195,10 @@ namespace LabelMinusinWPF
         #region 快捷键
         private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
-            // 【重要防护】如果用户当前正在 TextBox 里输入文字，则不触发快捷键
+            // 如果用户当前正在 TextBox 里输入文字，则不触发快捷键
             if (e.OriginalSource is System.Windows.Controls.TextBox) return;
             if (FullScreenReview.IsOpen) return; // 图校界面打开时禁用快捷键，避免冲突
+
             if (DataContext is OneProject vm)
             {
                 switch (e.Key)
@@ -239,7 +213,7 @@ namespace LabelMinusinWPF
                         e.Handled = true;
                         break;
 
-                    // --- 标签切换 (W: 上一个, S: 下一个) ---
+                    // --- 视图缩放 (R: 适应页面) ---
                     case Key.R:
                         PicView.FitToView();
                         e.Handled = true;

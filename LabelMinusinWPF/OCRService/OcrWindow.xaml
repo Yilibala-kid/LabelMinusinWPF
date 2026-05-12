@@ -6,8 +6,8 @@
     Title="OCR识别"
     Width="1000"
     Height="600"
-    WindowStartupLocation="CenterScreen"
-    Background="{DynamicResource MaterialDesignPaper}">
+    Background="{DynamicResource MaterialDesignPaper}"
+    WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="1*" />
@@ -15,7 +15,7 @@
             <ColumnDefinition Width="4*" />
         </Grid.ColumnDefinitions>
 
-        <!-- 左侧：截图显示 -->
+        <!--  左侧：截图显示  -->
         <Border Grid.Column="0" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
@@ -23,9 +23,14 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Margin="16,16,16,8" Text="截图预览" Style="{StaticResource MaterialDesignHeadline6TextBlock}" />
+                <TextBlock
+                    Grid.Row="0"
+                    Margin="16,16,16,8"
+                    Foreground="{DynamicResource MaterialDesignBody}"
+                    Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                    Text="截图预览" />
 
-                <Border Grid.Row="1" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1" Background="{DynamicResource MaterialDesignCardBackground}">
+                <Border Grid.Row="1" Background="{DynamicResource MaterialDesignCardBackground}" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="1">
                     <Viewbox Stretch="Uniform">
                         <Image x:Name="ScreenshotImage" MouseMove="OnScreenshotMove" />
                     </Viewbox>
@@ -33,17 +38,28 @@
             </Grid>
         </Border>
 
-        <!-- 分割线 -->
-        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="RoyalBlue" />
+        <!--  分割线  -->
+        <GridSplitter
+            Grid.Column="1"
+            Width="5"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Stretch"
+            Background="RoyalBlue" />
 
-        <!-- 右侧：WebView2浏览器 -->
+        <!--  右侧：WebView2浏览器  -->
         <Grid Grid.Column="2">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <TextBlock x:Name="WebsiteTitle" Grid.Row="0" Margin="16,16,16,8" Text="识别网站" Style="{StaticResource MaterialDesignHeadline6TextBlock}" />
+            <TextBlock
+                x:Name="WebsiteTitle"
+                Grid.Row="0"
+                Margin="16,16,16,8"
+                Foreground="{DynamicResource MaterialDesignBody}"
+                Style="{StaticResource MaterialDesignHeadline6TextBlock}"
+                Text="识别网站" />
 
             <Grid x:Name="WebBrowserHost" Grid.Row="1" />
         </Grid>

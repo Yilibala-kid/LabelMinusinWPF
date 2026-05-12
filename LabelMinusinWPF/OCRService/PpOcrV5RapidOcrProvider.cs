@@ -73,6 +73,11 @@ public class PpOcrV5RapidOcrProvider : IOcrProvider
     // 全局共享的 RapidOcr 引擎实例（截图 OCR 和批量识别共用）
     private static RapidOcr? SharedEngine;
 
+    public static bool IsSharedEngineReady
+    {
+        get { lock (SharedLock) return SharedEngine != null; }
+    }
+
     // 初始化共享引擎（在 OCR 开关打开时调用一次）
     public static void InitSharedEngine(OcrModelInfo? model = null)
     {
@@ -86,6 +91,18 @@ public class PpOcrV5RapidOcrProvider : IOcrProvider
             SharedEngine?.Dispose();
 
             // 创建并持有新引擎
+            SharedEngine = CreateEngine(model);
+        }
+    }
+
+    public static void EnsureSharedEngine(OcrModelInfo? model = null)
+    {
+        lock (SharedLock)
+        {
+            if (SharedEngine != null) return;
+
+            model ??= OcrPipeline.FindPaddleModel()
+                ?? throw new InvalidOperationException("未找到 PaddleOCR 模型");
             SharedEngine = CreateEngine(model);
         }
     }

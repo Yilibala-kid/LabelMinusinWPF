@@ -3,8 +3,6 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Threading;
 using LabelMinusinWPF.Common;
 using LabelMinusinWPF.SelfControls;
 
@@ -12,19 +10,14 @@ namespace LabelMinusinWPF.OCRService;
 
 public partial class OcrPanel : UserControl
 {
-    private const string PaddleReady = "PaddleOCR 就绪";
-    private const string MangaStarting = "manga-ocr 启动中...";
-    private const string MangaReady = "manga-ocr 就绪";
-    private const string MangaUnavailable = "Python 环境或 manga-ocr 模型未配置，日文 OCR 不可用";
+    private const string OcrModelLoading = "OCR模型加载中";
+    private const string OcrStarted = "OCR已启动";
     private const string ScreenshotOcrClosed = "截图 OCR 已关闭";
     private const string OcrCanceled = "OCR 已取消";
-    private readonly DispatcherTimer _closeTimer;
-    private RadioButton? _ocrButton;
-    private Popup? _popup;
     private Window? _ownerWindow;
+    private ImageLabelViewer? _picView;
     private bool _suppressStopNotification;
     private bool _isCommandRunning;
-    private int _mangaStartVersion;
 
     [DllImport("kernel32.dll")]
     private static extern bool AllocConsole();
@@ -36,11 +29,6 @@ public partial class OcrPanel : UserControl
     {
         InitializeComponent();
 
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
-        _closeTimer.Tick += (_, _) => CloseIfPointerOutside();
-
-        MouseEnter += (_, _) => _closeTimer.Stop();
-        MouseLeave += (_, _) => StartCloseTimer();
         ScreenshotOcrToggle.Checked += (_, _) => _ = StartScreenshotOcrAsync();
         ScreenshotOcrToggle.Unchecked += (_, _) =>
         {
@@ -51,25 +39,13 @@ public partial class OcrPanel : UserControl
 
     public void Attach(
         ImageLabelViewer picView,
-        RadioButton ocrButton,
-        Popup popup,
         Window ownerWindow)
     {
-        _ocrButton = ocrButton;
-        _popup = popup;
+        _picView = picView;
         _ownerWindow = ownerWindow;
 
         DataContext = ownerWindow.DataContext;
         ownerWindow.DataContextChanged += (_, e) => DataContext = e.NewValue;
-
-        ocrButton.Checked += (_, _) => OpenOnHover();
-        ocrButton.MouseEnter += (_, _) => OpenOnHover();
-        ocrButton.MouseLeave += (_, _) => StartCloseTimer();
-        ocrButton.Unchecked += (_, _) =>
-        {
-            ClosePanel();
-            DisableScreenshotOcr(notify: false);
-        };
 
         picView.ScreenshotCaptured += (_, e) => _ = HandleScreenshotOcrAsync(e);
         ownerWindow.Closing += (_, _) => StopOcrEngines();
@@ -77,9 +53,8 @@ public partial class OcrPanel : UserControl
 
     public Task RunAutoDotAsync() => RunOcrWithDialogAsync(
         "选择打点图片", "请选择要进行一键打点的图片：",
-        OcrEngineKind.Paddle,
-        AutoOcrOptions.Default with { OutputMode = OcrOutputMode.PositionOnly, RightToLeft = true },
-        PpOcrV5RapidOcrProvider.Shared);
+        OcrOutputMode.PositionOnly,
+        OcrEngineKind.Paddle);
 
     public Task RunBatchAsync(OcrEngineKind kind)
     {
@@ -87,17 +62,15 @@ public partial class OcrPanel : UserControl
         return RunOcrWithDialogAsync(
             "选择 OCR 图片",
             $"请选择要进行{(isManga ? "日文 manga-ocr" : "中英文 PaddleOCR")} 识别的图片：",
-            kind,
-            AutoOcrOptions.Default with { RightToLeft = isManga },
-            isManga ? new MangaOcrProvider() : PpOcrV5RapidOcrProvider.Shared);
+            OcrOutputMode.RecognizedText,
+            kind);
     }
 
     private async Task RunOcrWithDialogAsync(
         string title,
         string description,
-        OcrEngineKind kind,
-        AutoOcrOptions options,
-        IOcrProvider provider)
+        OcrOutputMode outputMode,
+        OcrEngineKind kind)
     {
         if (!TryBeginCommand()) return;
         var vm = ViewModel;
@@ -105,24 +78,18 @@ public partial class OcrPanel : UserControl
 
         try
         {
-            var model = kind == OcrEngineKind.Manga ? MangaModel() : OcrPipeline.FindPaddleModel();
-            if (model == null)
-            {
-                Enqueue(kind == OcrEngineKind.Manga
-                    ? "未找到 manga-ocr 模型" : "未找到 PaddleOCR 模型");
-                return;
-            }
-
             var dialog = new ImageSelectDialog([.. vm.ImageList], [.. vm.ImageList],
                 title: title, description: description);
             if (dialog.ShowDialog() != true || dialog.SelectedImages.Count == 0) return;
 
-            if (!await EnsureReadyAsync(kind, model))
-                return;
-
             var progress = new Progress<string>(Enqueue);
-            var result = await OcrPipeline.RunAsync(
-                vm, model, options, provider, progress, dialog.SelectedImages);
+            var result = await AutoOcrService.RunAsync(
+                vm,
+                new AutoOcrRequest(
+                    Images: [.. dialog.SelectedImages],
+                    OutputMode: outputMode,
+                    Engine: kind),
+                progress);
             Enqueue(result.Message);
         }
         catch (OperationCanceledException) { Enqueue(OcrCanceled); }
@@ -222,174 +189,67 @@ public partial class OcrPanel : UserControl
             ? url
             : OcrConstants.Websites[OcrConstants.DefaultWebsite];
 
-        new OcrWindow(screenshot, websiteUrl, websiteName).Show();
+        var window = new OcrWindow(screenshot, websiteUrl, websiteName);
+        AttachScreenshotPreviewUpdater(window);
+        window.Show();
     }
 
     private OneProject? ViewModel => _ownerWindow?.DataContext as OneProject ?? DataContext as OneProject;
 
-    private void OpenOnHover()
+    private void AttachScreenshotPreviewUpdater(OcrWindow window)
     {
-        if (_ocrButton?.IsChecked != true || _ocrButton.IsMouseOver != true || _popup == null)
+        var picView = _picView;
+        if (picView == null)
             return;
 
-        _closeTimer.Stop();
-        _popup.IsOpen = true;
-    }
-
-    private void StartCloseTimer()
-    {
-        if (_popup?.IsOpen != true)
-            return;
-
-        _closeTimer.Stop();
-        _closeTimer.Start();
-    }
-
-    private void CloseIfPointerOutside()
-    {
-        _closeTimer.Stop();
-
-        if (_popup?.IsOpen != true)
-            return;
-
-        if (_ocrButton?.IsMouseOver == true
-            || IsMouseOver
-            || WebsiteSelector.IsDropDownOpen
-            || EngineSelector.IsDropDownOpen)
-            return;
-
-        ClosePanel();
-    }
-
-    private void ClosePanel()
-    {
-        _closeTimer.Stop();
-        if (_popup != null)
-            _popup.IsOpen = false;
+        EventHandler<ImageLabelViewer.ScreenshotEventArgs>? handler = null;
+        handler = (_, e) => window.UpdateScreenshot(e.Bitmap);
+        picView.ScreenshotCaptured += handler;
+        window.Closed += (_, _) => picView.ScreenshotCaptured -= handler;
     }
 
     private async Task StartScreenshotOcrAsync()
     {
         ScreenshotOcrToggle.IsEnabled = false;
+        Enqueue(OcrModelLoading);
 
-        if (!TryStartPaddle(notifySuccess: false))
-        {
-            _suppressStopNotification = true;
-            ScreenshotOcrToggle.IsChecked = false;
-            ScreenshotOcrToggle.IsEnabled = true;
-            return;
-        }
-
-        ScreenshotOcrToggle.IsEnabled = true;
-        _ = StartMangaInBackgroundAsync();
-    }
-
-    private async Task StartMangaInBackgroundAsync()
-    {
-        int startVersion = ++_mangaStartVersion;
-
-        bool ok;
         try
         {
-            ok = await EnsureMangaReadyCore(notify: true);
+            PpOcrV5RapidOcrProvider.InitSharedEngine();
+            await EnsureMangaReadyAsync();
+            Enqueue(OcrStarted);
         }
         catch (Exception ex)
         {
-            ok = false;
-            Application.Current.Dispatcher.Invoke(() =>
-            {
-                if (ScreenshotOcrToggle.IsChecked == true && startVersion == _mangaStartVersion)
-                    Enqueue(PaddleReady + $"（日文启动失败: {ex.Message}）");
-            });
-            return;
+            Enqueue(OcrFailed(ex));
+            _suppressStopNotification = true;
+            ScreenshotOcrToggle.IsChecked = false;
         }
-
-        bool stillNeeded = false;
-        Application.Current.Dispatcher.Invoke(() =>
-            stillNeeded = ScreenshotOcrToggle.IsChecked == true
-                && startVersion == _mangaStartVersion);
-
-        if (!stillNeeded)
+        finally
         {
-            MangaOcrProvider.StopProcess();
-            return;
+            ScreenshotOcrToggle.IsEnabled = true;
         }
-
-        if (ok)
-            Enqueue("OCR 已开启");
-        else
-            Enqueue(PaddleReady + "（日文不可用）");
     }
 
     private void StopOcrEngines(bool notify = false)
     {
-        _mangaStartVersion++;
         MangaOcrProvider.StopProcess();
         PpOcrV5RapidOcrProvider.DisposeSharedEngine();
         if (notify) Enqueue(ScreenshotOcrClosed);
     }
 
-    private void DisableScreenshotOcr(bool notify)
-    {
-        if (ScreenshotOcrToggle.IsChecked == true)
-        {
-            _suppressStopNotification = !notify;
-            ScreenshotOcrToggle.IsChecked = false;
-            return;
-        }
-
-        StopOcrEngines(notify);
-    }
-
-    private bool TryStartPaddle(bool notifySuccess = true, OcrModelInfo? model = null)
-    {
-        try
-        {
-            PpOcrV5RapidOcrProvider.InitSharedEngine(model);
-            if (notifySuccess) Enqueue(PaddleReady);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Enqueue(PaddleLoadFailed(ex));
-            return false;
-        }
-    }
-
-    private async Task<bool> EnsureReadyAsync(OcrEngineKind kind, OcrModelInfo? model = null)
-    {
-        if (kind == OcrEngineKind.Paddle)
-            return TryStartPaddle(notifySuccess: false, model);
-
-        try
-        {
-            bool ok = await EnsureMangaReadyCore(notify: true);
-            if (ok)
-                Enqueue(MangaReady);
-            else
-                Enqueue(MangaUnavailable);
-            return ok;
-        }
-        catch (Exception ex)
-        {
-            Enqueue(MangaStartFailed(ex));
-            return false;
-        }
-    }
-
-    private async Task<bool> EnsureMangaReadyCore(bool notify)
+    private static async Task EnsureMangaReadyAsync()
     {
         if (MangaOcrProvider.SharedProcess is { HasExited: false })
-            return true;
+            return;
+
         if (MangaOcrProvider.SharedProcess != null)
             MangaOcrProvider.StopProcess();
 
         if (!OcrEnvironment.ReadyForProcessStart)
-            return false;
+            throw new InvalidOperationException("Python 环境或 manga-ocr 模型未配置，日文 OCR 不可用");
 
-        if (notify) Enqueue(MangaStarting);
         await MangaOcrProvider.StartProcessAsync();
-        return true;
     }
 
     private async Task HandleScreenshotOcrAsync(ImageLabelViewer.ScreenshotEventArgs e)
@@ -400,18 +260,17 @@ public partial class OcrPanel : UserControl
 
         try
         {
-            if (IsMangaSelected && MangaOcrProvider.SharedProcess == null)
-                return;
+            var progress = new Progress<string>(Enqueue);
+            var result = await AutoOcrService.RunAsync(
+                vm,
+                new AutoOcrRequest(
+                    Screenshot: e.Bitmap,
+                    ScreenshotNormalizedRect: e.NormalizedRect,
+                    OutputMode: OcrOutputMode.RecognizedText,
+                    Engine: IsMangaSelected ? OcrEngineKind.Manga : OcrEngineKind.Paddle),
+                progress);
 
-            string? text = IsMangaSelected
-                ? await MangaOcrProvider.RecognizeScreenshot(e.Bitmap)
-                : await PpOcrV5RapidOcrProvider.RecognizeScreenshot(e.Bitmap);
-            if (string.IsNullOrWhiteSpace(text)) return;
-
-            var label = new OneLabel(text.Trim(), GroupConstants.InBox,
-                new Point(e.NormalizedRect.Right, e.NormalizedRect.Top));
-            vm.SelectedImage.History.Execute(new AddCommand(vm.SelectedImage.Labels, label));
-            Enqueue(LabelAdded(text));
+            Enqueue(result.Message);
         }
         catch (Exception ex)
         {
@@ -421,15 +280,7 @@ public partial class OcrPanel : UserControl
 
     private void Enqueue(string message) => ViewModel?.MsgQueue.Enqueue(message);
 
-    private static string PaddleLoadFailed(Exception ex) => $"PaddleOCR 加载失败: {ex.Message}";
-    private static string MangaStartFailed(Exception ex) => $"manga-ocr 启动失败: {ex.Message}（中英模式仍可用）";
     private static string OcrFailed(Exception ex) => $"OCR 失败: {ex.Message}";
-
-    private static string LabelAdded(string text)
-    {
-        text = text.Trim();
-        return $"OCR 标签已添加：{text[..Math.Min(30, text.Length)]}";
-    }
 
     private bool TryBeginCommand()
     {
@@ -465,16 +316,7 @@ public partial class OcrPanel : UserControl
     private void OcrHelp_Click(object sender, RoutedEventArgs e) => ShowHelp();
     private void OpenWebOcr_Click(object sender, RoutedEventArgs e) => OpenWebOcr();
 
-    public enum OcrEngineKind
-    {
-        Paddle,
-        Manga
-    }
-
     private bool IsMangaSelected =>
         (EngineSelector.SelectedItem as ComboBoxItem)?.Content?.ToString() == "日文";
 
-    private static OcrModelInfo? MangaModel() =>
-        OcrPipeline.ScanModels().FirstOrDefault(m =>
-            m.Engine.Equals(MangaOcrProvider.EngineName, StringComparison.OrdinalIgnoreCase));
 }

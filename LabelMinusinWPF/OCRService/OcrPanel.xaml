@@ -1,4 +1,4 @@
-<UserControl
+﻿<UserControl
     x:Class="LabelMinusinWPF.OCRService.OcrPanel"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -6,7 +6,8 @@
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ocr="clr-namespace:LabelMinusinWPF.OCRService"
-    MinWidth="260"
+    Width="230"
+    TextElement.Foreground="{DynamicResource MaterialDesignBody}"
     mc:Ignorable="d">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
@@ -19,13 +20,14 @@
         BorderThickness="1"
         CornerRadius="6"
         SnapsToDevicePixels="True">
-        <Border.Effect>
-            <DropShadowEffect BlurRadius="18" Opacity="0.25" ShadowDepth="3" />
-        </Border.Effect>
-
         <StackPanel Orientation="Vertical">
             <!--  1. 网站选择行：文字已内嵌  -->
-            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignDarkPrimaryBrush}" Text="字体识别" Margin="0,0,0,8"/>
+            <TextBlock
+                Margin="0,0,0,8"
+                FontSize="18"
+                FontWeight="SemiBold"
+                Foreground="{DynamicResource MaterialDesignBody}"
+                Text="字体识别" />
             <Grid Margin="0,0,0,12">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -37,6 +39,7 @@
                     Grid.Column="0"
                     VerticalAlignment="Center"
                     materialDesign:HintAssist.Hint="网站"
+                    Foreground="{DynamicResource MaterialDesignBody}"
                     ItemsSource="{x:Static ocr:OcrConstants.OcrWebsiteKeys}"
                     SelectedIndex="0" />
 
@@ -49,55 +52,50 @@
                     ToolTip="将当前截图放到网站中识别" />
             </Grid>
 
-            <TextBlock FontSize="18" FontWeight="SemiBold" Foreground="{DynamicResource MaterialDesignDarkPrimaryBrush}" Text="内容识别" Margin="0,0,0,8"/>
-            <!--  2. 截图开关与引擎行  -->
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <ToggleButton
-                    x:Name="ScreenshotOcrToggle"
+                <TextBlock
                     Grid.Column="0"
-                    Margin="0,0,8,0"
                     VerticalAlignment="Center"
-                    Tag="Ocr"
-                    ToolTip="开启后截图自动识别内容并新建标签">
-                    <ToggleButton.ContentTemplate>
-                        <DataTemplate>
-                            <StackPanel Orientation="Horizontal">
-                                <materialDesign:PackIcon
-                                    x:Name="PartIcon"
-                                    Width="42"
-                                    Height="42"
-                                    Kind="{Binding Tag, RelativeSource={RelativeSource AncestorType=ButtonBase}}" />
-                            </StackPanel>
-                        </DataTemplate>
-                    </ToggleButton.ContentTemplate>
-                </ToggleButton>
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    Foreground="{DynamicResource MaterialDesignBody}"
+                    Text="内容识别" />
 
-                <ComboBox x:Name="EngineSelector" Grid.Column="1" Width="60" VerticalAlignment="Center"
-                          Visibility="{Binding IsChecked, ElementName=ScreenshotOcrToggle, Converter={StaticResource BoolToVisibility}}">
-                    <ComboBoxItem Content="中英" />
-                    <ComboBoxItem Content="日文" IsSelected="True" />
-                </ComboBox>
-
-                <StackPanel Grid.Column="3" Orientation="Horizontal">
-                    <Button x:Name="SetupButton" Click="SetupOcrEnv_Click" Tag="Cog" ToolTip="配置环境" />
-                    <Button
-                        x:Name="HelpButton"
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <ComboBox
+                        x:Name="EngineSelector"
+                        Width="60"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource MaterialDesignBody}">
+                        <ComboBoxItem Content="中英" />
+                        <ComboBoxItem Content="日文" IsSelected="True" />
+                    </ComboBox>
+                    <ToggleButton
+                        x:Name="ScreenshotOcrToggle"
                         Margin="4,0,0,0"
-                        Click="OcrHelp_Click"
-                        Tag="HelpCircleOutline"
-                        ToolTip="OCR 说明" />
+                        VerticalAlignment="Center"
+                        Tag="Ocr"
+                        ToolTip="开启后截图自动识别内容并新建标签">
+                        <ToggleButton.ContentTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <materialDesign:PackIcon x:Name="PartIcon" Width="40" Height="40" Kind="{Binding Tag, RelativeSource={RelativeSource AncestorType=ButtonBase}}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ToggleButton.ContentTemplate>
+                    </ToggleButton>
+
+
                 </StackPanel>
             </Grid>
 
-            <!--  3. “一键”核心功能行：横向三列  -->
-            <Grid>
+            <!--  “一键”核心功能行：横向三列  -->
+            <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
@@ -106,29 +104,44 @@
 
                 <Button
                     x:Name="AutoDotButton"
-                    Height="40"
                     Grid.Column="0"
+                    Height="40"
                     Margin="2,0"
                     Click="AutoDot_Click"
-                    Content="" ToolTip="使用 PaddleOCR 在文字区域右上角打点"
-                    Tag="Numeric1Circle" />
+                    Content=""
+                    Tag="Numeric1Circle"
+                    ToolTip="使用 PaddleOCR 在文字区域右上角打点" />
 
                 <Button
                     x:Name="BatchCnEnButton"
-                    Grid.Column="1" Height="40"
+                    Grid.Column="1"
+                    Height="40"
                     Margin="2,0"
                     Click="BatchCnEn_Click"
-                    Content="" ToolTip="使用 PaddleOCR v5 进行中/英文识别+打点"
-                    Tag="Alphabetical" />
+                    Content=""
+                    Tag="Alphabetical"
+                    ToolTip="使用 PaddleOCR v5 进行中/英文识别+打点" />
 
                 <Button
                     x:Name="BatchJpButton"
-                    Grid.Column="2" Height="40"
+                    Grid.Column="2"
+                    Height="40"
                     Margin="2,0"
                     Click="BatchJp_Click"
-                    Content="" ToolTip="使用 manga-ocr 进行日文检测+打点" 
-                    Tag="Translate" />
+                    Content=""
+                    Tag="Translate"
+                    ToolTip="使用 manga-ocr 进行日文检测+打点" />
             </Grid>
+
+            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                <Button x:Name="SetupButton" Click="SetupOcrEnv_Click" Tag="Cog" ToolTip="配置环境" />
+                <Button
+                    x:Name="HelpButton"
+                    Margin="4,0,0,0"
+                    Click="OcrHelp_Click"
+                    Tag="HelpCircleOutline"
+                    ToolTip="OCR 说明" />
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>

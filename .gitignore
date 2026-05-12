@@ -377,3 +377,6 @@ FodyWeavers.xsd
 
 # Large model binaries - should be downloaded separately or managed via LFS
 LabelMinusinWPF/models/v5/*.onnx
+
+# Codex verification build artifacts (not for release)
+**/.codex_verify_bin/

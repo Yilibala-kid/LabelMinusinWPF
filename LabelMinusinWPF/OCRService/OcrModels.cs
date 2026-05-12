@@ -1,6 +1,7 @@
 using System.IO;              // File、Path 文件操作
 using System.Text.Json;        // JsonDocument、JsonElement 解析 model.json
 using System.Windows;          // Rect 矩形类型（文字区域边界）
+using System.Windows.Media.Imaging; // BitmapSource 截图输入
 
 namespace LabelMinusinWPF.OCRService;
 
@@ -123,6 +124,17 @@ public sealed record OcrModelInfo(
 // RecognizedText : 输出识别出的文字内容（用于翻译场景）
 // PositionOnly   : 只输出文字位置，不填文字内容（用于打点场景）
 public enum OcrOutputMode { RecognizedText, PositionOnly }
+
+// OcrEngineKind — OCR 引擎选择
+// ============================================================================
+public enum OcrEngineKind { Paddle, Manga }
+
+public sealed record AutoOcrRequest(
+    IReadOnlyList<OneImage>? Images = null,
+    BitmapSource? Screenshot = null,
+    Rect? ScreenshotNormalizedRect = null,
+    OcrOutputMode OutputMode = OcrOutputMode.RecognizedText,
+    OcrEngineKind Engine = OcrEngineKind.Paddle);
 
 // AutoOcrOptions — OCR 行为配置（后处理参数）
 // ============================================================================

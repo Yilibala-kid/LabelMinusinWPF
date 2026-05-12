@@ -20,14 +20,19 @@ namespace LabelMinusinWPF.OCRService
             InitializeComponent();
             WebBrowserHost.Children.Add(WebBrowser);
 
-            ScreenshotImage.Source = screenshot;
-            SaveImageToOcrTemp(screenshot);
+            UpdateScreenshot(screenshot);
 
             Title = $"OCR识别 - {websiteName}";
             WebsiteTitle.Text = websiteName;
 
             InitializeWebView(websiteUrl);
             Closed += OnClosed;
+        }
+
+        public void UpdateScreenshot(BitmapSource screenshot)
+        {
+            ScreenshotImage.Source = screenshot;
+            SaveImageToOcrTemp(screenshot);
         }
 
         private async void InitializeWebView(string url)
@@ -52,6 +57,7 @@ namespace LabelMinusinWPF.OCRService
         {
             try
             {
+                DeleteTempImage();
                 _tempImagePath = ScreenshotHelper.SaveSnip(bitmapSource, null, OcrConstants.OcrTemp)?.FilePath;
             }
             catch (Exception ex)
@@ -68,14 +74,17 @@ namespace LabelMinusinWPF.OCRService
             DragDrop.DoDragDrop(ScreenshotImage, data, DragDropEffects.Copy);
         }
 
-        private void OnClosed(object? sender, EventArgs e)
+        private void DeleteTempImage()
         {
             try
             {
                 if (!string.IsNullOrEmpty(_tempImagePath) && File.Exists(_tempImagePath))
                     File.Delete(_tempImagePath);
+                _tempImagePath = null;
             }
-            catch { /* 忽略删除失败 */ }
+            catch { }
         }
+
+        private void OnClosed(object? sender, EventArgs e) => DeleteTempImage();
     }
 }

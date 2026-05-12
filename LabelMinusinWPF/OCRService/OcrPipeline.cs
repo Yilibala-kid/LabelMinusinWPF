@@ -248,7 +248,7 @@ public static class OcrPipeline
     }
 
     /// <summary>按置信度排序后去除中心点过近的重复区域</summary>
-    private static IReadOnlyList<OcrTextRegion> DeduplicateRegions(
+    internal static IReadOnlyList<OcrTextRegion> DeduplicateRegions(
         IReadOnlyList<OcrTextRegion> regions,
         Size imageSize,
         AutoOcrOptions options)
@@ -313,7 +313,7 @@ public static class OcrPipeline
     }
 
     /// <summary>按阅读顺序排序：横排按行、竖排按列</summary>
-    private static IReadOnlyList<OcrTextRegion> SortRegions(
+    internal static IReadOnlyList<OcrTextRegion> SortRegions(
         IReadOnlyList<OcrTextRegion> regions,
         bool rightToLeft, // 横排时是否从右到左阅读（如日语片假名漫画）
         bool vertical)   // 是否竖排布局
@@ -491,7 +491,7 @@ public static class OcrPipeline
     /// 若图片在压缩包（zip/rar/7z）内，则解压到 OCRtemp/AutoOCR/ 并返回临时文件路径；
     /// 若图片在文件系统上，直接返回原路径。
     /// </summary>
-    private static string PrepareImagePath(OneImage image)
+    internal static string PrepareImagePath(OneImage image)
     {
         // 尝试解析图片路径，判断是否在压缩包内
         var archiveResult = ResourceHelper.ParseArchivePath(image.ImagePath);

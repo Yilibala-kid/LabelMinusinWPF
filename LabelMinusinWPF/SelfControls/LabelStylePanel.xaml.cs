@@ -1,27 +1,18 @@
 using System;
-using System.IO;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Controls;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using LabelMinusinWPF.Common;
 
 namespace LabelMinusinWPF.SelfControls
 {
-    public class LabelStyleSettings
-    {
-        public string DotStyle { get; set; } = "Circle";
-        public string TextBackgroundColor { get; set; } = "White";
-        public string TextForegroundColor { get; set; } = "Black";
-        public double TextBackgroundOpacity { get; set; } = 1.0;
-        public double LabelScale { get; set; } = 1.0;
-    }
-
     [ObservableObject]
     public partial class LabelStylePanel : UserControl
     {
         public static LabelStylePanel Instance { get; private set; } = new();
+        private bool _isApplyingSettings;
 
         public LabelStylePanel()
         {
@@ -57,7 +48,13 @@ namespace LabelMinusinWPF.SelfControls
             { "Transparent", null }
         };
 
-        partial void OnDotStyleChanged(string value) => UpdateDotStyle();
+        partial void OnDotStyleChanged(string value)
+        {
+            UpdateDotStyle();
+            SaveSettings();
+        }
+
+        partial void OnTextBackgroundOpacityChanged(double value) => SaveSettings();
 
         private void UpdateDotStyle()
         {
@@ -73,25 +70,12 @@ namespace LabelMinusinWPF.SelfControls
             LabelDotStyle = _dotStyleCache[DotStyle];
         }
 
-        // --- Settings ---
-        private static string SettingsFilePath
-        {
-            get
-            {
-                var appFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LabelMinusinWPF");
-                Directory.CreateDirectory(appFolder);
-                return Path.Combine(appFolder, "LabelStyleSettings.json");
-            }
-        }
-
         public void LoadSettings()
         {
             try
             {
-                if (!File.Exists(SettingsFilePath)) return;
-                var settings = JsonSerializer.Deserialize<LabelStyleSettings>(File.ReadAllText(SettingsFilePath));
-                if (settings == null) return;
-
+                var settings = AppSettingsService.Current.LabelStyle;
+                _isApplyingSettings = true;
                 DotStyle = settings.DotStyle;
                 TextBackgroundColor = ColorFromString(settings.TextBackgroundColor);
                 TextForegroundColor = ColorFromString(settings.TextForegroundColor);
@@ -99,21 +83,24 @@ namespace LabelMinusinWPF.SelfControls
                 LabelScale = settings.LabelScale;
             }
             catch { }
+            finally
+            {
+                _isApplyingSettings = false;
+            }
         }
 
         public void SaveSettings()
         {
+            if (_isApplyingSettings) return;
+
             try
             {
-                var settings = new LabelStyleSettings
-                {
-                    DotStyle = DotStyle,
-                    TextBackgroundColor = ColorToString(TextBackgroundColor),
-                    TextForegroundColor = ColorToString(TextForegroundColor),
-                    TextBackgroundOpacity = TextBackgroundOpacity,
-                    LabelScale = LabelScale
-                };
-                File.WriteAllText(SettingsFilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+                AppSettingsService.Current.LabelStyle.DotStyle = DotStyle;
+                AppSettingsService.Current.LabelStyle.TextBackgroundColor = ColorToString(TextBackgroundColor);
+                AppSettingsService.Current.LabelStyle.TextForegroundColor = ColorToString(TextForegroundColor);
+                AppSettingsService.Current.LabelStyle.TextBackgroundOpacity = TextBackgroundOpacity;
+                AppSettingsService.Current.LabelStyle.LabelScale = LabelScale;
+                AppSettingsService.Save();
             }
             catch { }
         }
@@ -122,11 +109,20 @@ namespace LabelMinusinWPF.SelfControls
         [RelayCommand]
         public void ResetToDefaults()
         {
-            DotStyle = "Circle";
-            TextBackgroundColor = Colors.Black;
-            TextForegroundColor = Colors.White;
-            TextBackgroundOpacity = 0.5;
-            LabelScale = 1.0;
+            try
+            {
+                _isApplyingSettings = true;
+                DotStyle = "Circle";
+                TextBackgroundColor = Colors.Black;
+                TextForegroundColor = Colors.White;
+                TextBackgroundOpacity = 0.5;
+                LabelScale = 1.0;
+            }
+            finally
+            {
+                _isApplyingSettings = false;
+            }
+
             SaveSettings();
         }
 

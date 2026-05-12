@@ -6,39 +6,46 @@ namespace LabelMinusinWPF
 {
     public partial class ZipDialog : Window
     {
-        public string? SelectedZip { get; private set; }
+        private const string NoneValue = "";
 
         public ZipDialog(List<string> zipFiles, string? currentZip)
         {
             InitializeComponent();
 
-            // 添加"无"选项用于取消关联
-            var items = new[] { "无（取消关联）" }.Concat(zipFiles).ToList();
-
+            var items = new[] { ZipOption.None }.Concat(zipFiles.Select(ZipOption.FromPath)).ToList();
             ZipListBox.ItemsSource = items;
-
-            // 设置当前选中项
-            ZipListBox.SelectedItem = !string.IsNullOrEmpty(currentZip) && zipFiles.Contains(currentZip)
-                ? currentZip
-                : items[0];
+            ZipListBox.SelectedItem = items.FirstOrDefault(item => item.Value == currentZip) ?? items[0];
         }
+
+        public string? SelectedZip { get; private set; }
 
         private void OK_Click(object sender, RoutedEventArgs e)
         {
-            if (ZipListBox.SelectedItem is not string selected)
+            if (ZipListBox.SelectedItem is not ZipOption selected)
             {
-                MessageBox.Show("请选择一个压缩包", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("请选择一个压缩包。", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
-            SelectedZip = selected.StartsWith("无") ? null : selected;
+
+            SelectedZip = selected.Value == NoneValue ? null : selected.Value;
             DialogResult = true;
-            Close();
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e)
+        private void Cancel_Click(object sender, RoutedEventArgs e) => DialogResult = false;
+
+        private sealed record ZipOption(string Name, string Description, string Icon, string Value)
         {
-            DialogResult = false;
-            Close();
+            public static ZipOption None { get; } = new(
+                "无",
+                "取消压缩包关联，切换回当前文件夹。",
+                "FolderOff",
+                NoneValue);
+
+            public static ZipOption FromPath(string path) => new(
+                System.IO.Path.GetFileName(path),
+                path,
+                "FolderZip",
+                path);
         }
     }
 }
