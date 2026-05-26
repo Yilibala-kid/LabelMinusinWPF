@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace LabelMinusinWPF.SelfControls
 {
@@ -68,6 +69,24 @@ namespace LabelMinusinWPF.SelfControls
         public LabelEditPanel()
         {
             InitializeComponent();
+        }
+
+        public void FocusTextEditor()
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                if (!LabelTextBox.IsEnabled || LabelTextBox.Visibility != Visibility.Visible)
+                    return;
+
+                LabelTextBox.Focus();
+                LabelTextBox.CaretIndex = LabelTextBox.Text.Length;
+            });
+        }
+
+        public void ClearTextEditorFocus()
+        {
+            if (Keyboard.FocusedElement == LabelTextBox)
+                Keyboard.ClearFocus();
         }
     }
 }

@@ -22,7 +22,7 @@ namespace LabelMinusinWPF
 
             Title = title;
             DialogHeader.Header = title;
-            DialogHeader.Description = description;
+            DialogHeader.Content = description;
 
             HashSet<string> currentNames = new(currentImages.Select(img => img.ImageName));
             Items = new ObservableCollection<SelectableImage>(

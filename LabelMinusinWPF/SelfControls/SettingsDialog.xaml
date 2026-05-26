@@ -13,16 +13,27 @@
     WindowStartupLocation="CenterOwner">
     <Window.Resources>
         <ResourceDictionary>
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="/SelfControls/DialogStyles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
-
             <Style x:Key="SettingTextColumnStyle" TargetType="StackPanel">
                 <Setter Property="Margin" Value="0,0,24,0" />
             </Style>
 
             <Style x:Key="SettingsToggleStyle" TargetType="CheckBox">
                 <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="DialogSettingTitleStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="15" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="DialogSettingHintStyle" TargetType="TextBlock">
+                <Setter Property="Margin" Value="0,2,0,0" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{DynamicResource MaterialDesignBody}" />
+                <Setter Property="Opacity" Value="0.58" />
+                <Setter Property="TextWrapping" Value="Wrap" />
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -34,7 +45,12 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <sc:DialogHeaderPresenter Grid.Row="0" Description="修改后点击确定统一保存" Header="设置" Icon="CogOutline" />
+        <HeaderedContentControl
+            Grid.Row="0"
+            Content="修改后点击确定统一保存"
+            Header="设置"
+            Style="{StaticResource DialogHeaderStyle}"
+            Tag="{x:Static materialDesign:PackIconKind.CogOutline}" />
 
         <ScrollViewer Grid.Row="1" Margin="16" VerticalScrollBarVisibility="Auto">
             <StackPanel>

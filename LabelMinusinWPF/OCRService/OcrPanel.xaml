@@ -67,11 +67,7 @@
                     Text="内容识别" />
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <ComboBox
-                        x:Name="EngineSelector"
-                        Width="60"
-                        VerticalAlignment="Center"
-                        Foreground="{DynamicResource MaterialDesignBody}">
+                    <ComboBox x:Name="EngineSelector" Width="60" VerticalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}">
                         <ComboBoxItem Content="中英" />
                         <ComboBoxItem Content="日文" IsSelected="True" />
                     </ComboBox>

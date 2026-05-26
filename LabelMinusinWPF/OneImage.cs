@@ -138,6 +138,45 @@ public partial class OneImage : ObservableObject
         History.Execute(new AddCommand(Labels, newLabel));
         SelectedLabel = newLabel;
     }
+    public OneLabel PasteLabel(LabelSnapshot snapshot)
+    {
+        TryCommitCurrentSnapshot();
+
+        var newLabel = new OneLabel(snapshot.Text, snapshot.Group, GetOffsetPastePosition(snapshot.Position));
+        History.Execute(new AddCommand(Labels, newLabel));
+        SelectedLabel = newLabel;
+        NotifyCommands();
+
+        return newLabel;
+    }
+
+    public void ApplyLabelContent(LabelSnapshot snapshot)
+    {
+        if (SelectedLabel is not { } target)
+            return;
+
+        TryCommitCurrentSnapshot();
+        if (target.Text == snapshot.Text && target.Group == snapshot.Group)
+            return;
+
+        var oldState = new LabelSnapshot(target);
+        target.Text = snapshot.Text;
+        target.Group = snapshot.Group;
+        History.Execute(new UpdateLabelCommand(target, oldState));
+        UpdateSnapshot();
+        NotifyCommands();
+        GroupManager.Instance.SetSelectedGroup(target.Group);
+    }
+
+    private static Point GetOffsetPastePosition(Point position)
+    {
+        const double offset = 0.02;
+        return new Point(OffsetAxis(position.X), OffsetAxis(position.Y));
+
+        static double OffsetAxis(double value) =>
+            value <= 1 - offset ? value + offset : Math.Max(0, value - offset);
+    }
+
     [RelayCommand]// 删除标签命令
     public void DeleteLabel(OneLabel? label)
     {

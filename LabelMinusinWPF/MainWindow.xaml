@@ -14,20 +14,6 @@
     Height="800"
     PreviewKeyDown="Window_PreviewKeyDown"
     mc:Ignorable="d">
-    <Window.InputBindings>
-        <KeyBinding Key="N" Command="{Binding NewFolderCommand}" Modifiers="Control" />
-        <KeyBinding Key="N" Command="{Binding NewZipCommand}" Modifiers="Control+Shift" />
-        <KeyBinding Key="O" Command="{Binding OpenTxtCommand}" Modifiers="Control" />
-        <KeyBinding Key="O" Command="{Binding OpenZipCommand}" Modifiers="Alt" />
-        <KeyBinding Key="O" Command="{Binding OpenFolderCommand}" Modifiers="Control+Shift" />
-        <KeyBinding Key="O" Command="{Binding OpenImagesCommand}" Modifiers="Control+Alt" />
-        <KeyBinding Key="S" Command="{Binding SaveCommand}" Modifiers="Control" />
-        <KeyBinding Key="S" Command="{Binding SaveCommand}" CommandParameter="As" Modifiers="Control+Shift" />
-        <KeyBinding Key="F" Command="{Binding OpenWorkFolderCommand}" Modifiers="Control" />
-        <KeyBinding Key="Z" Command="{Binding SelectedImage.UndoCommand}" Modifiers="Ctrl" />
-        <KeyBinding Key="Y" Command="{Binding SelectedImage.RedoCommand}" Modifiers="Ctrl" />
-        <KeyBinding Key="Z" Command="{Binding SelectedImage.RedoCommand}" Modifiers="Ctrl+Shift" />
-    </Window.InputBindings>
     <Window.Resources>
         <Style BasedOn="{StaticResource IconButtonStyle}" TargetType="Button" />
         <Style BasedOn="{StaticResource IconToggleButtonStyle}" TargetType="ToggleButton" />
@@ -62,27 +48,22 @@
                 <!--  1. 文件  -->
                 <MenuItem Header="文件" Icon="{materialDesign:PackIcon Kind=File}">
                     <!--  新建  -->
-                    <MenuItem Command="{Binding NewFolderCommand}" Header="为文件夹新建" Icon="{materialDesign:PackIcon Kind=FolderPlus}" InputGestureText="Ctrl+N" />
-                    <MenuItem Command="{Binding NewZipCommand}" Header="为压缩包新建" Icon="{materialDesign:PackIcon Kind=FilePlus}" InputGestureText="Ctrl+Shift+N" />
+                    <MenuItem Command="{Binding NewFolderCommand}" Header="为文件夹新建" Icon="{materialDesign:PackIcon Kind=FolderPlus}" />
+                    <MenuItem Command="{Binding NewZipCommand}" Header="为压缩包新建" Icon="{materialDesign:PackIcon Kind=FilePlus}" />
 
                     <Separator />
 
                     <!--  打开相关  -->
-                    <MenuItem Command="{Binding OpenTxtCommand}" Header="导入翻译" Icon="{materialDesign:PackIcon Kind=FileEdit}" InputGestureText="Ctrl+O" />
-                    <MenuItem Command="{Binding OpenZipCommand}" Header="预览压缩包" Icon="{materialDesign:PackIcon Kind=FolderZip}" InputGestureText="Alt+O" />
-                    <MenuItem Command="{Binding OpenFolderCommand}" Header="预览文件夹" Icon="{materialDesign:PackIcon Kind=FolderOpen}" InputGestureText="Ctrl+Shift+O" />
-                    <MenuItem Command="{Binding OpenImagesCommand}" Header="选择图片" Icon="{materialDesign:PackIcon Kind=FileImage}" InputGestureText="Ctrl+Alt+O" />
+                    <MenuItem Command="{Binding OpenTxtCommand}" Header="导入翻译" Icon="{materialDesign:PackIcon Kind=FileEdit}" />
+                    <MenuItem Command="{Binding OpenZipCommand}" Header="预览压缩包" Icon="{materialDesign:PackIcon Kind=FolderZip}" />
+                    <MenuItem Command="{Binding OpenFolderCommand}" Header="预览文件夹" Icon="{materialDesign:PackIcon Kind=FolderOpen}" />
+                    <MenuItem Command="{Binding OpenImagesCommand}" Header="选择图片" Icon="{materialDesign:PackIcon Kind=FileImage}" />
 
                     <Separator />
 
                     <!--  保存相关  -->
-                    <MenuItem Command="{Binding SaveCommand}" Header="保存翻译" Icon="{materialDesign:PackIcon Kind=ContentSave}" InputGestureText="Ctrl+S" />
-                    <MenuItem
-                        Command="{Binding SaveCommand}"
-                        CommandParameter="As"
-                        Header="翻译另存为..."
-                        Icon="{materialDesign:PackIcon Kind=ContentSaveEdit}"
-                        InputGestureText="Ctrl+Shift+S" />
+                    <MenuItem Command="{Binding SaveCommand}" Header="保存翻译" Icon="{materialDesign:PackIcon Kind=ContentSave}" />
+                    <MenuItem Command="{Binding SaveCommand}" CommandParameter="As" Header="翻译另存为..." Icon="{materialDesign:PackIcon Kind=ContentSaveEdit}" />
 
                     <!--  3. 导出文本  -->
                     <MenuItem Header="导出" Icon="{materialDesign:PackIcon Kind=Export}">
@@ -105,12 +86,18 @@
                     <!--  来自 WinForms 版本的具体业务功能  -->
                     <MenuItem Command="{Binding LinkZipCommand}" Header="关联压缩包" Icon="{materialDesign:PackIcon Kind=LinkEdit}" />
                     <MenuItem Command="{Binding AdjustImageSetCommand}" Header="调整图集" Icon="{materialDesign:PackIcon Kind=ImageMultiple}" />
+                    <MenuItem Command="{Binding SortImagesByNameCommand}" Header="按名称排列" Icon="{materialDesign:PackIcon Kind=SortAlphabeticalAscending}" />
 
                     <Separator />
 
                     <!--  通用编辑功能  -->
-                    <MenuItem Command="{Binding SelectedImage.UndoCommand}" Header="撤销" Icon="{materialDesign:PackIcon Kind=Undo}" InputGestureText="Ctrl+Z" />
-                    <MenuItem Command="{Binding SelectedImage.RedoCommand}" Header="重做" Icon="{materialDesign:PackIcon Kind=Redo}" InputGestureText="Ctrl+Y" />
+                    <MenuItem Command="{Binding SelectedImage.UndoCommand}" Header="撤销" Icon="{materialDesign:PackIcon Kind=Undo}" />
+                    <MenuItem Command="{Binding SelectedImage.RedoCommand}" Header="重做" Icon="{materialDesign:PackIcon Kind=Redo}" />
+                    <Separator />
+                    <MenuItem Click="CopySelectedLabel_Click" Header="复制标签" Icon="{materialDesign:PackIcon Kind=ContentCopy}" />
+                    <MenuItem Click="PasteLabel_Click" Header="粘贴为新标签" Icon="{materialDesign:PackIcon Kind=ContentPaste}" />
+                    <MenuItem Click="ApplyCopiedLabelText_Click" Header="粘贴到当前标签" Icon="{materialDesign:PackIcon Kind=ContentPaste}" />
+                    <MenuItem Command="{Binding SelectedImage.DeleteLabelCommand}" Header="删除标签" Icon="{materialDesign:PackIcon Kind=Delete}" />
                 </MenuItem>
 
                 <!--  4. 显示  -->
@@ -121,6 +108,7 @@
 
                     <!--  布局模式  -->
                     <MenuItem
+                        x:Name="AllDisplayMenuItem"
                         Click="OnLayoutModeClicked"
                         Header="全部显示"
                         IsCheckable="True"
@@ -132,8 +120,18 @@
                         Header="仅图片"
                         IsCheckable="True"
                         Tag="{x:Static local:DisplayMode.ImageOnly}" />
-                    <MenuItem Click="OnLayoutModeClicked" Header="仅列表" IsCheckable="True" Tag="{x:Static local:DisplayMode.ListOnly}" />
-                    <MenuItem Click="OnLayoutModeClicked" Header="仅文本框" IsCheckable="True" Tag="{x:Static local:DisplayMode.TextBoxOnly}" />
+                    <MenuItem
+                        x:Name="ListOnlyMenuItem"
+                        Click="OnLayoutModeClicked"
+                        Header="仅列表"
+                        IsCheckable="True"
+                        Tag="{x:Static local:DisplayMode.ListOnly}" />
+                    <MenuItem
+                        x:Name="TextBoxOnlyMenuItem"
+                        Click="OnLayoutModeClicked"
+                        Header="仅文本框"
+                        IsCheckable="True"
+                        Tag="{x:Static local:DisplayMode.TextBoxOnly}" />
 
                 </MenuItem>
 
@@ -162,6 +160,8 @@
 
                 <!--  7. 帮助  -->
                 <MenuItem Header="帮助" Icon="{materialDesign:PackIcon Kind=Help}">
+                    <MenuItem Click="Shortcuts_Click" Header="快捷键说明" Icon="{materialDesign:PackIcon Kind=Keyboard}" />
+                    <Separator />
                     <MenuItem Click="OnOpenWebsite" Header="官网" Icon="{materialDesign:PackIcon Kind=Web}" Tag="https://github.com/Yilibala-kid/LabelMinusinWPF" />
                     <MenuItem Click="About_Click" Header="关于" Icon="{materialDesign:PackIcon Kind=InformationOutline}" />
                     <MenuItem Click="License_Click" Header="开源许可" Icon="{materialDesign:PackIcon Kind=FileDocument}" />
@@ -198,33 +198,33 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" HorizontalAlignment="Center">
-                                    <ToggleButton x:Name="DrawerTrigger" Tag="Menu" ToolTip="显示/隐藏工具箱" />
+                                    <ToggleButton x:Name="DrawerTrigger" Tag="Menu" ToolTip="显示/隐藏工具箱 (F2)" />
                                     <RadioButton
                                         x:Name="SeeBtn"
                                         Content="浏览"
                                         GroupName="AppModes"
                                         Tag="Eye"
-                                        ToolTip="浏览图片" />
+                                        ToolTip="浏览图片 (1)" />
                                     <RadioButton
                                         x:Name="LabelBtn"
                                         Content="标记"
                                         GroupName="AppModes"
                                         IsChecked="True"
                                         Tag="FileEdit"
-                                        ToolTip="标记图片" />
+                                        ToolTip="标记图片 (2)" />
                                     <RadioButton
                                         x:Name="ScreenshotBtn"
                                         Content="截图"
                                         GroupName="AppModes"
                                         Tag="Camera"
-                                        ToolTip="截图模式" />
+                                        ToolTip="截图模式 (3)" />
                                     <!--  仅图片模式时显示组别栏  -->
                                     <sc:GroupPanel VerticalAlignment="Center" Visibility="{Binding Source={x:Reference OnlyPicMenuItem}, Path=IsChecked, Converter={StaticResource BoolToVisibility}}" />
                                 </StackPanel>
 
                                 <StackPanel Grid.Column="2">
-                                    <ToggleButton x:Name="TextReviewToggle" Content="文校" Tag="FileCompare" ToolTip="文本校对" />
-                                    <Button Click="OpenImageReview_Click" Content="图校" Tag="Compare" ToolTip="图片校对" />
+                                    <ToggleButton x:Name="TextReviewToggle" Content="文校" Tag="FileCompare" ToolTip="文本校对 (F3)" />
+                                    <Button Click="OpenImageReview_Click" Content="图校" Tag="Compare" ToolTip="图片校对 (F4)" />
 
                                 </StackPanel>
                             </Grid>
@@ -262,8 +262,8 @@
                                         Foreground="{DynamicResource MaterialDesignBody}"
                                         ItemsSource="{Binding ImageList}"
                                         SelectedItem="{Binding SelectedImage}" />
-                                    <Button Command="{Binding PreviousImageCommand}" Style="{StaticResource IconButtonStyle}" Tag="ArrowUp" ToolTip="上一张" />
-                                    <Button Command="{Binding NextImageCommand}" Style="{StaticResource IconButtonStyle}" Tag="ArrowDown" ToolTip="下一张" />
+                                    <Button Command="{Binding PreviousImageCommand}" Style="{StaticResource IconButtonStyle}" Tag="ArrowUp" ToolTip="上一张 (A)" />
+                                    <Button Command="{Binding NextImageCommand}" Style="{StaticResource IconButtonStyle}" Tag="ArrowDown" ToolTip="下一张 (D)" />
                                     <Separator />
                                     <Button Command="{Binding OpenWorkFolderCommand}" Style="{StaticResource IconButtonStyle}" Tag="FolderMultipleImage" ToolTip="打开图片所在的文件夹" />
                                 </StackPanel>
@@ -274,7 +274,7 @@
                             <materialDesign:DrawerHost.LeftDrawerContent>
                                 <DockPanel>
                                     <StackPanel HorizontalAlignment="Center" DockPanel.Dock="Bottom" Orientation="Horizontal">
-                                        <Button Click="FitToPage_Click" Style="{StaticResource IconButtonStyle}" Tag="FitToPageOutline" ToolTip="适应视图" />
+                                        <Button Click="FitToPage_Click" Style="{StaticResource IconButtonStyle}" Tag="FitToPageOutline" ToolTip="适应视图 (F)" />
                                         <Button Click="FitWidth_Click" Style="{StaticResource IconButtonStyle}" Tag="ArrowExpandHorizontal" ToolTip="适应宽度" />
                                         <Button Click="FitHeight_Click" Style="{StaticResource IconButtonStyle}" Tag="ArrowExpandVertical" ToolTip="适应高度" />
                                         <ToggleButton IsChecked="{Binding IsYLocked, ElementName=PicView, Mode=TwoWay}" Tag="ArrowHorizontalLock" ToolTip="横向移动" />
@@ -282,8 +282,8 @@
                                     </StackPanel>
                                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                                         <StackPanel Orientation="Vertical">
-                                            <sc:LabelStylePanel Padding="4"/>
-                                            <ocr:OcrPanel x:Name="OcrPanel" Padding="4"/>
+                                            <sc:LabelStylePanel Padding="4" />
+                                            <ocr:OcrPanel x:Name="OcrPanel" Padding="4" />
                                         </StackPanel>
                                     </ScrollViewer>
                                 </DockPanel>

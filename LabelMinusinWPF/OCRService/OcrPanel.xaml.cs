@@ -129,33 +129,19 @@ public partial class OcrPanel : UserControl
             Console.SetOut(writer);
             Console.SetError(writer);
 
-            Console.WriteLine("=== LabelMinus OCR 环境安装 ===");
-            Console.WriteLine();
-
             try
             {
-                var progress = new Progress<string>(msg =>
-                    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {msg}"));
-
-                await PythonEnvironmentInstaller.InstallAsync(progress);
-
-                Console.WriteLine();
-                Console.WriteLine("安装完成！按任意键关闭此窗口...");
-                Console.ReadKey(intercept: true);
+                await PythonEnvironmentInstaller.InstallWithConsoleReporterAsync();
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("安装已取消，按任意键关闭...");
-                Console.ReadKey(intercept: true);
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                Console.WriteLine($"安装失败: {ex.Message}");
-                Console.WriteLine("按任意键关闭...");
-                Console.ReadKey(intercept: true);
             }
             finally
             {
+                Console.ReadKey(intercept: true);
                 FreeConsole();
             }
         }

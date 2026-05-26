@@ -14,6 +14,7 @@
     mc:Ignorable="d">
     <UserControl.Resources>
         <common:ImageRelativePositionConverter x:Key="PosConverter" />
+        <common:IndexPlusOneConverter x:Key="IndexPlusOneConverter" />
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <common:LabelTextVisibilityConverter x:Key="LabelTextVisibilityConverter" />
         <common:LabelReferenceVisibilityConverter x:Key="LabelReferenceVisibilityConverter" />

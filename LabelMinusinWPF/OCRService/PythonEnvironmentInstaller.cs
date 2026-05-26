@@ -22,10 +22,11 @@ public static class PythonEnvironmentInstaller
     private const string GetPipUrl = "https://bootstrap.pypa.io/get-pip.py";
 
     private const string TorchIndexUrl = "https://download.pytorch.org/whl/cpu";
+    private const string TorchPackage = "torch==2.12.0+cpu";
 
     private static readonly string[] PipPackages = ["manga-ocr", "huggingface_hub"];
 
-    private static readonly string[] ModelScopeTags = ["v3.7.0", "v3.4.0", "master"];
+    private static readonly string[] ModelScopeTags = ["master", "v3.7.0", "v3.4.0"];
     private static readonly (string File, string SubDir)[] OnnxModels =
     [
         ("ch_PP-OCRv5_det_server.onnx", "det"),
@@ -51,67 +52,82 @@ public static class PythonEnvironmentInstaller
             Directory.Delete(mangaModelDir, recursive: true);
     }
 
+    public static async Task InstallWithConsoleReporterAsync(CancellationToken ct = default)
+    {
+        var reporter = new ConsoleInstallReporter();
+        reporter.Start();
+
+        try
+        {
+            await InstallAsync(reporter.Progress, ct);
+            reporter.Succeed();
+        }
+        catch (OperationCanceledException)
+        {
+            reporter.Cancel();
+            throw;
+        }
+        catch (Exception ex)
+        {
+            reporter.Fail(ex);
+            throw;
+        }
+    }
+
     public static async Task InstallAsync(IProgress<string> progress, CancellationToken ct = default)
     {
-        // Step 1: 下载嵌入版 Python
+        await DownloadOnnxModelsAsync(progress, ct);
+
         progress.Report("正在下载 Python 嵌入版...");
         string zipPath = Path.Combine(Path.GetTempPath(), $"python-{PythonVersion}-embed-amd64.zip");
         await DownloadWithProgressAsync(PythonDownloadUrl, zipPath,
             pct => progress.Report($"下载 Python: {pct}%"), ct);
 
-        // Step 2: 解压
         progress.Report("正在解压 Python...");
         if (Directory.Exists(PythonDir)) Directory.Delete(PythonDir, recursive: true);
         ZipFile.ExtractToDirectory(zipPath, PythonDir);
         File.Delete(zipPath);
 
-        // Step 3: 配置 python310._pth
         progress.Report("正在配置 Python 环境...");
         File.WriteAllText(Path.Combine(PythonDir, "python310._pth"),
             "python310.zip\r\n.\r\n\r\n# Uncomment to run site.main() automatically\r\nimport site\r\nLib\\site-packages\r\n");
 
-        // Step 4: 安装 pip
         progress.Report("正在安装 pip...");
         string getPipPath = Path.Combine(Path.GetTempPath(), "get-pip.py");
         await File.WriteAllBytesAsync(getPipPath, await Http.GetByteArrayAsync(GetPipUrl, ct), ct);
         await RunPythonAsync($"\"{getPipPath}\" --no-python-version-warning", ct);
         File.Delete(getPipPath);
 
-        // Step 5: 安装 torch (CPU)
         progress.Report("安装 torch CPU 版（约 800MB，请耐心等待）...");
-        await RunPipWithProgressAsync($"install torch --index-url {TorchIndexUrl}", progress, ct);
+        await RunPipWithProgressAsync(
+            $"install --no-warn-script-location {TorchPackage} --index-url {TorchIndexUrl}",
+            progress,
+            ct);
 
-        // Step 6: 安装其余包
         var allPkgs = string.Join(" ", PipPackages);
         progress.Report($"安装 Python 包: {allPkgs}");
-        await RunPipWithProgressAsync($"install {allPkgs}", progress, ct);
+        await RunPipWithProgressAsync(
+            $"install --no-warn-script-location {allPkgs}",
+            progress,
+            ct);
 
-        // Step 7: 下载 manga-ocr 模型
         progress.Report("下载 manga-ocr 模型（约 400MB）...");
         string modelDir = Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model");
         string scriptPath = Path.Combine(Path.GetTempPath(), "download_model.py");
         await File.WriteAllTextAsync(scriptPath,
             "import sys\n" +
-            "from huggingface_hub import snapshot_download\n" +
             "import os\n" +
-            // 重定向 tqdm 输出到 stdout，方便 C# 端读取进度
             "os.environ['TQDM_DISABLE'] = '1'\n" +
             "os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'\n" +
+            "from huggingface_hub import snapshot_download\n" +
             "print('正在连接 HuggingFace...', flush=True)\n" +
             "snapshot_download('kha-white/manga-ocr-base', local_dir=r'" + modelDir + "')\n" +
             "print('模型下载完成', flush=True)\n", ct);
         await RunPythonWithProgressAsync($"\"{scriptPath}\"", progress, ct);
         try { File.Delete(scriptPath); } catch { }
 
-        // Step 8: 下载 ONNX 模型
-        await DownloadOnnxModelsAsync(progress, ct);
-
         progress.Report("Python OCR 环境安装完成！");
     }
-
-    // ========================================================================
-    // 辅助方法
-    // ========================================================================
 
     private static async Task DownloadOnnxModelsAsync(IProgress<string> progress, CancellationToken ct)
     {
@@ -124,24 +140,33 @@ public static class PythonEnvironmentInstaller
             string targetPath = Path.Combine(modelDir, file);
             if (File.Exists(targetPath) && new FileInfo(targetPath).Length > 0) continue;
 
+            progress.Report($"下载 ONNX 模型 ({i + 1}/{OnnxModels.Length}): {file}...");
+
             Exception? lastEx = null;
             bool found = false;
-            foreach (var tag in ModelScopeTags)
+            for (int tagIndex = 0; tagIndex < ModelScopeTags.Length; tagIndex++)
             {
+                string tag = ModelScopeTags[tagIndex];
                 string url = $"https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/{tag}/onnx/PP-OCRv5/{subDir}/{file}";
-                progress.Report($"下载 ONNX 模型 ({i + 1}/{OnnxModels.Length}): {file}...");
                 try
                 {
                     await DownloadWithProgressAsync(url, targetPath,
                         pct => progress.Report($"下载 {file}: {pct}%"), ct);
                     found = true; break;
                 }
-                catch (Exception ex) when (ex is not OperationCanceledException) { lastEx = ex; }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    lastEx = ex;
+                    try { File.Delete(targetPath + ".tmp"); } catch { }
+
+                    if (tagIndex < ModelScopeTags.Length - 1)
+                        progress.Report($"ONNX 模型 {file} 源 {tag} 下载失败，尝试备用源...");
+                }
             }
             if (found) continue;
 
             throw new InvalidOperationException(
-                $"模型 {file} 下载失败，已尝试 {ModelScopeTags.Length} 个镜像。" +
+                $"模型 {file} 下载失败，已尝试 {ModelScopeTags.Length} 个来源。" +
                 (lastEx != null ? $" 最后错误: {lastEx.Message}" : ""));
         }
     }
@@ -238,4 +263,198 @@ public static class PythonEnvironmentInstaller
     private static Task RunPipWithProgressAsync(
         string arguments, IProgress<string> progress, CancellationToken ct)
         => RunPythonWithProgressAsync($"-m pip {arguments}", progress, ct);
+
+    private sealed class ConsoleInstallReporter : IProgress<string>
+    {
+        private const int BarWidth = 32;
+        private readonly object _lock = new();
+        private string _stage = "";
+        private string _lastLine = "";
+
+        public IProgress<string> Progress => this;
+
+        public void Start()
+        {
+            lock (_lock)
+            {
+                try
+                {
+                    Console.Title = "LabelMinus OCR 环境安装";
+                    Console.CursorVisible = false;
+                    Console.Clear();
+                }
+                catch { }
+
+                WriteColor("LabelMinus OCR 环境安装", ConsoleColor.Cyan);
+                Console.WriteLine("正在准备 PaddleOCR、Python 和 manga-ocr 依赖。窗口可以放在后台，完成后会停在这里。");
+                Console.WriteLine(new string('-', 68));
+                Console.WriteLine();
+            }
+        }
+
+        public void Succeed()
+        {
+            lock (_lock)
+            {
+                Console.WriteLine();
+                WriteColor("安装完成！OCR 环境已经就绪。", ConsoleColor.Green);
+                Console.WriteLine("按任意键关闭此窗口...");
+                TryShowCursor();
+            }
+        }
+
+        public void Cancel()
+        {
+            lock (_lock)
+            {
+                Console.WriteLine();
+                WriteColor("安装已取消。", ConsoleColor.Yellow);
+                Console.WriteLine("按任意键关闭此窗口...");
+                TryShowCursor();
+            }
+        }
+
+        public void Fail(Exception ex)
+        {
+            lock (_lock)
+            {
+                Console.WriteLine();
+                WriteColor("安装失败。", ConsoleColor.Red);
+                Console.WriteLine(ex.Message);
+                Console.WriteLine("按任意键关闭此窗口...");
+                TryShowCursor();
+            }
+        }
+
+        public void Report(string rawMessage)
+        {
+            string message = Normalize(rawMessage);
+            if (string.IsNullOrWhiteSpace(message)) return;
+
+            lock (_lock)
+            {
+                string stage = DetectStage(message);
+                if (!string.IsNullOrEmpty(stage) && stage != _stage)
+                {
+                    _stage = stage;
+                    Console.WriteLine();
+                    WriteColor($"[{DateTime.Now:HH:mm:ss}] {_stage}", ConsoleColor.Cyan);
+                }
+
+                int? percent = TryReadPercent(message);
+                if (percent.HasValue)
+                {
+                    DrawProgress(percent.Value, Shorten(message, 64));
+                    return;
+                }
+
+                if (ShouldShow(message))
+                    WriteLog(message);
+            }
+        }
+
+        private static string Normalize(string message)
+            => message.Trim().Replace('\r', ' ').Replace('\n', ' ');
+
+        private static string DetectStage(string message)
+        {
+            if (message.Contains("ONNX", StringComparison.OrdinalIgnoreCase))
+                return "1/6 PaddleOCR 模型";
+            if (message.Contains("Python", StringComparison.OrdinalIgnoreCase))
+                return "2/6 Python 嵌入环境";
+            if (message.Contains("pip", StringComparison.OrdinalIgnoreCase))
+                return "3/6 pip 安装";
+            if (message.Contains("torch", StringComparison.OrdinalIgnoreCase))
+                return "4/6 torch CPU 依赖";
+            if (message.Contains("Python 包", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("manga-ocr", StringComparison.OrdinalIgnoreCase)
+                    && !message.Contains("模型", StringComparison.OrdinalIgnoreCase))
+                return "5/6 Python OCR 包";
+            if (message.Contains("HuggingFace", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Fetching", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("manga-ocr", StringComparison.OrdinalIgnoreCase))
+                return "6/6 manga-ocr 模型";
+            return "";
+        }
+
+        private static int? TryReadPercent(string message)
+        {
+            int percentIndex = message.LastIndexOf('%');
+            if (percentIndex <= 0) return null;
+
+            int start = percentIndex - 1;
+            while (start >= 0 && char.IsDigit(message[start])) start--;
+            string number = message[(start + 1)..percentIndex];
+            return int.TryParse(number, out int value)
+                ? Math.Clamp(value, 0, 100)
+                : null;
+        }
+
+        private static bool ShouldShow(string message)
+        {
+            if (message.StartsWith("Using cached", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (message.StartsWith("Requirement already satisfied", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (message.Contains("which is not on PATH", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (message.StartsWith("Consider adding this directory", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            return message.StartsWith("Collecting", StringComparison.OrdinalIgnoreCase)
+                || message.StartsWith("Installing", StringComparison.OrdinalIgnoreCase)
+                || message.StartsWith("Successfully", StringComparison.OrdinalIgnoreCase)
+                || message.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)
+                || message.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("失败", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("完成", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("正在", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("安装", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("下载", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("连接", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private void DrawProgress(int percent, string label)
+        {
+            int filled = Math.Clamp(percent * BarWidth / 100, 0, BarWidth);
+            string bar = new string('#', filled) + new string('-', BarWidth - filled);
+            string line = $"  [{bar}] {percent,3}%  {label}";
+
+            if (line == _lastLine) return;
+
+            Console.WriteLine(line);
+            _lastLine = line;
+        }
+
+        private static void WriteLog(string message)
+        {
+            ConsoleColor color = ConsoleColor.Gray;
+            if (message.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase))
+                color = ConsoleColor.Yellow;
+            else if (message.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)
+                     || message.Contains("失败", StringComparison.OrdinalIgnoreCase))
+                color = ConsoleColor.Red;
+            else if (message.StartsWith("Successfully", StringComparison.OrdinalIgnoreCase)
+                     || message.Contains("完成", StringComparison.OrdinalIgnoreCase))
+                color = ConsoleColor.Green;
+
+            WriteColor($"  {Shorten(message, 96)}", color);
+        }
+
+        private static string Shorten(string text, int maxLength)
+            => text.Length <= maxLength ? text : text[..Math.Max(0, maxLength - 3)] + "...";
+
+        private static void WriteColor(string text, ConsoleColor color)
+        {
+            var oldColor = Console.ForegroundColor;
+            Console.ForegroundColor = color;
+            Console.WriteLine(text);
+            Console.ForegroundColor = oldColor;
+        }
+
+        private static void TryShowCursor()
+        {
+            try { Console.CursorVisible = true; } catch { }
+        }
+    }
 }
