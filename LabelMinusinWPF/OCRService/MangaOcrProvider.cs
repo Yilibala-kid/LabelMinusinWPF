@@ -2,14 +2,13 @@ using System.Diagnostics;     // Process、ProcessStartInfo 子进程管理
 using System.IO;               // File、Path 文件操作
 using System.Text.Json;        // JSON 序列化/反序列化（与 manga-ocr 进程通信）
 using System.Windows;          // Size（图片尺寸）
-using System.Windows.Media.Imaging; // BitmapSource（截图）
-using RapidOcrNet;             // RapidOcr 检测引擎（PaddleOCR 检测部分）
+using RapidOcrNet;             // RapidOcr 检测引擎（PP-OCRv5 检测部分）
 using SkiaSharp;               // SKBitmap 图片解码
 
 namespace LabelMinusinWPF.OCRService;
 
 // MangaOcrProvider — manga-ocr 日文 OCR 提供者
-// 采用混合架构：PaddleOCR RapidOcr 做文字检测 + manga-ocr Python 进程做文字识别
+// 采用混合架构：PP-OCRv5 做文字检测 + manga-ocr Python 进程做文字识别
 // ============================================================================
 
 public sealed class MangaOcrProvider : IOcrProvider
@@ -21,12 +20,14 @@ public sealed class MangaOcrProvider : IOcrProvider
     public bool MergesRegionsInternally => true;
 
     // manga-ocr Python 子进程（跨线程共享，用锁保护）
-    public static Process? SharedProcess { get; private set; }
+    private static Process? SharedProcess { get; set; }
 
     // 访问 SharedProcess 的线程安全锁
-    public static readonly object SharedLock = new();
+    private static readonly object SharedLock = new();
 
-    // 懒加载的 PaddleOCR 检测引擎（实例级，每个 MangaOcrProvider 独立）
+    public static bool IsProcessRunning => SharedProcess is { HasExited: false };
+
+    // 懒加载的 PP-OCRv5 检测引擎（实例级，每个 MangaOcrProvider 独立）
     private RapidOcr? _detEngine;
 
     // ================================================================
@@ -34,7 +35,26 @@ public sealed class MangaOcrProvider : IOcrProvider
     // ================================================================
 
     // 启动 manga-ocr Python 子进程（异步，在后台线程执行）
-    public static Task StartProcessAsync(Action<string>? onProgress = null)
+    public static async Task EnsureProcessAsync(
+        IProgress<string>? progress = null,
+        CancellationToken ct = default)
+    {
+        if (IsProcessRunning)
+            return;
+
+        if (SharedProcess != null)
+            StopProcess();
+
+        if (!OcrEnvironment.ReadyForProcessStart)
+            throw new InvalidOperationException("Python 环境或 manga-ocr 模型未配置，日文 OCR 不可用");
+
+        progress?.Report("OCR 模型加载中");
+        await StartProcessAsync();
+        ct.ThrowIfCancellationRequested();
+        progress?.Report("OCR 已启动");
+    }
+
+    private static Task StartProcessAsync()
         => Task.Run(() =>
         {
             lock (SharedLock)
@@ -75,7 +95,7 @@ public sealed class MangaOcrProvider : IOcrProvider
                 var proc = SharedProcess;
 
                 // 等待进程输出"就绪"信号（manga-ocr 启动完成后会打印到 stderr）
-                WaitForReadySignal(proc, onProgress);
+                WaitForReadySignal(proc);
 
                 // 后台持续读取 stderr，避免管道缓冲区满导致子进程阻塞
                 DrainStderrBackground(proc);
@@ -88,7 +108,7 @@ public sealed class MangaOcrProvider : IOcrProvider
         // 检查 Python 解释器是否存在
         if (!File.Exists(PythonEnvironmentInstaller.PythonExe))
             throw new InvalidOperationException(
-                "Python 环境未安装，请先通过 [高级 -> 配置 OCR 环境] 安装");
+                "Python 环境未安装，请先通过 [OCR -> 配置 OCR 环境] 安装");
 
         // 检查 manga-ocr 推理脚本是否存在
         string scriptPath = Path.Combine(
@@ -107,7 +127,7 @@ public sealed class MangaOcrProvider : IOcrProvider
     }
 
     // 阻塞读取 stderr，直到读到"就绪"信号或进程异常退出
-    private static void WaitForReadySignal(Process proc, Action<string>? onProgress)
+    private static void WaitForReadySignal(Process proc)
     {
         var stderrLines = new List<string>();
         string? line;
@@ -120,8 +140,6 @@ public sealed class MangaOcrProvider : IOcrProvider
             // manga-ocr 启动完成后会输出一行包含"就绪"的消息
             if (line.Contains("就绪")) break;
 
-            // 回调通知上层（显示启动进度）
-            onProgress?.Invoke(line.Trim());
         }
 
         // 若在读到就绪信号前进程已退出，说明启动失败
@@ -216,23 +234,6 @@ public sealed class MangaOcrProvider : IOcrProvider
     // 识别方法
     // ================================================================
 
-    // 对截图 BitmapSource 执行日文 OCR，返回拼接文字（截图 OCR 模式用）
-    public static Task<string?> RecognizeScreenshot(BitmapSource bitmap)
-    {
-        int w = bitmap.PixelWidth, h = bitmap.PixelHeight;
-        if (SharedProcess == null || SharedProcess.HasExited)
-            return Task.FromResult<string?>(null);
-
-        return OcrPipeline.WithTempPngAsync(bitmap, tmpPath => Task.Run(() =>
-        {
-            var respLine = SendOcrRequest(tmpPath, [[0, 0, w, h]]);
-            if (respLine == null) return null;
-
-            var resp = JsonSerializer.Deserialize<MangaOcrResponse>(respLine)!;
-            return resp.texts is { Length: > 0 } ? resp.texts[0] : null;
-        }));
-    }
-
     // 对指定图片文件执行完整日文 OCR：检测 → 合并 → 发给 manga-ocr 识别 → 返回结果
     public Task<IReadOnlyList<OcrTextRegion>> RecognizeAsync(
         string imagePath,
@@ -245,7 +246,7 @@ public sealed class MangaOcrProvider : IOcrProvider
             ct.ThrowIfCancellationRequested();
 
             using var bitmap = SKBitmap.Decode(imagePath)
-                ?? throw new InvalidOperationException($"Cannot decode: {imagePath}");
+                ?? throw new InvalidOperationException($"无法读取图片：{imagePath}");
 
             EnsureDetEngine(model);
 
@@ -277,7 +278,7 @@ public sealed class MangaOcrProvider : IOcrProvider
             var respLine = SendOcrRequest(imagePath, boxes);
 
             if (respLine == null)
-                throw new InvalidOperationException("manga-ocr process unresponsive");
+                throw new InvalidOperationException("manga-ocr 进程无响应");
 
             // 反序列化识别结果
             var texts = JsonSerializer
@@ -298,7 +299,7 @@ public sealed class MangaOcrProvider : IOcrProvider
     }
 
     // ================================================================
-    // 检测引擎（PaddleOCR 检测 + manga-ocr 识别）
+    // 检测引擎（PP-OCRv5 检测 + manga-ocr 识别）
     // ================================================================
 
     // 懒加载检测引擎：从 model 所在目录查找 PpOcrV5 检测模型并初始化
@@ -317,7 +318,7 @@ public sealed class MangaOcrProvider : IOcrProvider
             .FirstOrDefault(m =>
                 m is { Engine: PpOcrV5RapidOcrProvider.EngineName })
             ?? throw new InvalidOperationException(
-                "未找到 PaddleOCR 检测模型。manga-ocr 需要 ONNX 检测模型，"
+                "未找到 PP-OCRv5 检测模型。manga-ocr 需要 ONNX 检测模型，"
                 + "请检查 models/ 目录是否包含 PpOcrV5RapidOcr 模型。");
 
         // 用 PpOcrV5RapidOcrProvider 的工厂方法创建检测引擎

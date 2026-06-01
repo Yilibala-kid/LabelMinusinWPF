@@ -248,8 +248,7 @@
                     VerticalAlignment="Stretch"
                     Background="RoyalBlue"
                     Cursor="SizeWE"
-                    Focusable="False"
-                    IsEnabled="{Binding IsChecked, ElementName=ModeToggle, Converter={StaticResource InverseBoolConverter}}">
+                    Focusable="False">
                     <GridSplitter.Template>
                         <ControlTemplate TargetType="GridSplitter">
                             <Grid Background="{TemplateBinding Background}">

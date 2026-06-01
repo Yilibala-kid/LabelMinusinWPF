@@ -23,5 +23,6 @@ namespace LabelMinusinWPF.Common
         public bool AutoLoadLastProjectEnabled { get; set; }
         public string LastProjectPath { get; set; } = "";
         public int AutoSaveIntervalMinutes { get; set; } = Constants.AutoSave.IntervalMinutes;
+        public List<string> FontRecognitionWebsiteUrls { get; set; } = [];
     }
 }

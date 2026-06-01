@@ -5,7 +5,6 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:ocr="clr-namespace:LabelMinusinWPF.OCRService"
     Width="230"
     TextElement.Foreground="{DynamicResource MaterialDesignBody}"
     mc:Ignorable="d">
@@ -40,7 +39,6 @@
                     VerticalAlignment="Center"
                     materialDesign:HintAssist.Hint="网站"
                     Foreground="{DynamicResource MaterialDesignBody}"
-                    ItemsSource="{x:Static ocr:OcrConstants.OcrWebsiteKeys}"
                     SelectedIndex="0" />
 
                 <Button
@@ -49,7 +47,7 @@
                     Margin="8,0,0,0"
                     Click="OpenWebOcr_Click"
                     Tag="Magnify"
-                    ToolTip="将当前截图放到网站中识别" />
+                    ToolTip="用剪贴板截图打开外部字体识别网站" />
             </Grid>
 
             <Grid Margin="0,0,0,8">
@@ -76,7 +74,7 @@
                         Margin="4,0,0,0"
                         VerticalAlignment="Center"
                         Tag="Ocr"
-                        ToolTip="开启后截图自动识别内容并新建标签">
+                        ToolTip="开启后，截图选区会自动 OCR 并在当前图片新建标签">
                         <ToggleButton.ContentTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -106,7 +104,7 @@
                     Click="AutoDot_Click"
                     Content=""
                     Tag="Numeric1Circle"
-                    ToolTip="使用 PaddleOCR 在文字区域右上角打点" />
+                    ToolTip="使用 PP-OCRv5 检测文字区域，并在右上角创建位置标签" />
 
                 <Button
                     x:Name="BatchCnEnButton"
@@ -116,7 +114,7 @@
                     Click="BatchCnEn_Click"
                     Content=""
                     Tag="Alphabetical"
-                    ToolTip="使用 PaddleOCR v5 进行中/英文识别+打点" />
+                    ToolTip="使用 PP-OCRv5 识别中英文文字并创建标签" />
 
                 <Button
                     x:Name="BatchJpButton"
@@ -126,11 +124,11 @@
                     Click="BatchJp_Click"
                     Content=""
                     Tag="Translate"
-                    ToolTip="使用 manga-ocr 进行日文检测+打点" />
+                    ToolTip="使用 PP-OCRv5 检测区域、manga-ocr 识别日文并创建标签" />
             </Grid>
 
             <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                <Button x:Name="SetupButton" Click="SetupOcrEnv_Click" Tag="Cog" ToolTip="配置环境" />
+                <Button x:Name="SetupButton" Click="SetupOcrEnv_Click" Tag="Cog" ToolTip="配置 OCR 模型和日文识别环境" />
                 <Button
                     x:Name="HelpButton"
                     Margin="4,0,0,0"

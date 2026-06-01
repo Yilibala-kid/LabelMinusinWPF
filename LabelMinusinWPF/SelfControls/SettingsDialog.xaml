@@ -117,6 +117,22 @@
 
                 <Border Margin="0,0,0,8" Style="{StaticResource DialogDividerStyle}" />
 
+                <StackPanel Margin="0,0,0,8" Orientation="Vertical">
+                    <TextBlock Style="{StaticResource DialogSettingTitleStyle}" Text="外部字体识别网站" />
+                    <TextBlock
+                        Margin="0,2,0,8"
+                        Style="{StaticResource DialogSettingHintStyle}"
+                        Text="每行一个 http 或 https 网址；留空则使用内置网站列表" />
+                    <TextBox
+                        x:Name="FontRecognitionWebsiteUrlsTextBox"
+                        Height="96"
+                        AcceptsReturn="True"
+                        TextWrapping="NoWrap"
+                        VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+                <Border Margin="0,0,0,8" Style="{StaticResource DialogDividerStyle}" />
+
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />

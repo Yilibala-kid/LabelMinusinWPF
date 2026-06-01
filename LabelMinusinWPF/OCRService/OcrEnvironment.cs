@@ -24,10 +24,10 @@ public static class OcrEnvironment
 
         if (!onnx && !py) return "OCR 环境未就绪：缺少 ONNX 模型和 Python 环境";
         if (!onnx) return "OCR 环境未就绪：缺少 ONNX 模型";
-        if (!py) return "仅支持一键打点（一键识别和截图 OCR 需要 Python 环境）";
+        if (!py) return "PP-OCRv5 已就绪；日文 OCR 和截图 OCR 开关需要 Python/manga-ocr 环境";
         if (!script) return "Python 已安装，但 manga-ocr 脚本缺失";
         if (!IsMangaOcrModelReady) return "Python 已安装，但 manga-ocr 模型未下载";
-        if (MangaOcrProvider.SharedProcess == null) return "环境就绪，请点击 OCR 开关启动 ocr 模型";
+        if (!MangaOcrProvider.IsProcessRunning) return "OCR 环境已就绪；截图 OCR 开关会启动识别引擎";
         return "OCR 环境已就绪";
     }
 }

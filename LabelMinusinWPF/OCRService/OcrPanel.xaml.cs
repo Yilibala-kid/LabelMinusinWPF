@@ -10,14 +10,16 @@ namespace LabelMinusinWPF.OCRService;
 
 public partial class OcrPanel : UserControl
 {
-    private const string OcrModelLoading = "OCR模型加载中";
-    private const string OcrStarted = "OCR已启动";
+    private const string OcrModelLoading = "OCR 模型加载中";
+    private const string OcrStarted = "OCR 已启动";
     private const string ScreenshotOcrClosed = "截图 OCR 已关闭";
     private const string OcrCanceled = "OCR 已取消";
+
     private Window? _ownerWindow;
     private ImageLabelViewer? _picView;
     private bool _suppressStopNotification;
     private bool _isCommandRunning;
+    private Dictionary<string, string> _activeWebsites = [];
 
     [DllImport("kernel32.dll")]
     private static extern bool AllocConsole();
@@ -28,6 +30,7 @@ public partial class OcrPanel : UserControl
     public OcrPanel()
     {
         InitializeComponent();
+        RefreshWebsiteSelector();
 
         ScreenshotOcrToggle.Checked += (_, _) => _ = StartScreenshotOcrAsync();
         ScreenshotOcrToggle.Unchecked += (_, _) =>
@@ -37,9 +40,7 @@ public partial class OcrPanel : UserControl
         };
     }
 
-    public void Attach(
-        ImageLabelViewer picView,
-        Window ownerWindow)
+    public void Attach(ImageLabelViewer picView, Window ownerWindow)
     {
         _picView = picView;
         _ownerWindow = ownerWindow;
@@ -51,8 +52,26 @@ public partial class OcrPanel : UserControl
         ownerWindow.Closing += (_, _) => StopOcrEngines();
     }
 
+    public void RefreshWebsiteSelector()
+    {
+        string? selectedWebsite = WebsiteSelector.SelectedItem as string;
+        _activeWebsites = CreateActiveWebsites();
+        WebsiteSelector.ItemsSource = _activeWebsites.Keys.ToList();
+
+        if (!string.IsNullOrWhiteSpace(selectedWebsite)
+            && _activeWebsites.ContainsKey(selectedWebsite))
+        {
+            WebsiteSelector.SelectedItem = selectedWebsite;
+            return;
+        }
+
+        if (WebsiteSelector.Items.Count > 0)
+            WebsiteSelector.SelectedIndex = 0;
+    }
+
     public Task RunAutoDotAsync() => RunOcrWithDialogAsync(
-        "选择打点图片", "请选择要进行一键打点的图片：",
+        "选择打点图片",
+        "请选择要用 PP-OCRv5 自动打点的图片：",
         OcrOutputMode.PositionOnly,
         OcrEngineKind.Paddle);
 
@@ -61,95 +80,13 @@ public partial class OcrPanel : UserControl
         bool isManga = kind == OcrEngineKind.Manga;
         return RunOcrWithDialogAsync(
             "选择 OCR 图片",
-            $"请选择要进行{(isManga ? "日文 manga-ocr" : "中英文 PaddleOCR")} 识别的图片：",
+            $"请选择要进行{(isManga ? "日文 manga-ocr" : "中英文 PP-OCRv5")} 识别的图片：",
             OcrOutputMode.RecognizedText,
             kind);
     }
 
-    private async Task RunOcrWithDialogAsync(
-        string title,
-        string description,
-        OcrOutputMode outputMode,
-        OcrEngineKind kind)
-    {
-        if (!TryBeginCommand()) return;
-        var vm = ViewModel;
-        if (vm == null) { EndCommand(); return; }
-
-        try
-        {
-            var dialog = new ImageSelectDialog([.. vm.ImageList], [.. vm.ImageList],
-                title: title, description: description);
-            if (dialog.ShowDialog() != true || dialog.SelectedImages.Count == 0) return;
-
-            var progress = new Progress<string>(Enqueue);
-            var result = await AutoOcrService.RunAsync(
-                vm,
-                new AutoOcrRequest(
-                    Images: [.. dialog.SelectedImages],
-                    OutputMode: outputMode,
-                    Engine: kind),
-                progress);
-            Enqueue(result.Message);
-        }
-        catch (OperationCanceledException) { Enqueue(OcrCanceled); }
-        catch (Exception ex) { Enqueue(OcrFailed(ex)); }
-        finally { EndCommand(); }
-    }
-
-    public async Task InstallEnvironmentAsync()
-    {
-        if (!TryBeginCommand()) return;
-
-        try
-        {
-            if (OcrEnvironment.IsPythonInstalled || OcrEnvironment.HasOnnxModels)
-            {
-                string msg = OcrEnvironment.GetSummary() + "\n\n是否删除所有 OCR 环境并重新配置？";
-                var deleteResult = MessageBox.Show(msg, "OCR 环境",
-                    MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-                if (deleteResult == MessageBoxResult.Yes)
-                    PythonEnvironmentInstaller.Uninstall();
-                else
-                    return;
-            }
-
-            var result = MessageBox.Show(
-                "未找到 Python 环境。是否自动安装到程序目录？\n（将下载嵌入版 Python + torch + manga-ocr，约 2GB）",
-                "配置 OCR 环境", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-            if (result != MessageBoxResult.Yes)
-                return;
-
-            AllocConsole();
-            Console.OutputEncoding = Encoding.UTF8;
-            var stdout = Console.OpenStandardOutput();
-            var writer = new StreamWriter(stdout, Encoding.UTF8) { AutoFlush = true };
-            Console.SetOut(writer);
-            Console.SetError(writer);
-
-            try
-            {
-                await PythonEnvironmentInstaller.InstallWithConsoleReporterAsync();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception)
-            {
-            }
-            finally
-            {
-                Console.ReadKey(intercept: true);
-                FreeConsole();
-            }
-        }
-        finally
-        {
-            EndCommand();
-        }
-    }
+    public Task InstallEnvironmentAsync()
+        => RunExclusiveAsync(InstallEnvironmentCoreAsync, handleErrors: false);
 
     public void ShowHelp()
     {
@@ -160,24 +97,112 @@ public partial class OcrPanel : UserControl
 
     public void OpenWebOcr()
     {
-        var vm = ViewModel;
-        if (vm == null) return;
+        if (ViewModel == null)
+            return;
 
         var screenshot = ScreenshotHelper.GetClipboard();
         if (screenshot == null)
         {
-            Enqueue("请先截图，再点击识别");
+            Enqueue("请先截图，再打开字体识别网站");
             return;
         }
 
         string websiteName = WebsiteSelector.SelectedItem as string ?? OcrConstants.DefaultWebsite;
-        string websiteUrl = OcrConstants.Websites.TryGetValue(websiteName, out var url)
+        string websiteUrl = _activeWebsites.TryGetValue(websiteName, out var url)
             ? url
             : OcrConstants.Websites[OcrConstants.DefaultWebsite];
 
         var window = new OcrWindow(screenshot, websiteUrl, websiteName);
         AttachScreenshotPreviewUpdater(window);
         window.Show();
+    }
+
+    private Task RunOcrWithDialogAsync(
+        string title,
+        string description,
+        OcrOutputMode outputMode,
+        OcrEngineKind kind)
+        => RunExclusiveAsync(async () =>
+        {
+            var vm = ViewModel;
+            if (vm == null)
+                return;
+
+            var dialog = new ImageSelectDialog(
+                [.. vm.ImageList],
+                [.. vm.ImageList],
+                title: title,
+                description: description);
+
+            if (dialog.ShowDialog() != true || dialog.SelectedImages.Count == 0)
+                return;
+
+            await RunAutoOcrRequestAsync(
+                vm,
+                new AutoOcrRequest(
+                    Images: [.. dialog.SelectedImages],
+                    OutputMode: outputMode,
+                    Engine: kind));
+        });
+
+    private async Task InstallEnvironmentCoreAsync()
+    {
+        if (OcrEnvironment.IsPythonInstalled || OcrEnvironment.HasOnnxModels)
+        {
+            string message = OcrEnvironment.GetSummary()
+                + "\n\n是否删除所有 OCR 环境并重新配置？";
+            var deleteResult = MessageBox.Show(
+                message,
+                "OCR 环境",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (deleteResult == MessageBoxResult.Yes)
+                PythonEnvironmentInstaller.Uninstall();
+            else
+                return;
+        }
+
+        var result = MessageBox.Show(
+            "未找到完整 OCR 环境。是否自动安装到程序目录？\n（将下载 PP-OCRv5 ONNX 模型、嵌入版 Python、torch 和 manga-ocr，约 2GB）",
+            "配置 OCR 环境",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+
+        if (result != MessageBoxResult.Yes)
+            return;
+
+        AllocConsole();
+        Console.OutputEncoding = Encoding.UTF8;
+        var stdout = Console.OpenStandardOutput();
+        var writer = new StreamWriter(stdout, Encoding.UTF8) { AutoFlush = true };
+        Console.SetOut(writer);
+        Console.SetError(writer);
+
+        try
+        {
+            await PythonEnvironmentInstaller.InstallWithConsoleReporterAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception)
+        {
+        }
+        finally
+        {
+            Console.ReadKey(intercept: true);
+            FreeConsole();
+        }
+    }
+
+    private static Dictionary<string, string> CreateActiveWebsites()
+    {
+        var customUrls = AppSettingsService.Current.Ui.FontRecognitionWebsiteUrls;
+        if (customUrls.Count > 0)
+            return customUrls.ToDictionary(url => url, url => url, StringComparer.OrdinalIgnoreCase);
+
+        return new Dictionary<string, string>(OcrConstants.Websites);
     }
 
     private OneProject? ViewModel => _ownerWindow?.DataContext as OneProject ?? DataContext as OneProject;
@@ -202,7 +227,7 @@ public partial class OcrPanel : UserControl
         try
         {
             PpOcrV5RapidOcrProvider.InitSharedEngine();
-            await EnsureMangaReadyAsync();
+            await MangaOcrProvider.EnsureProcessAsync();
             Enqueue(OcrStarted);
         }
         catch (Exception ex)
@@ -221,21 +246,8 @@ public partial class OcrPanel : UserControl
     {
         MangaOcrProvider.StopProcess();
         PpOcrV5RapidOcrProvider.DisposeSharedEngine();
-        if (notify) Enqueue(ScreenshotOcrClosed);
-    }
-
-    private static async Task EnsureMangaReadyAsync()
-    {
-        if (MangaOcrProvider.SharedProcess is { HasExited: false })
-            return;
-
-        if (MangaOcrProvider.SharedProcess != null)
-            MangaOcrProvider.StopProcess();
-
-        if (!OcrEnvironment.ReadyForProcessStart)
-            throw new InvalidOperationException("Python 环境或 manga-ocr 模型未配置，日文 OCR 不可用");
-
-        await MangaOcrProvider.StartProcessAsync();
+        if (notify)
+            Enqueue(ScreenshotOcrClosed);
     }
 
     private async Task HandleScreenshotOcrAsync(ImageLabelViewer.ScreenshotEventArgs e)
@@ -246,21 +258,47 @@ public partial class OcrPanel : UserControl
 
         try
         {
-            var progress = new Progress<string>(Enqueue);
-            var result = await AutoOcrService.RunAsync(
+            await RunAutoOcrRequestAsync(
                 vm,
                 new AutoOcrRequest(
                     Screenshot: e.Bitmap,
                     ScreenshotNormalizedRect: e.NormalizedRect,
                     OutputMode: OcrOutputMode.RecognizedText,
-                    Engine: IsMangaSelected ? OcrEngineKind.Manga : OcrEngineKind.Paddle),
-                progress);
-
-            Enqueue(result.Message);
+                    Engine: IsMangaSelected ? OcrEngineKind.Manga : OcrEngineKind.Paddle));
         }
         catch (Exception ex)
         {
             Enqueue(OcrFailed(ex));
+        }
+    }
+
+    private async Task RunAutoOcrRequestAsync(OneProject vm, AutoOcrRequest request)
+    {
+        var progress = new Progress<string>(Enqueue);
+        var result = await AutoOcrService.RunAsync(vm, request, progress);
+        Enqueue(result.Message);
+    }
+
+    private async Task RunExclusiveAsync(Func<Task> action, bool handleErrors = true)
+    {
+        if (!TryBeginCommand())
+            return;
+
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException) when (handleErrors)
+        {
+            Enqueue(OcrCanceled);
+        }
+        catch (Exception ex) when (handleErrors)
+        {
+            Enqueue(OcrFailed(ex));
+        }
+        finally
+        {
+            EndCommand();
         }
     }
 
@@ -304,5 +342,4 @@ public partial class OcrPanel : UserControl
 
     private bool IsMangaSelected =>
         (EngineSelector.SelectedItem as ComboBoxItem)?.Content?.ToString() == "日文";
-
 }

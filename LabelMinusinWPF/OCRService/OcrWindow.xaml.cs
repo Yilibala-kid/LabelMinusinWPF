@@ -22,7 +22,7 @@ namespace LabelMinusinWPF.OCRService
 
             UpdateScreenshot(screenshot);
 
-            Title = $"OCR识别 - {websiteName}";
+            Title = $"字体识别 - {websiteName}";
             WebsiteTitle.Text = websiteName;
 
             InitializeWebView(websiteUrl);
@@ -53,7 +53,7 @@ namespace LabelMinusinWPF.OCRService
             }
         }
 
-        private void SaveImageToOcrTemp(BitmapSource bitmapSource)//这个是为了能够在拖动窗口时把图片文件拖出去用的，所以必须要有个物理文件存在，不能直接拖BitmapSource
+        private void SaveImageToOcrTemp(BitmapSource bitmapSource)// 保存为临时文件，方便拖到外部字体识别网站。
         {
             try
             {

@@ -1,6 +1,4 @@
-using System.IO;                    // 文件路径操作、临时文件读写
 using System.Windows;                // Size、Point 等 UI 类型
-using System.Windows.Media.Imaging;   // BitmapSource 截图类型
 using RapidOcrNet;                   // RapidOcr .NET 封装
 using SkiaSharp;                     // 跨平台图片解码
 
@@ -73,42 +71,30 @@ public class PpOcrV5RapidOcrProvider : IOcrProvider
     // 全局共享的 RapidOcr 引擎实例（截图 OCR 和批量识别共用）
     private static RapidOcr? SharedEngine;
 
-    public static bool IsSharedEngineReady
-    {
-        get { lock (SharedLock) return SharedEngine != null; }
-    }
-
     // 初始化共享引擎（在 OCR 开关打开时调用一次）
-    public static void InitSharedEngine(OcrModelInfo? model = null)
+    public static void InitSharedEngine(OcrModelInfo? model = null) =>
+        EnsureSharedEngineCore(model, recreate: true);
+
+    public static void EnsureSharedEngine(OcrModelInfo? model = null) =>
+        EnsureSharedEngineCore(model, recreate: false);
+
+    private static void EnsureSharedEngineCore(OcrModelInfo? model, bool recreate)
     {
         lock (SharedLock)
         {
-            // 自动查找 models/ 目录下的 PaddleOCR 模型
-            model ??= OcrPipeline.FindPaddleModel()
-                ?? throw new InvalidOperationException("未找到 PaddleOCR 模型");
+            if (SharedEngine != null && !recreate)
+                return;
 
-            // 释放旧引擎（如有）
+            model ??= OcrPipeline.FindPpOcrModel()
+                ?? throw new InvalidOperationException("未找到 PP-OCRv5 模型");
+
             SharedEngine?.Dispose();
-
-            // 创建并持有新引擎
-            SharedEngine = CreateEngine(model);
-        }
-    }
-
-    public static void EnsureSharedEngine(OcrModelInfo? model = null)
-    {
-        lock (SharedLock)
-        {
-            if (SharedEngine != null) return;
-
-            model ??= OcrPipeline.FindPaddleModel()
-                ?? throw new InvalidOperationException("未找到 PaddleOCR 模型");
             SharedEngine = CreateEngine(model);
         }
     }
 
     // 通过共享引擎执行识别（接收任意 model 参数但实际使用共享引擎）
-    public static Task<IReadOnlyList<OcrTextRegion>> RecognizeWithSharedEngine(
+    private static Task<IReadOnlyList<OcrTextRegion>> RecognizeWithSharedEngine(
         string imagePath, OcrModelInfo _, AutoOcrOptions options, CancellationToken ct)
     {
         return Task.Run(() =>
@@ -126,7 +112,7 @@ public class PpOcrV5RapidOcrProvider : IOcrProvider
         }, ct);
     }
 
-    // 静态单例，供 OcrPipeline.RunAsync 直接使用
+    // 静态单例，供 AutoOcrService 复用共享引擎
     public static readonly PpOcrV5RapidOcrProvider Shared = new();
 
     Task<IReadOnlyList<OcrTextRegion>> IOcrProvider.RecognizeAsync(
@@ -144,28 +130,4 @@ public class PpOcrV5RapidOcrProvider : IOcrProvider
         }
     }
 
-    // 对截图 BitmapSource 执行 OCR，返回拼接后的文字字符串（截图 OCR 用）
-    public static Task<string?> RecognizeScreenshot(BitmapSource bitmap)
-    {
-        RapidOcr? engine;
-        lock (SharedLock) { engine = SharedEngine; }
-        if (engine == null) return Task.FromResult<string?>(null);
-
-        return OcrPipeline.WithTempPngAsync(bitmap, tmpPath => Task.Run(() =>
-        {
-            using var skBitmap = SKBitmap.Decode(tmpPath);
-            if (skBitmap == null) return (string?)null;
-
-            var result = engine.Detect(skBitmap, RapidOcrOptions.Default with
-            {
-                BoxScoreThresh = 0.4f,
-                DoAngle = true
-            });
-
-            return string.Join("",
-                result.TextBlocks
-                    .Select(b => b.GetText())
-                    .Where(t => !string.IsNullOrWhiteSpace(t)));
-        }));
-    }
 }

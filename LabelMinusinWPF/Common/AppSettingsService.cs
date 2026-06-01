@@ -101,16 +101,34 @@ namespace LabelMinusinWPF.Common
                 ? Constants.AutoSave.IntervalMinutes
                 : Math.Clamp(minutes, 1, 60);
 
+        public static bool IsValidHttpUrl(string? url) =>
+            Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
+
+        public static List<string> NormalizeFontRecognitionWebsiteUrls(IEnumerable<string>? urls)
+        {
+            if (urls == null)
+                return [];
+
+            return urls
+                .Select(url => url.Trim())
+                .Where(IsValidHttpUrl)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         public static void SaveUiSettings(
             bool openImageReviewOnStartup,
             bool autoLoadLastProjectEnabled,
             int autoSaveIntervalMinutes,
-            bool rightClickOpenEnabled)
+            bool rightClickOpenEnabled,
+            IEnumerable<string>? fontRecognitionWebsiteUrls)
         {
             Current.Ui.OpenImageReviewOnStartup = openImageReviewOnStartup;
             Current.Ui.AutoLoadLastProjectEnabled = autoLoadLastProjectEnabled;
             Current.Ui.AutoSaveIntervalMinutes = NormalizeAutoSaveIntervalMinutes(autoSaveIntervalMinutes);
             Current.Ui.RightClickOpenEnabled = rightClickOpenEnabled;
+            Current.Ui.FontRecognitionWebsiteUrls = NormalizeFontRecognitionWebsiteUrls(fontRecognitionWebsiteUrls);
             Save();
             ApplyAutoSaveInterval();
         }
@@ -225,6 +243,7 @@ namespace LabelMinusinWPF.Common
             settings ??= new UiSettings();
             settings.LastProjectPath ??= "";
             settings.AutoSaveIntervalMinutes = NormalizeAutoSaveIntervalMinutes(settings.AutoSaveIntervalMinutes);
+            settings.FontRecognitionWebsiteUrls = NormalizeFontRecognitionWebsiteUrls(settings.FontRecognitionWebsiteUrls);
             return settings;
         }
 

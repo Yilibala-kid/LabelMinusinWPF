@@ -126,7 +126,7 @@ public static class PythonEnvironmentInstaller
         await RunPythonWithProgressAsync($"\"{scriptPath}\"", progress, ct);
         try { File.Delete(scriptPath); } catch { }
 
-        progress.Report("Python OCR 环境安装完成！");
+        progress.Report("OCR 环境安装完成！");
     }
 
     private static async Task DownloadOnnxModelsAsync(IProgress<string> progress, CancellationToken ct)
@@ -286,7 +286,7 @@ public static class PythonEnvironmentInstaller
                 catch { }
 
                 WriteColor("LabelMinus OCR 环境安装", ConsoleColor.Cyan);
-                Console.WriteLine("正在准备 PaddleOCR、Python 和 manga-ocr 依赖。窗口可以放在后台，完成后会停在这里。");
+                Console.WriteLine("正在准备 PP-OCRv5 模型、Python、torch 和 manga-ocr 依赖。窗口可以放在后台，完成后会停在这里。");
                 Console.WriteLine(new string('-', 68));
                 Console.WriteLine();
             }
@@ -297,7 +297,7 @@ public static class PythonEnvironmentInstaller
             lock (_lock)
             {
                 Console.WriteLine();
-                WriteColor("安装完成！OCR 环境已经就绪。", ConsoleColor.Green);
+                WriteColor("安装完成！OCR 模型和日文识别环境已经就绪。", ConsoleColor.Green);
                 Console.WriteLine("按任意键关闭此窗口...");
                 TryShowCursor();
             }
@@ -359,7 +359,7 @@ public static class PythonEnvironmentInstaller
         private static string DetectStage(string message)
         {
             if (message.Contains("ONNX", StringComparison.OrdinalIgnoreCase))
-                return "1/6 PaddleOCR 模型";
+                return "1/6 PP-OCRv5 模型";
             if (message.Contains("Python", StringComparison.OrdinalIgnoreCase))
                 return "2/6 Python 嵌入环境";
             if (message.Contains("pip", StringComparison.OrdinalIgnoreCase))

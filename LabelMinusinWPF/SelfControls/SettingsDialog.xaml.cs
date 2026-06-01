@@ -26,6 +26,9 @@ namespace LabelMinusinWPF
             OpenImageReviewOnStartupCheckBox.IsChecked = AppSettingsService.Current.Ui.OpenImageReviewOnStartup;
             AutoLoadLastProjectCheckBox.IsChecked = AppSettingsService.Current.Ui.AutoLoadLastProjectEnabled;
             AutoSaveIntervalTextBox.Text = _lastValidAutoSaveIntervalMinutes.ToString();
+            FontRecognitionWebsiteUrlsTextBox.Text = string.Join(
+                Environment.NewLine,
+                AppSettingsService.Current.Ui.FontRecognitionWebsiteUrls);
         }
 
         private void AutoSaveIntervalTextBox_KeyDown(object sender, KeyEventArgs e)
@@ -50,6 +53,36 @@ namespace LabelMinusinWPF
             return minutes;
         }
 
+        private bool TryGetFontRecognitionWebsiteUrls(out List<string> urls)
+        {
+            urls = [];
+
+            foreach (string line in FontRecognitionWebsiteUrlsTextBox.Text.Split(
+                ["\r\n", "\n", "\r"],
+                StringSplitOptions.None))
+            {
+                string url = line.Trim();
+                if (string.IsNullOrWhiteSpace(url))
+                    continue;
+
+                if (!AppSettingsService.IsValidHttpUrl(url))
+                {
+                    MessageBox.Show(
+                        $"外部字体识别网站只支持 http:// 或 https:// 网址：\n{url}",
+                        "设置错误",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return false;
+                }
+
+                urls.Add(url);
+            }
+
+            urls = AppSettingsService.NormalizeFontRecognitionWebsiteUrls(urls);
+            FontRecognitionWebsiteUrlsTextBox.Text = string.Join(Environment.NewLine, urls);
+            return true;
+        }
+
         private void OpenAutoSaveFolder_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -68,13 +101,17 @@ namespace LabelMinusinWPF
 
             try
             {
+                if (!TryGetFontRecognitionWebsiteUrls(out var fontRecognitionWebsiteUrls))
+                    return;
+
                 ApplyRightClickOpenState(rightClickOpenEnabled);
 
                 AppSettingsService.SaveUiSettings(
                     OpenImageReviewOnStartupCheckBox.IsChecked == true,
                     AutoLoadLastProjectCheckBox.IsChecked == true,
                     ValidateAutoSaveIntervalText(),
-                    rightClickOpenEnabled);
+                    rightClickOpenEnabled,
+                    fontRecognitionWebsiteUrls);
 
                 DialogResult = true;
             }
