@@ -1,114 +1,95 @@
 using System;
 using System.Collections.Generic;
+using System.Windows;
 
 namespace LabelMinusinWPF.Common
 {
     #region 撤销重做功能
 
-    // 撤销/重做命令接口
-    public interface IUndoCommand
-    {
-        void Execute();
-        void Undo();
-    }
-
     // 撤销重做管理器：维护两个栈实现无限撤销/重做
-    public class UndoRedoManager
+    internal sealed class UndoRedoManager
     {
-        private readonly Stack<IUndoCommand> _undoStack = new();
-        private readonly Stack<IUndoCommand> _redoStack = new();
+        private sealed record HistoryEntry(
+            Action Redo,
+            Action Undo,
+            long BeforeStateId,
+            long AfterStateId,
+            object? CancellationKey)
+        {
+            public bool WasSaved { get; set; }
+        }
+
+        private readonly Stack<HistoryEntry> _undoStack = new();
+        private readonly Stack<HistoryEntry> _redoStack = new();
+        private long _nextStateId;
+        private long _currentStateId;
+        private long _savedStateId;
 
         public bool CanUndo => _undoStack.Count > 0;
         public bool CanRedo => _redoStack.Count > 0;
-        public int UndoCount => _undoStack.Count;
-        public int RedoCount => _redoStack.Count;
+        public bool HasUnsavedChanges => _currentStateId != _savedStateId;
 
-        // 执行命令并压入撤销栈（清空重做栈）
-        public void Execute(IUndoCommand command)
+        public void Execute(Action redo, Action undo, object? cancellationKey = null)
         {
-            command.Execute();
-            _undoStack.Push(command);
+            redo();
+            var entry = new HistoryEntry(redo, undo, _currentStateId, ++_nextStateId, cancellationKey);
+            _undoStack.Push(entry);
             _redoStack.Clear();
+            _currentStateId = entry.AfterStateId;
         }
 
-        public void Undo()
+        public bool Undo()
         {
-            if (!CanUndo) return;
-            var command = _undoStack.Pop();
-            command.Undo();
-            _redoStack.Push(command);
+            if (!_undoStack.TryPeek(out var entry)) return false;
+            entry.Undo();
+            _undoStack.Pop();
+            _redoStack.Push(entry);
+            _currentStateId = entry.BeforeStateId;
+            return true;
         }
 
-        public void Redo()
+        public bool Redo()
         {
-            if (!CanRedo) return;
-            var command = _redoStack.Pop();
-            command.Execute();
-            _undoStack.Push(command);
+            if (!_redoStack.TryPeek(out var entry)) return false;
+            entry.Redo();
+            _redoStack.Pop();
+            _undoStack.Push(entry);
+            _currentStateId = entry.AfterStateId;
+            return true;
         }
-    }
 
-    // 新增标注命令
-    public class AddCommand : IUndoCommand
-    {
-        private readonly IList<OneLabel> _list;
-        private readonly OneLabel _label;
-
-        public AddCommand(IList<OneLabel> list, OneLabel label)
+        public bool TryCancelLatest(object cancellationKey)
         {
-            _list = list;
-            _label = label;
+            if (!_undoStack.TryPeek(out var entry)
+                || entry.WasSaved
+                || !ReferenceEquals(entry.CancellationKey, cancellationKey))
+                return false;
+
+            entry.Undo();
+            _undoStack.Pop();
+            _redoStack.Clear();
+            _currentStateId = entry.BeforeStateId;
+            return true;
         }
 
-        public void Execute() { _label.IsDeleted = false; _list.Add(_label); }
-        public void Undo() { _label.IsDeleted = true; _list.Remove(_label); }
-    }
-
-    // 删除标注命令（软删除）
-    public class DeleteCommand : IUndoCommand
-    {
-        private readonly OneLabel _label;
-
-        public DeleteCommand(OneLabel label)
+        public void MarkAsSaved()
         {
-            _label = label;
+            _savedStateId = _currentStateId;
+            foreach (var entry in _undoStack)
+                entry.WasSaved = true;
         }
-
-        public void Execute() { _label.IsDeleted = true; }
-        public void Undo() { _label.IsDeleted = false; }
-    }
-
-    // 标注属性修改命令（基于快照的撤销/重做）
-    public class UpdateLabelCommand : IUndoCommand
-    {
-        private readonly OneLabel _target;
-        private readonly LabelSnapshot _oldState;
-        private readonly LabelSnapshot _newState;
-
-        public UpdateLabelCommand(OneLabel target, LabelSnapshot oldState)
-        {
-            _target = target;
-            _oldState = oldState;
-            _newState = new LabelSnapshot(target);
-        }
-
-        public void Execute() { _newState.RestoreTo(_target); }
-        public void Undo() { _oldState.RestoreTo(_target); }
     }
 
     // 标注状态快照（记录 Text、Group、Position）
-    public class LabelSnapshot
+    public sealed record LabelSnapshot(string Text, string Group, Point Position)
     {
-        public string Text { get; }
-        public string Group { get; }
-        public System.Windows.Point Position { get; }
-
         public LabelSnapshot(OneLabel label)
+            : this(label.Text, label.Group, label.Position)
         {
-            Text = label.Text;
-            Group = label.Group;
-            Position = label.Position;
         }
+
+        public bool Matches(OneLabel label) =>
+            Text == label.Text && Group == label.Group && Position == label.Position;
 
         public void RestoreTo(OneLabel label)
         {

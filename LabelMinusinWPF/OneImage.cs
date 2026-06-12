@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
 using System;
@@ -81,17 +81,20 @@ public partial class OneImage : ObservableObject
 
     #endregion
 
-    //TODO：撤消重做逻辑待审查
     #region 撤销重做
 
-    // 撤销重做管理器
-    public UndoRedoManager History { get; } = new();
-
-    // 保存时的 UndoCount 快照
-    public int SavedVersionCount { get; private set; } = 0;
+    private readonly UndoRedoManager _history = new();
 
     // 标记当前状态为"已保存"
-    public void MarkAsSaved() => SavedVersionCount = History.UndoCount;
+    public void MarkAsSaved()
+    {
+        CommitPendingEdit();
+        _history.MarkAsSaved();
+        RefreshHistoryState();
+    }
+
+    public bool HasUnsavedChanges =>
+        _history.HasUnsavedChanges || IsSelectedLabelDirty();
 
     // 当前选中标签的快照（用于撤销/重做）
     private LabelSnapshot? _labelSnapshot;
@@ -99,33 +102,40 @@ public partial class OneImage : ObservableObject
     // 选中标签改变前：提交当前快照
     partial void OnSelectedLabelChanging(OneLabel? value)
     {
-        TryCommitCurrentSnapshot();
+        CommitPendingEdit();
+        if (SelectedLabel != null)
+            SelectedLabel.PropertyChanged -= SelectedLabel_PropertyChanged;
     }
 
     // 选中标签改变后：更新快照和命令状态
     partial void OnSelectedLabelChanged(OneLabel? value)
     {
+        if (value != null)
+            value.PropertyChanged += SelectedLabel_PropertyChanged;
         UpdateSnapshot();
-        NotifyCommands();
+        RefreshHistoryState();
         GroupManager.Instance.SetSelectedGroup(value?.Group);
     }
 
     // 判断是否可以撤销
-    private bool CanUndo() => History.CanUndo || IsSelectedLabelDirty();
+    private bool CanUndo() => _history.CanUndo || IsSelectedLabelDirty();
 
     // 判断是否可以重做
-    private bool CanRedo() => History.CanRedo;
+    private bool CanRedo() => _history.CanRedo && !IsSelectedLabelDirty();
 
     // 判断当前选中标签是否有未保存的修改
-    private bool IsSelectedLabelDirty()
+    private bool IsSelectedLabelDirty() =>
+        SelectedLabel != null && _labelSnapshot != null && !_labelSnapshot.Matches(SelectedLabel);
+
+    private void SelectedLabel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (SelectedLabel == null || _labelSnapshot == null) return false;
-        return SelectedLabel.Text != _labelSnapshot.Text ||
-               SelectedLabel.Group != _labelSnapshot.Group ||
-               SelectedLabel.Position != _labelSnapshot.Position;
+        if (e.PropertyName is not (nameof(OneLabel.Text) or nameof(OneLabel.Group) or nameof(OneLabel.Position)))
+            return;
+
+        RefreshHistoryState();
+        if (e.PropertyName == nameof(OneLabel.Group))
+            GroupManager.Instance.SetSelectedGroup(SelectedLabel?.Group);
     }
-
-
 
     #endregion
 
@@ -133,21 +143,13 @@ public partial class OneImage : ObservableObject
     [RelayCommand]// 添加标签命令
     public void AddLabel(Point? pos)
     {
-        TryCommitCurrentSnapshot();
         var newLabel = new OneLabel("", GroupManager.Instance.SelectedGroup ?? GroupConstants.InBox, pos ?? new Point(0.5, 0.5));
-        History.Execute(new AddCommand(Labels, newLabel));
-        SelectedLabel = newLabel;
+        AddLabelWithHistory(newLabel, select: true);
     }
     public OneLabel PasteLabel(LabelSnapshot snapshot)
     {
-        TryCommitCurrentSnapshot();
-
         var newLabel = new OneLabel(snapshot.Text, snapshot.Group, GetOffsetPastePosition(snapshot.Position));
-        History.Execute(new AddCommand(Labels, newLabel));
-        SelectedLabel = newLabel;
-        NotifyCommands();
-
-        return newLabel;
+        return AddLabelWithHistory(newLabel, select: true);
     }
 
     public void ApplyLabelContent(LabelSnapshot snapshot)
@@ -155,17 +157,31 @@ public partial class OneImage : ObservableObject
         if (SelectedLabel is not { } target)
             return;
 
-        TryCommitCurrentSnapshot();
-        if (target.Text == snapshot.Text && target.Group == snapshot.Group)
+        CommitPendingEdit();
+        var oldState = new LabelSnapshot(target);
+        var newState = oldState with { Text = snapshot.Text, Group = snapshot.Group };
+        if (oldState == newState)
             return;
 
-        var oldState = new LabelSnapshot(target);
-        target.Text = snapshot.Text;
-        target.Group = snapshot.Group;
-        History.Execute(new UpdateLabelCommand(target, oldState));
+        _history.Execute(
+            () => newState.RestoreTo(target),
+            () => oldState.RestoreTo(target));
         UpdateSnapshot();
-        NotifyCommands();
+        RefreshHistoryState();
         GroupManager.Instance.SetSelectedGroup(target.Group);
+    }
+
+    internal OneLabel AddLabelWithHistory(OneLabel label, bool select = false)
+    {
+        CommitPendingEdit();
+        _history.Execute(
+            () => { label.IsDeleted = false; Labels.Add(label); },
+            () => { label.IsDeleted = true; Labels.Remove(label); },
+            label);
+        if (select)
+            SelectedLabel = label;
+        RefreshHistoryState();
+        return label;
     }
 
     private static Point GetOffsetPastePosition(Point position)
@@ -181,52 +197,73 @@ public partial class OneImage : ObservableObject
     public void DeleteLabel(OneLabel? label)
     {
         if ((label ?? SelectedLabel) is not { } target) return;
-        // 未保存的新标签（原文为空）直接移除，不进软删除历史
-        if (string.IsNullOrEmpty(target.OriginalText) && string.IsNullOrEmpty(target.Text))
+        CommitPendingEdit();
+
+        // 尚未保存的新建空标签可折叠为无操作。
+        if (string.IsNullOrEmpty(target.OriginalText)
+            && string.IsNullOrEmpty(target.Text)
+            && _history.TryCancelLatest(target))
         {
-            Labels.Remove(target);
             if (SelectedLabel == target) SelectedLabel = null;
-            NotifyCommands();
+            RefreshHistoryState();
             return;
         }
-        TryCommitCurrentSnapshot();
-        History.Execute(new DeleteCommand(target));
+
+        _history.Execute(
+            () => target.IsDeleted = true,
+            () => target.IsDeleted = false);
         if (SelectedLabel == target) SelectedLabel = null;
-        NotifyCommands();
+        RefreshHistoryState();
     }
     [RelayCommand(CanExecute = nameof(CanUndo))]// 撤销命令
     public void Undo()
     {
-        TryCommitCurrentSnapshot();
-        History.Undo();
-        UpdateSnapshot();
-        NotifyCommands();
+        CommitPendingEdit();
+        if (_history.Undo())
+            RefreshSelectionAfterHistoryChange();
     }
     [RelayCommand(CanExecute = nameof(CanRedo))]// 重做命令
     public void Redo()
     {
-        History.Redo();
-        UpdateSnapshot();
-        NotifyCommands();
+        if (_history.Redo())
+            RefreshSelectionAfterHistoryChange();
     }
 
-    // 尝试提交当前快照
-    private void TryCommitCurrentSnapshot()
+    // 提交当前快照，将连续输入或拖拽合并为一个历史步骤。
+    internal void CommitPendingEdit()
     {
-        if (IsSelectedLabelDirty())
-        {
-            History.Execute(new UpdateLabelCommand(SelectedLabel!, _labelSnapshot!));
-            UpdateSnapshot();
-        }
+        if (SelectedLabel is not { } selected
+            || _labelSnapshot is not { } snapshot
+            || snapshot.Matches(selected))
+            return;
+
+        var current = new LabelSnapshot(selected);
+        _history.Execute(
+            () => current.RestoreTo(selected),
+            () => snapshot.RestoreTo(selected));
+        UpdateSnapshot();
+        RefreshHistoryState();
     }
 
     // 更新快照
     private void UpdateSnapshot() =>
         _labelSnapshot = SelectedLabel != null ? new LabelSnapshot(SelectedLabel) : null;
 
-    // 通知命令状态变化
-    private void NotifyCommands()
+    private void RefreshSelectionAfterHistoryChange()
     {
+        if (SelectedLabel is { } selected
+            && (!Labels.Contains(selected) || selected.IsDeleted))
+            SelectedLabel = null;
+        else
+            UpdateSnapshot();
+
+        RefreshHistoryState();
+    }
+
+    // 通知历史状态变化
+    private void RefreshHistoryState()
+    {
+        OnPropertyChanged(nameof(HasUnsavedChanges));
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
     }

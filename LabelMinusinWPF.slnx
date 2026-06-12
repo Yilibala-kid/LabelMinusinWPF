@@ -1,4 +1,5 @@
 <Solution>
   <Folder Name="/解决方案项/" />
   <Project Path="LabelMinusinWPF/LabelMinusinWPF.csproj" />
+  <Project Path="LabelMinusinWPF.Tests/LabelMinusinWPF.Tests.csproj" />
 </Solution>

@@ -12,6 +12,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Threading;
 using Constants = LabelMinusinWPF.Common.Constants;
@@ -147,81 +148,11 @@ namespace LabelMinusinWPF
         {
             public static NaturalFileNameComparer Instance { get; } = new();
 
-            public int Compare(string? x, string? y)
-            {
-                x ??= string.Empty;
-                y ??= string.Empty;
+            public int Compare(string? x, string? y) =>
+                StrCmpLogicalW(x ?? string.Empty, y ?? string.Empty);
 
-                int xIndex = 0;
-                int yIndex = 0;
-
-                while (xIndex < x.Length && yIndex < y.Length)
-                {
-                    bool xIsDigit = char.IsDigit(x[xIndex]);
-                    bool yIsDigit = char.IsDigit(y[yIndex]);
-
-                    if (xIsDigit && yIsDigit)
-                    {
-                        int result = CompareNumberSegments(x, ref xIndex, y, ref yIndex);
-                        if (result != 0)
-                            return result;
-                    }
-                    else
-                    {
-                        int result = CompareTextSegments(x, ref xIndex, y, ref yIndex);
-                        if (result != 0)
-                            return result;
-                    }
-                }
-
-                int lengthCompare = x.Length.CompareTo(y.Length);
-                return lengthCompare != 0
-                    ? lengthCompare
-                    : string.Compare(x, y, StringComparison.CurrentCulture);
-            }
-
-            private static int CompareNumberSegments(string x, ref int xIndex, string y, ref int yIndex)
-            {
-                int xStart = xIndex;
-                int yStart = yIndex;
-                while (xIndex < x.Length && char.IsDigit(x[xIndex])) xIndex++;
-                while (yIndex < y.Length && char.IsDigit(y[yIndex])) yIndex++;
-
-                ReadOnlySpan<char> xNumber = x.AsSpan(xStart, xIndex - xStart);
-                ReadOnlySpan<char> yNumber = y.AsSpan(yStart, yIndex - yStart);
-                ReadOnlySpan<char> xTrimmed = TrimLeadingZeros(xNumber);
-                ReadOnlySpan<char> yTrimmed = TrimLeadingZeros(yNumber);
-
-                int result = xTrimmed.Length.CompareTo(yTrimmed.Length);
-                if (result != 0)
-                    return result;
-
-                result = xTrimmed.CompareTo(yTrimmed, StringComparison.Ordinal);
-                if (result != 0)
-                    return result;
-
-                return xNumber.Length.CompareTo(yNumber.Length);
-            }
-
-            private static int CompareTextSegments(string x, ref int xIndex, string y, ref int yIndex)
-            {
-                int xStart = xIndex;
-                int yStart = yIndex;
-                while (xIndex < x.Length && !char.IsDigit(x[xIndex])) xIndex++;
-                while (yIndex < y.Length && !char.IsDigit(y[yIndex])) yIndex++;
-
-                return string.Compare(
-                    x[xStart..xIndex],
-                    y[yStart..yIndex],
-                    StringComparison.CurrentCultureIgnoreCase);
-            }
-
-            private static ReadOnlySpan<char> TrimLeadingZeros(ReadOnlySpan<char> value)
-            {
-                int index = 0;
-                while (index < value.Length - 1 && value[index] == '0') index++;
-                return value[index..];
-            }
+            [DllImport("shlwapi.dll", CharSet = CharSet.Unicode, ExactSpelling = true)]
+            private static extern int StrCmpLogicalW(string x, string y);
         }
         #endregion
     }

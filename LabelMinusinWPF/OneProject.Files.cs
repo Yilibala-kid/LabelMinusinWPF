@@ -99,7 +99,7 @@ namespace LabelMinusinWPF
         }
 
         public bool HasUnsavedChanges() =>
-            ImageList.Any(img => img.History.UndoCount != img.SavedVersionCount);
+            ImageList.Any(img => img.HasUnsavedChanges);
 
 
 
@@ -385,6 +385,9 @@ namespace LabelMinusinWPF
 
             try
             {
+                if (updateContext)
+                    ImageList.ToList().ForEach(img => img.CommitPendingEdit());
+
                 string outputText = LabelPlusParser.LabelsToText(
                     ImageList,
                     WorkSpace.ZipName,

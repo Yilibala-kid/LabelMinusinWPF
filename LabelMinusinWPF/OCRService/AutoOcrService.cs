@@ -191,7 +191,7 @@ public static class AutoOcrService
                     : Math.Clamp(region.Bounds.Top / imageSize.Height, 0, 1));
 
             var label = new OneLabel(text, GroupConstants.InBox, position);
-            image.History.Execute(new AddCommand(image.Labels, label));
+            image.AddLabelWithHistory(label);
             createdLabels++;
         }
 

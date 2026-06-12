@@ -79,39 +79,6 @@ LabelMinus 提供多种 OCR 辅助方式，不同功能对环境要求不同：
 
 设置文件保存在程序所在目录的 `settings.json` 中。自动保存文件保存在程序所在目录的 `AutoSave` 文件夹中。
 
-## 快捷键
-
-主窗口常用快捷键（未编辑文本时）：
-
-| 快捷键 | 功能 |
-| --- | --- |
-| Ctrl+N | 为文件夹新建翻译 |
-| Ctrl+Shift+N | 为压缩包新建翻译 |
-| Ctrl+O | 导入翻译 |
-| Alt+O | 预览压缩包 |
-| Ctrl+Shift+O | 预览文件夹 |
-| Ctrl+Alt+O | 选择图片 |
-| Ctrl+S | 保存翻译 |
-| Ctrl+Shift+S | 翻译另存为 |
-| Ctrl+Z | 撤销 |
-| Ctrl+Y | 重做 |
-| A / D | 上一张 / 下一张 |
-| R | 当前图片适应视图 |
-
-图校模式常用快捷键：
-
-| 快捷键 | 功能 |
-| --- | --- |
-| Q | 截图 |
-| A / Left | 上一张 |
-| D / Right | 下一张 |
-| R | 重置视图 |
-| Ctrl+R | 重置分割线 |
-| G | 切换单图/双图校对 |
-| C | 交换左右图片 |
-| P | 清空图片 |
-| H | 分割线跟随鼠标 |
-| F1 | 打开/关闭菜单 |
 
 ## 开发与构建
 
@@ -119,17 +86,15 @@ LabelMinus 提供多种 OCR 辅助方式，不同功能对环境要求不同：
 
 - .NET 10 / `net10.0-windows`
 - WPF
-- MaterialDesignThemes / MaterialDesignColors
-- CommunityToolkit.Mvvm
-- Microsoft WebView2
-- RapidOcrNet
-- SharpCompress
+- DeepSeek
+- GPT
+- Claude Code
+
 
 ## 将来想做的
 
 - 持续修复 bug。
 - 优化图校、OCR、标注和设置体验。
-- 继续完善自动保存与工作区恢复能力。
 - 计划增加可选的 AI 辅助功能。
 
 ## 致谢
@@ -138,9 +103,7 @@ LabelMinus 提供多种 OCR 辅助方式，不同功能对环境要求不同：
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)：提供 OCR 相关能力。
 - [manga-ocr](https://github.com/kha-white/manga-ocr)：提供日文 OCR 相关能力。
 - [RapidOcrNet](https://github.com/RapidAI/RapidOCR)：提供 OCR 引擎封装。
-- [MaterialDesignInXAML](https://github.com/MaterialDesignInXAML/MaterialDesignInXamlToolkit)：提供 WPF Material Design 组件。
 - [SharpCompress](https://github.com/adamhathcock/sharpcompress)：提供压缩包读取能力。
-- [Microsoft WebView2](https://developer.microsoft.com/microsoft-edge/webview2/)：提供网页 OCR 相关的浏览器承载能力。
 
 更多第三方组件与模型来源见 [ThirdPartyNotices.txt](ThirdPartyNotices.txt)。
 
