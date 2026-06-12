@@ -213,10 +213,15 @@ namespace LabelMinusinWPF
                     // Freeze on UI thread before passing to background task
                     var frozenLeft = ScreenshotHelper.Freeze(bmpLeft);
                     var frozenRight = ScreenshotHelper.Freeze(bmpRight);
-                    var result = await Task.Run(() => ScreenshotHelper.SaveSnip(
-                        ScreenshotHelper.Combine([frozenLeft, frozenRight], currentImgName)));
+                    var combined = ScreenshotHelper.Combine([frozenLeft, frozenRight], currentImgName);
+                    if (combined == null) return;
 
-                    ApplyScreenshotResult(result);
+                    bool clipboardSaved = ScreenshotHelper.SetClipboard(combined);
+                    var result = await Task.Run(() => ScreenshotHelper.SaveSnip(combined));
+
+                    ApplyScreenshotResult(result, copyPreviewToClipboard: false);
+                    if (!clipboardSaved && result != null)
+                        MessageBox.Show("截图已保存，但复制到剪贴板失败。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
             catch (Exception ex)
@@ -226,7 +231,7 @@ namespace LabelMinusinWPF
             }
         }
 
-        private void ApplyScreenshotResult(ScreenshotHelper.ScreenshotSaveResult? result)
+        private void ApplyScreenshotResult(ScreenshotHelper.ScreenshotSaveResult? result, bool copyPreviewToClipboard = true)
         {
             if (result == null) return;
 
@@ -235,7 +240,8 @@ namespace LabelMinusinWPF
             {
                 try
                 {
-                    _ = ScreenshotHelper.SetClipboard(result.PreviewImage);
+                    if (copyPreviewToClipboard)
+                        _ = ScreenshotHelper.SetClipboard(result.PreviewImage);
                     ImgThumb.Source = result.PreviewImage;
                 }
                 catch (Exception ex)
