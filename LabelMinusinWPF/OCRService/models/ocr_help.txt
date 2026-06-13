@@ -1,35 +1,29 @@
 === OCR 功能说明 ===
 
 【一键打点】
-  弹窗选图 → PP-OCRv5 检测文字区域 → 在文字右上角生成位置标签
-  只需要 PP-OCRv5 ONNX 模型，不需要 Python。空文本标签仍按 Label1、Label2... 命名。
+  弹窗选图 -> PaddleOCR/PP-OCRv6 检测文字区域 -> 在文字右上角生成位置标签。
+  一键打点不受模型选择影响，始终只使用 PaddleOCR 检测框。
 
-【一键中英识别】
-  弹窗选图 → PP-OCRv5 检测并识别文字 → 生成文字标签
-  适合中文、英文和混排文本，只需要 PP-OCRv5 ONNX 模型。
-
-【一键日文识别】
-  弹窗选图 → PP-OCRv5 检测文字区域 → manga-ocr 识别日文 → 生成文字标签
-  适合日漫/日文图片，需要 PP-OCRv5 ONNX 模型、Python、torch、manga-ocr 和 manga-ocr 模型。
+【一键识别】
+  先在内容识别区域选择 OCR 模型，再点击一键识别。
+  - Paddle-ocr：PaddleOCR/PP-OCRv6 检测并识别文字，适合中文、英文和混排文本。
+  - manga-ocr：PaddleOCR/PP-OCRv6 检测文字区域，manga-ocr 识别内容，适合日漫/日文图片。
 
 【截图自动识别】
-  选择中英或日文引擎 → 开启 OCR 开关 → 切到截图模式 → 在当前图片上框选区域
-  识别结果会映射回当前图片，并创建一个标签。当前开关会预热中英和日文识别引擎。
-
-【字体识别网站】
-  先截图复制到剪贴板 → 点击“字体识别”旁的网站按钮 → 在外部网站中识别字体
-  可在设置里自定义网站地址；留空时使用内置网站列表。
+  选择 Paddle-ocr 或 manga-ocr -> 开启 OCR 开关 -> 切到截图模式 -> 在当前图片上框选区域。
+  识别结果会映射回当前图片，并创建一个标签。
 
 【环境配置】
-  配置 OCR 环境 → 自动下载 PP-OCRv5 ONNX 模型、嵌入版 Python、torch、manga-ocr 和日文模型
-  约 2GB，首次安装约 5-10 分钟。只做一键打点/中英批量识别时，通常只需要 PP-OCRv5 ONNX 模型。
+  配置 OCR 环境 -> 自动安装嵌入版 Python、PaddleOCR/PP-OCRv6、torch、manga-ocr 和日文模型。
+  首次安装体积较大、耗时较长；PP-OCRv6 模型会由官方 PaddleOCR pipeline 预热下载。
 
 【模型文件】
-  程序目录\models\v5\        — PP-OCRv5 ONNX 检测/识别模型
-  程序目录\models\manga-ocr\ — manga-ocr 脚本与日文识别模型
-  程序目录\python\           — 嵌入版 Python 和 Python 包
+  程序目录\models\v6\         - PP-OCRv6 官方模型缓存和配置
+  程序目录\models\paddle-ocr\ - PaddleOCR 常驻进程脚本
+  程序目录\models\manga-ocr\  - manga-ocr 脚本与日文识别模型
+  程序目录\python\            - 嵌入版 Python 和 Python 包
 
 【提示】
-  · OCR 结果可通过 Ctrl+Z 撤销
-  · 批量 OCR 会对所选图片逐张创建标签
-  · 建议检查识别结果后再保存
+  - OCR 结果可通过 Ctrl+Z 撤销。
+  - 批量 OCR 会对所选图片逐张创建标签。
+  - 建议检查识别结果后再保存。

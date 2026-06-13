@@ -18,8 +18,8 @@
     <Content Include="..\ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="OCRService\models\手动安装模型指南.txt" Link="models\手动安装模型指南.txt" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="OCRService\models\ocr_help.txt" Link="models\ocr_help.txt" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\v5\model.json" Link="models\v5\model.json" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\v5\ppocrv5_dict.txt" Link="models\v5\ppocrv5_dict.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\v6\model.json" Link="models\v6\model.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\models\paddle-ocr\paddle_ocr_infer.py" Link="models\paddle-ocr\paddle_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="OCRService\models\manga-ocr\manga_ocr_infer.py" Link="models\manga-ocr\manga_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="OCRService\models\manga-ocr\model.json" Link="models\manga-ocr\model.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
@@ -29,7 +29,6 @@
     <PackageReference Include="MaterialDesignColors" Version="5.3.0" />
     <PackageReference Include="MaterialDesignThemes" Version="5.3.0" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3800.47" />
-    <PackageReference Include="RapidOcrNet" Version="1.0.2" ExcludeAssets="build" />
     <PackageReference Include="SharpCompress" Version="0.48.0" />
   </ItemGroup>
 

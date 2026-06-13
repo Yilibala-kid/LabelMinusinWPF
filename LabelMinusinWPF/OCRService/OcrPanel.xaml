@@ -50,48 +50,43 @@
                     ToolTip="用剪贴板截图打开外部字体识别网站" />
             </Grid>
 
-            <Grid Margin="0,0,0,8">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-
+            <StackPanel Margin="0,0,0,8" Orientation="Horizontal">
                 <TextBlock
-                    Grid.Column="0"
                     VerticalAlignment="Center"
                     FontSize="18"
                     FontWeight="SemiBold"
                     Foreground="{DynamicResource MaterialDesignBody}"
                     Text="内容识别" />
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <ComboBox x:Name="EngineSelector" Width="60" VerticalAlignment="Center" Foreground="{DynamicResource MaterialDesignBody}">
-                        <ComboBoxItem Content="中英" />
-                        <ComboBoxItem Content="日文" IsSelected="True" />
-                    </ComboBox>
-                    <ToggleButton
-                        x:Name="ScreenshotOcrToggle"
-                        Margin="4,0,0,0"
-                        VerticalAlignment="Center"
-                        Tag="Ocr"
-                        ToolTip="开启后，截图选区会自动 OCR 并在当前图片新建标签">
-                        <ToggleButton.ContentTemplate>
-                            <DataTemplate>
-                                <StackPanel Orientation="Horizontal">
-                                    <materialDesign:PackIcon x:Name="PartIcon" Width="40" Height="40" Kind="{Binding Tag, RelativeSource={RelativeSource AncestorType=ButtonBase}}" />
-                                </StackPanel>
-                            </DataTemplate>
-                        </ToggleButton.ContentTemplate>
-                    </ToggleButton>
+                <ToggleButton
+                    x:Name="ScreenshotOcrToggle"
+                    Margin="8,0,0,0"
+                    VerticalAlignment="Center"
+                    Tag="Ocr"
+                    ToolTip="开启后，截图选区会自动 OCR 并在当前图片新建标签">
+                    <ToggleButton.ContentTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <materialDesign:PackIcon x:Name="PartIcon" Width="40" Height="40" Kind="{Binding Tag, RelativeSource={RelativeSource AncestorType=ButtonBase}}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ToggleButton.ContentTemplate>
+                </ToggleButton>
+            </StackPanel>
 
+            <ComboBox
+                x:Name="EngineSelector"
+                Margin="0,0,0,8"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
+                Foreground="{DynamicResource MaterialDesignBody}">
+                <ComboBoxItem Content="Paddle-ocr" IsSelected="True" Tag="Paddle" />
+                <ComboBoxItem Content="manga-ocr" Tag="Manga" />
+            </ComboBox>
 
-                </StackPanel>
-            </Grid>
-
-            <!--  “一键”核心功能行：横向三列  -->
+            <!--  “一键”核心功能行  -->
             <Grid Margin="0,0,0,8">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
@@ -104,38 +99,43 @@
                     Click="AutoDot_Click"
                     Content=""
                     Tag="Numeric1Circle"
-                    ToolTip="使用 PP-OCRv5 检测文字区域，并在右上角创建位置标签" />
+                    ToolTip="使用 PP-OCRv6 检测文字区域，并在右上角创建位置标签" />
 
                 <Button
-                    x:Name="BatchCnEnButton"
+                    x:Name="BatchRecognizeButton"
                     Grid.Column="1"
                     Height="40"
                     Margin="2,0"
-                    Click="BatchCnEn_Click"
+                    Click="BatchRecognize_Click"
                     Content=""
-                    Tag="Alphabetical"
-                    ToolTip="使用 PP-OCRv5 识别中英文文字并创建标签" />
-
-                <Button
-                    x:Name="BatchJpButton"
-                    Grid.Column="2"
-                    Height="40"
-                    Margin="2,0"
-                    Click="BatchJp_Click"
-                    Content=""
-                    Tag="Translate"
-                    ToolTip="使用 PP-OCRv5 检测区域、manga-ocr 识别日文并创建标签" />
+                    Tag="TextRecognition"
+                    ToolTip="使用当前选择的 OCR 模型识别文字并创建标签" />
             </Grid>
 
-            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                <Button x:Name="SetupButton" Click="SetupOcrEnv_Click" Tag="Cog" ToolTip="配置 OCR 模型和日文识别环境" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button
+                    x:Name="SetupButton"
+                    Grid.Column="0"
+                    Height="40"
+                    Margin="2,0"
+                    Click="SetupOcrEnv_Click"
+                    Tag="Cog"
+                    ToolTip="配置 OCR 模型和日文识别环境" />
+
                 <Button
                     x:Name="HelpButton"
-                    Margin="4,0,0,0"
+                    Grid.Column="1"
+                    Height="40"
+                    Margin="2,0"
                     Click="OcrHelp_Click"
                     Tag="HelpCircleOutline"
                     ToolTip="OCR 说明" />
-            </StackPanel>
+            </Grid>
         </StackPanel>
     </Border>
 </UserControl>

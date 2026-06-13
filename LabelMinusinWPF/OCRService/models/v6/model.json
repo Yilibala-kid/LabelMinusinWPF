@@ -1,0 +1,7 @@
+{
+  "id": "ppocrv6",
+  "name": "PP-OCRv6",
+  "engine": "PaddleOcrPython",
+  "detModelName": "PP-OCRv6_medium_det",
+  "recModelName": "PP-OCRv6_medium_rec"
+}

@@ -24,28 +24,27 @@ public static class PythonEnvironmentInstaller
     private const string TorchIndexUrl = "https://download.pytorch.org/whl/cpu";
     private const string TorchPackage = "torch==2.12.0+cpu";
 
+    private static readonly string[] PaddlePackages = ["paddlepaddle", "paddleocr"];
     private static readonly string[] PipPackages = ["manga-ocr", "huggingface_hub"];
-
-    private static readonly string[] ModelScopeTags = ["master", "v3.7.0", "v3.4.0"];
-    private static readonly (string File, string SubDir)[] OnnxModels =
-    [
-        ("ch_PP-OCRv5_det_server.onnx", "det"),
-        ("ch_PP-LCNet_x1_0_textline_ori_cls_server.onnx", "cls"),
-        ("ch_PP-OCRv5_rec_server.onnx", "rec"),
-    ];
 
     public static string PythonDir => Path.Combine(AppContext.BaseDirectory, "python");
     public static string PythonExe => Path.Combine(PythonDir, "python.exe");
+    public static string PaddleOcrScript =>
+        Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir, "paddle-ocr", "paddle_ocr_infer.py");
 
     public static void Uninstall()
     {
         if (Directory.Exists(PythonDir))
             Directory.Delete(PythonDir, recursive: true);
 
-        string v5Dir = Path.Combine(AppContext.BaseDirectory, "models", "v5");
-        if (Directory.Exists(v5Dir))
-            foreach (var f in Directory.EnumerateFiles(v5Dir, "*.onnx"))
+        string v6Dir = OcrConstants.PaddleOcrV6ModelRoot;
+        if (Directory.Exists(v6Dir))
+        {
+            foreach (var directory in Directory.EnumerateDirectories(v6Dir))
+                Directory.Delete(directory, recursive: true);
+            foreach (var f in Directory.EnumerateFiles(v6Dir, "*.tmp"))
                 File.Delete(f);
+        }
 
         string mangaModelDir = Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model");
         if (Directory.Exists(mangaModelDir))
@@ -54,7 +53,7 @@ public static class PythonEnvironmentInstaller
 
     public static async Task InstallWithConsoleReporterAsync(CancellationToken ct = default)
     {
-        var reporter = new ConsoleInstallReporter();
+        var reporter = new CleanConsoleInstallReporter();
         reporter.Start();
 
         try
@@ -76,8 +75,7 @@ public static class PythonEnvironmentInstaller
 
     public static async Task InstallAsync(IProgress<string> progress, CancellationToken ct = default)
     {
-        await DownloadOnnxModelsAsync(progress, ct);
-
+        progress.Report("[stage:1/6] 准备 Python 嵌入环境");
         progress.Report("正在下载 Python 嵌入版...");
         string zipPath = Path.Combine(Path.GetTempPath(), $"python-{PythonVersion}-embed-amd64.zip");
         await DownloadWithProgressAsync(PythonDownloadUrl, zipPath,
@@ -92,18 +90,32 @@ public static class PythonEnvironmentInstaller
         File.WriteAllText(Path.Combine(PythonDir, "python310._pth"),
             "python310.zip\r\n.\r\n\r\n# Uncomment to run site.main() automatically\r\nimport site\r\nLib\\site-packages\r\n");
 
+        progress.Report("[stage:2/6] 安装 pip");
         progress.Report("正在安装 pip...");
         string getPipPath = Path.Combine(Path.GetTempPath(), "get-pip.py");
         await File.WriteAllBytesAsync(getPipPath, await Http.GetByteArrayAsync(GetPipUrl, ct), ct);
         await RunPythonAsync($"\"{getPipPath}\" --no-python-version-warning", ct);
         File.Delete(getPipPath);
 
+        progress.Report("[stage:3/6] 安装 PaddleOCR 并下载 PP-OCRv6");
+        var paddlePkgs = string.Join(" ", PaddlePackages);
+        progress.Report($"安装 PaddleOCR 官方 pipeline: {paddlePkgs}");
+        await RunPipWithProgressAsync(
+            $"install --no-warn-script-location {paddlePkgs}",
+            progress,
+            ct);
+
+        progress.Report("预热 PP-OCRv6 medium 模型（首次会下载官方模型）...");
+        await WarmupPaddleOcrV6Async(progress, ct);
+
+        progress.Report("[stage:4/6] 安装 torch CPU 运行库");
         progress.Report("安装 torch CPU 版（约 800MB，请耐心等待）...");
         await RunPipWithProgressAsync(
             $"install --no-warn-script-location {TorchPackage} --index-url {TorchIndexUrl}",
             progress,
             ct);
 
+        progress.Report("[stage:5/6] 安装 manga-ocr 依赖");
         var allPkgs = string.Join(" ", PipPackages);
         progress.Report($"安装 Python 包: {allPkgs}");
         await RunPipWithProgressAsync(
@@ -111,6 +123,7 @@ public static class PythonEnvironmentInstaller
             progress,
             ct);
 
+        progress.Report("[stage:6/6] 下载 manga-ocr 模型");
         progress.Report("下载 manga-ocr 模型（约 400MB）...");
         string modelDir = Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model");
         string scriptPath = Path.Combine(Path.GetTempPath(), "download_model.py");
@@ -126,48 +139,46 @@ public static class PythonEnvironmentInstaller
         await RunPythonWithProgressAsync($"\"{scriptPath}\"", progress, ct);
         try { File.Delete(scriptPath); } catch { }
 
+        progress.Report("[done] OCR environment is ready");
         progress.Report("OCR 环境安装完成！");
     }
 
-    private static async Task DownloadOnnxModelsAsync(IProgress<string> progress, CancellationToken ct)
+    private static async Task WarmupPaddleOcrV6Async(IProgress<string> progress, CancellationToken ct)
     {
-        string modelDir = Path.Combine(AppContext.BaseDirectory, "models", "v5");
-        Directory.CreateDirectory(modelDir);
+        string modelRoot = OcrConstants.PaddleOcrV6ModelRoot;
+        Directory.CreateDirectory(modelRoot);
 
-        for (int i = 0; i < OnnxModels.Length; i++)
+        string scriptPath = Path.Combine(Path.GetTempPath(), "warmup_ppocrv6.py");
+        await File.WriteAllTextAsync(scriptPath,
+            "import os\n" +
+            "os.environ['PADDLEOCR_HOME'] = r'" + modelRoot + "'\n" +
+            "os.environ['PADDLE_PDX_CACHE_HOME'] = r'" + modelRoot + "'\n" +
+            "os.environ.setdefault('FLAGS_allocator_strategy', 'auto_growth')\n" +
+            "os.environ.setdefault('FLAGS_use_mkldnn', '0')\n" +
+            "os.environ.setdefault('FLAGS_enable_mkldnn', '0')\n" +
+            "os.environ.setdefault('FLAGS_enable_pir_api', '0')\n" +
+            "import inspect\n" +
+            "from paddleocr import TextDetection, TextRecognition\n" +
+            "print('Loading PP-OCRv6 detection and recognition models...', flush=True)\n" +
+            "def create(cls, kwargs):\n" +
+            "    signature = inspect.signature(cls)\n" +
+            "    if not any(param.kind == inspect.Parameter.VAR_KEYWORD for param in signature.parameters.values()):\n" +
+            "        kwargs = {key: value for key, value in kwargs.items() if key in signature.parameters}\n" +
+            "    return cls(**kwargs)\n" +
+            "create(TextDetection, dict(model_name='" + OcrConstants.PaddleOcrV6DetectionModel + "', device='cpu', enable_mkldnn=False))\n" +
+            "create(TextRecognition, dict(model_name='" + OcrConstants.PaddleOcrV6RecognitionModel + "', device='cpu', enable_mkldnn=False))\n" +
+            "print('PP-OCRv6 ready', flush=True)\n", ct);
+
+        try
         {
-            var (file, subDir) = OnnxModels[i];
-            string targetPath = Path.Combine(modelDir, file);
-            if (File.Exists(targetPath) && new FileInfo(targetPath).Length > 0) continue;
-
-            progress.Report($"下载 ONNX 模型 ({i + 1}/{OnnxModels.Length}): {file}...");
-
-            Exception? lastEx = null;
-            bool found = false;
-            for (int tagIndex = 0; tagIndex < ModelScopeTags.Length; tagIndex++)
-            {
-                string tag = ModelScopeTags[tagIndex];
-                string url = $"https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/{tag}/onnx/PP-OCRv5/{subDir}/{file}";
-                try
-                {
-                    await DownloadWithProgressAsync(url, targetPath,
-                        pct => progress.Report($"下载 {file}: {pct}%"), ct);
-                    found = true; break;
-                }
-                catch (Exception ex) when (ex is not OperationCanceledException)
-                {
-                    lastEx = ex;
-                    try { File.Delete(targetPath + ".tmp"); } catch { }
-
-                    if (tagIndex < ModelScopeTags.Length - 1)
-                        progress.Report($"ONNX 模型 {file} 源 {tag} 下载失败，尝试备用源...");
-                }
-            }
-            if (found) continue;
-
-            throw new InvalidOperationException(
-                $"模型 {file} 下载失败，已尝试 {ModelScopeTags.Length} 个来源。" +
-                (lastEx != null ? $" 最后错误: {lastEx.Message}" : ""));
+            await RunPythonWithProgressAsync($"\"{scriptPath}\"", progress, ct);
+            if (!OcrEnvironment.HasPaddleOcrModels)
+                throw new InvalidOperationException(
+                    $"PP-OCRv6 模型下载未完成：未找到 {OcrConstants.PaddleOcrV6DetectionModel} 和 {OcrConstants.PaddleOcrV6RecognitionModel} 权重目录");
+        }
+        finally
+        {
+            try { File.Delete(scriptPath); } catch { }
         }
     }
 
@@ -211,7 +222,11 @@ public static class PythonEnvironmentInstaller
             UseShellExecute = false, CreateNoWindow = true
         };
         psi.Environment["PYTHONUNBUFFERED"] = "1";
+        psi.Environment["PYTHONIOENCODING"] = "utf-8";
+        psi.Environment["PYTHONUTF8"] = "1";
         psi.Environment["PIP_PROGRESS_BAR"] = "on";
+        psi.Environment["PADDLEOCR_HOME"] = OcrConstants.PaddleOcrV6ModelRoot;
+        psi.Environment["PADDLE_PDX_CACHE_HOME"] = OcrConstants.PaddleOcrV6ModelRoot;
 
         using var p = Process.Start(psi)!;
         await p.WaitForExitAsync(ct);
@@ -234,7 +249,11 @@ public static class PythonEnvironmentInstaller
             StandardErrorEncoding = Encoding.UTF8
         };
         psi.Environment["PYTHONUNBUFFERED"] = "1";
+        psi.Environment["PYTHONIOENCODING"] = "utf-8";
+        psi.Environment["PYTHONUTF8"] = "1";
         psi.Environment["PIP_PROGRESS_BAR"] = "on";
+        psi.Environment["PADDLEOCR_HOME"] = OcrConstants.PaddleOcrV6ModelRoot;
+        psi.Environment["PADDLE_PDX_CACHE_HOME"] = OcrConstants.PaddleOcrV6ModelRoot;
 
         using var p = Process.Start(psi)!;
 
@@ -264,12 +283,12 @@ public static class PythonEnvironmentInstaller
         string arguments, IProgress<string> progress, CancellationToken ct)
         => RunPythonWithProgressAsync($"-m pip {arguments}", progress, ct);
 
-    private sealed class ConsoleInstallReporter : IProgress<string>
+    private sealed class CleanConsoleInstallReporter : IProgress<string>
     {
-        private const int BarWidth = 32;
+        private const int BarWidth = 28;
         private readonly object _lock = new();
-        private string _stage = "";
-        private string _lastLine = "";
+        private string _currentStage = "";
+        private string _lastProgressLine = "";
 
         public IProgress<string> Progress => this;
 
@@ -286,9 +305,9 @@ public static class PythonEnvironmentInstaller
                 catch { }
 
                 WriteColor("LabelMinus OCR 环境安装", ConsoleColor.Cyan);
-                Console.WriteLine("正在准备 PP-OCRv5 模型、Python、torch 和 manga-ocr 依赖。窗口可以放在后台，完成后会停在这里。");
-                Console.WriteLine(new string('-', 68));
-                Console.WriteLine();
+                WriteMuted("将安装 Python、PaddleOCR/PP-OCRv6、torch、manga-ocr 与模型文件。");
+                WriteMuted("窗口可以放在后台；完成或失败后会停在这里。");
+                Console.WriteLine(new string('-', 64));
             }
         }
 
@@ -297,7 +316,7 @@ public static class PythonEnvironmentInstaller
             lock (_lock)
             {
                 Console.WriteLine();
-                WriteColor("安装完成！OCR 模型和日文识别环境已经就绪。", ConsoleColor.Green);
+                WriteColor("完成：OCR 环境和模型已经准备好。", ConsoleColor.Green);
                 Console.WriteLine("按任意键关闭此窗口...");
                 TryShowCursor();
             }
@@ -329,22 +348,27 @@ public static class PythonEnvironmentInstaller
         public void Report(string rawMessage)
         {
             string message = Normalize(rawMessage);
-            if (string.IsNullOrWhiteSpace(message)) return;
+            if (string.IsNullOrWhiteSpace(message))
+                return;
 
             lock (_lock)
             {
-                string stage = DetectStage(message);
-                if (!string.IsNullOrEmpty(stage) && stage != _stage)
+                if (TryReadStage(message, out var stage))
                 {
-                    _stage = stage;
-                    Console.WriteLine();
-                    WriteColor($"[{DateTime.Now:HH:mm:ss}] {_stage}", ConsoleColor.Cyan);
+                    WriteStage(stage);
+                    return;
+                }
+
+                if (message.StartsWith("[done]", StringComparison.OrdinalIgnoreCase))
+                {
+                    WriteColor("  模型与依赖校验完成。", ConsoleColor.Green);
+                    return;
                 }
 
                 int? percent = TryReadPercent(message);
                 if (percent.HasValue)
                 {
-                    DrawProgress(percent.Value, Shorten(message, 64));
+                    DrawProgress(percent.Value, CleanProgressLabel(message));
                     return;
                 }
 
@@ -353,37 +377,49 @@ public static class PythonEnvironmentInstaller
             }
         }
 
+        private void WriteStage(string stage)
+        {
+            if (stage == _currentStage)
+                return;
+
+            _currentStage = stage;
+            _lastProgressLine = "";
+            Console.WriteLine();
+            WriteColor(stage, ConsoleColor.Cyan);
+        }
+
+        private static bool TryReadStage(string message, out string stage)
+        {
+            stage = "";
+            const string prefix = "[stage:";
+            if (!message.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            int end = message.IndexOf(']');
+            if (end <= prefix.Length)
+                return false;
+
+            string index = message[prefix.Length..end].Trim();
+            string title = message[(end + 1)..].Trim();
+            stage = string.IsNullOrWhiteSpace(title)
+                ? index
+                : $"{index}  {title}";
+            return true;
+        }
+
         private static string Normalize(string message)
             => message.Trim().Replace('\r', ' ').Replace('\n', ' ');
-
-        private static string DetectStage(string message)
-        {
-            if (message.Contains("ONNX", StringComparison.OrdinalIgnoreCase))
-                return "1/6 PP-OCRv5 模型";
-            if (message.Contains("Python", StringComparison.OrdinalIgnoreCase))
-                return "2/6 Python 嵌入环境";
-            if (message.Contains("pip", StringComparison.OrdinalIgnoreCase))
-                return "3/6 pip 安装";
-            if (message.Contains("torch", StringComparison.OrdinalIgnoreCase))
-                return "4/6 torch CPU 依赖";
-            if (message.Contains("Python 包", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("manga-ocr", StringComparison.OrdinalIgnoreCase)
-                    && !message.Contains("模型", StringComparison.OrdinalIgnoreCase))
-                return "5/6 Python OCR 包";
-            if (message.Contains("HuggingFace", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("Fetching", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("manga-ocr", StringComparison.OrdinalIgnoreCase))
-                return "6/6 manga-ocr 模型";
-            return "";
-        }
 
         private static int? TryReadPercent(string message)
         {
             int percentIndex = message.LastIndexOf('%');
-            if (percentIndex <= 0) return null;
+            if (percentIndex <= 0)
+                return null;
 
             int start = percentIndex - 1;
-            while (start >= 0 && char.IsDigit(message[start])) start--;
+            while (start >= 0 && char.IsDigit(message[start]))
+                start--;
+
             string number = message[(start + 1)..percentIndex];
             return int.TryParse(number, out int value)
                 ? Math.Clamp(value, 0, 100)
@@ -392,38 +428,55 @@ public static class PythonEnvironmentInstaller
 
         private static bool ShouldShow(string message)
         {
-            if (message.StartsWith("Using cached", StringComparison.OrdinalIgnoreCase))
-                return false;
-            if (message.StartsWith("Requirement already satisfied", StringComparison.OrdinalIgnoreCase))
-                return false;
-            if (message.Contains("which is not on PATH", StringComparison.OrdinalIgnoreCase))
-                return false;
-            if (message.StartsWith("Consider adding this directory", StringComparison.OrdinalIgnoreCase))
+            if (IsNoise(message))
                 return false;
 
-            return message.StartsWith("Collecting", StringComparison.OrdinalIgnoreCase)
-                || message.StartsWith("Installing", StringComparison.OrdinalIgnoreCase)
-                || message.StartsWith("Successfully", StringComparison.OrdinalIgnoreCase)
-                || message.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)
+            return message.StartsWith("WARNING", StringComparison.OrdinalIgnoreCase)
                 || message.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("失败", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("完成", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("正在", StringComparison.OrdinalIgnoreCase)
-                || message.Contains("安装", StringComparison.OrdinalIgnoreCase)
+                || message.StartsWith("Successfully installed", StringComparison.OrdinalIgnoreCase)
+                || message.StartsWith("Installing collected packages", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Loading PP-OCRv6", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("PP-OCRv6 ready", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("HuggingFace", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Fetching", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("下载", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("安装", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("完成", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("失败", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("连接", StringComparison.OrdinalIgnoreCase);
         }
+
+        private static bool IsNoise(string message)
+            => message.StartsWith("Using cached", StringComparison.OrdinalIgnoreCase)
+               || message.StartsWith("Requirement already satisfied", StringComparison.OrdinalIgnoreCase)
+               || message.StartsWith("Collecting", StringComparison.OrdinalIgnoreCase)
+               || message.StartsWith("Downloading", StringComparison.OrdinalIgnoreCase)
+               || message.StartsWith("Installing build dependencies", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("which is not on PATH", StringComparison.OrdinalIgnoreCase)
+               || message.StartsWith("Consider adding this directory", StringComparison.OrdinalIgnoreCase);
 
         private void DrawProgress(int percent, string label)
         {
             int filled = Math.Clamp(percent * BarWidth / 100, 0, BarWidth);
             string bar = new string('#', filled) + new string('-', BarWidth - filled);
-            string line = $"  [{bar}] {percent,3}%  {label}";
+            string line = $"  [{bar}] {percent,3}%  {Shorten(label, 48)}";
 
-            if (line == _lastLine) return;
+            if (line == _lastProgressLine)
+                return;
 
             Console.WriteLine(line);
-            _lastLine = line;
+            _lastProgressLine = line;
+        }
+
+        private static string CleanProgressLabel(string message)
+        {
+            int percentIndex = message.LastIndexOf('%');
+            if (percentIndex < 0)
+                return message;
+
+            string label = message[..percentIndex].TrimEnd();
+            int colonIndex = label.LastIndexOf(':');
+            return colonIndex >= 0 ? label[..colonIndex].Trim() : label;
         }
 
         private static void WriteLog(string message)
@@ -434,12 +487,15 @@ public static class PythonEnvironmentInstaller
             else if (message.StartsWith("ERROR", StringComparison.OrdinalIgnoreCase)
                      || message.Contains("失败", StringComparison.OrdinalIgnoreCase))
                 color = ConsoleColor.Red;
-            else if (message.StartsWith("Successfully", StringComparison.OrdinalIgnoreCase)
+            else if (message.StartsWith("Successfully installed", StringComparison.OrdinalIgnoreCase)
+                     || message.Contains("ready", StringComparison.OrdinalIgnoreCase)
                      || message.Contains("完成", StringComparison.OrdinalIgnoreCase))
                 color = ConsoleColor.Green;
 
-            WriteColor($"  {Shorten(message, 96)}", color);
+            WriteColor($"  {Shorten(message, 92)}", color);
         }
+
+        private static void WriteMuted(string text) => WriteColor(text, ConsoleColor.DarkGray);
 
         private static string Shorten(string text, int maxLength)
             => text.Length <= maxLength ? text : text[..Math.Max(0, maxLength - 3)] + "...";

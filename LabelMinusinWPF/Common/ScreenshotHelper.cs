@@ -52,13 +52,6 @@ public static class ScreenshotHelper
         catch { return null; }
     }
 
-    public static void SaveBitmapFile(BitmapSource bitmap, string filePath)
-    {
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(bitmap));
-        using var fs = new FileStream(filePath, FileMode.Create);
-        encoder.Save(fs);
-    }
 
 
     #region 图片合并
@@ -115,11 +108,14 @@ public static class ScreenshotHelper
 
     #region 图片保存
 
-    public static ScreenshotSaveResult? SaveSnip(BitmapSource? bmp, string? name = null, string folder = DefaultFolder,
-        int startQuality = 100, int minQuality = 20, long maxSizeBytes = 1024 * 1024)
+    public static ScreenshotSaveResult? SaveSnip(BitmapSource? bmp, string? name = null, string folder = DefaultFolder)
     {
         var frozen = Freeze(bmp);
         if (frozen == null) return null;
+
+        const int startQuality = 100;
+        const int minQuality = 20;
+        const long maxSizeBytes = 1024 * 1024;
 
         string filePath = Path.Combine(GetFolder(folder), $"{name ?? $"Capture_{DateTime.Now:yyyyMMdd_HHmmss}"}.jpg".Replace(".jpg.jpg", ""));
         int quality = startQuality;

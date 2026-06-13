@@ -32,10 +32,10 @@ public partial class OcrPanel : UserControl
         InitializeComponent();
         RefreshWebsiteSelector();
 
-        ScreenshotOcrToggle.Checked += (_, _) => _ = StartScreenshotOcrAsync();
+        ScreenshotOcrToggle.Checked += (_, _) => _ = StartLiveOcrAsync();
         ScreenshotOcrToggle.Unchecked += (_, _) =>
         {
-            StopOcrEngines(notify: !_suppressStopNotification);
+            StopEngines(notify: !_suppressStopNotification);
             _suppressStopNotification = false;
         };
     }
@@ -48,8 +48,8 @@ public partial class OcrPanel : UserControl
         DataContext = ownerWindow.DataContext;
         ownerWindow.DataContextChanged += (_, e) => DataContext = e.NewValue;
 
-        picView.ScreenshotCaptured += (_, e) => _ = HandleScreenshotOcrAsync(e);
-        ownerWindow.Closing += (_, _) => StopOcrEngines();
+        picView.ScreenshotCaptured += (_, e) => _ = RecognizeScreenshotAsync(e);
+        ownerWindow.Closing += (_, _) => StopEngines();
     }
 
     public void RefreshWebsiteSelector()
@@ -69,24 +69,27 @@ public partial class OcrPanel : UserControl
             WebsiteSelector.SelectedIndex = 0;
     }
 
-    public Task RunAutoDotAsync() => RunOcrWithDialogAsync(
+    public Task DotAsync() => RunWithPickerAsync(
         "选择打点图片",
-        "请选择要用 PP-OCRv5 自动打点的图片：",
+        "请选择要用 PP-OCRv6 自动打点的图片：",
         OcrOutputMode.PositionOnly,
         OcrEngineKind.Paddle);
 
-    public Task RunBatchAsync(OcrEngineKind kind)
+    public Task RecognizeAsync(OcrEngineKind kind)
     {
         bool isManga = kind == OcrEngineKind.Manga;
-        return RunOcrWithDialogAsync(
+        string engineName = isManga ? "manga-ocr" : "Paddle-ocr";
+        return RunWithPickerAsync(
             "选择 OCR 图片",
-            $"请选择要进行{(isManga ? "日文 manga-ocr" : "中英文 PP-OCRv5")} 识别的图片：",
+            $"请选择要使用 {engineName} 识别的图片：",
             OcrOutputMode.RecognizedText,
             kind);
     }
 
-    public Task InstallEnvironmentAsync()
-        => RunExclusiveAsync(InstallEnvironmentCoreAsync, handleErrors: false);
+    public Task RecognizeAsync() => RecognizeAsync(SelectedEngine);
+
+    public Task InstallAsync()
+        => RunExclusiveAsync(InstallCoreAsync, handleErrors: false);
 
     public void ShowHelp()
     {
@@ -117,7 +120,7 @@ public partial class OcrPanel : UserControl
         window.Show();
     }
 
-    private Task RunOcrWithDialogAsync(
+    private Task RunWithPickerAsync(
         string title,
         string description,
         OcrOutputMode outputMode,
@@ -137,7 +140,7 @@ public partial class OcrPanel : UserControl
             if (dialog.ShowDialog() != true || dialog.SelectedImages.Count == 0)
                 return;
 
-            await RunAutoOcrRequestAsync(
+            await RunRequestAsync(
                 vm,
                 new AutoOcrRequest(
                     Images: [.. dialog.SelectedImages],
@@ -145,9 +148,9 @@ public partial class OcrPanel : UserControl
                     Engine: kind));
         });
 
-    private async Task InstallEnvironmentCoreAsync()
+    private async Task InstallCoreAsync()
     {
-        if (OcrEnvironment.IsPythonInstalled || OcrEnvironment.HasOnnxModels)
+        if (OcrEnvironment.IsPythonInstalled || OcrEnvironment.HasPaddleOcrModels)
         {
             string message = OcrEnvironment.GetSummary()
                 + "\n\n是否删除所有 OCR 环境并重新配置？";
@@ -164,7 +167,7 @@ public partial class OcrPanel : UserControl
         }
 
         var result = MessageBox.Show(
-            "未找到完整 OCR 环境。是否自动安装到程序目录？\n（将下载 PP-OCRv5 ONNX 模型、嵌入版 Python、torch 和 manga-ocr，约 2GB）",
+            "未找到完整 OCR 环境。是否自动安装到程序目录？\n（将安装官方 PaddleOCR/PP-OCRv6、嵌入版 Python、torch 和 manga-ocr，约 2GB+）",
             "配置 OCR 环境",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
@@ -219,15 +222,16 @@ public partial class OcrPanel : UserControl
         window.Closed += (_, _) => picView.ScreenshotCaptured -= handler;
     }
 
-    private async Task StartScreenshotOcrAsync()
+    private async Task StartLiveOcrAsync()
     {
         ScreenshotOcrToggle.IsEnabled = false;
         Enqueue(OcrModelLoading);
 
         try
         {
-            PpOcrV5RapidOcrProvider.InitSharedEngine();
-            await MangaOcrProvider.EnsureProcessAsync();
+            await Task.WhenAll(
+                PaddleOcrPythonProvider.EnsureProcessAsync(),
+                MangaOcrProvider.EnsureProcessAsync());
             Enqueue(OcrStarted);
         }
         catch (Exception ex)
@@ -242,15 +246,15 @@ public partial class OcrPanel : UserControl
         }
     }
 
-    private void StopOcrEngines(bool notify = false)
+    private void StopEngines(bool notify = false)
     {
         MangaOcrProvider.StopProcess();
-        PpOcrV5RapidOcrProvider.DisposeSharedEngine();
+        PaddleOcrPythonProvider.StopProcess();
         if (notify)
             Enqueue(ScreenshotOcrClosed);
     }
 
-    private async Task HandleScreenshotOcrAsync(ImageLabelViewer.ScreenshotEventArgs e)
+    private async Task RecognizeScreenshotAsync(ImageLabelViewer.ScreenshotEventArgs e)
     {
         var vm = ViewModel;
         if (ScreenshotOcrToggle.IsChecked != true || vm?.SelectedImage == null)
@@ -258,13 +262,13 @@ public partial class OcrPanel : UserControl
 
         try
         {
-            await RunAutoOcrRequestAsync(
+            await RunRequestAsync(
                 vm,
                 new AutoOcrRequest(
                     Screenshot: e.Bitmap,
                     ScreenshotNormalizedRect: e.NormalizedRect,
                     OutputMode: OcrOutputMode.RecognizedText,
-                    Engine: IsMangaSelected ? OcrEngineKind.Manga : OcrEngineKind.Paddle));
+                    Engine: SelectedEngine));
         }
         catch (Exception ex)
         {
@@ -272,7 +276,7 @@ public partial class OcrPanel : UserControl
         }
     }
 
-    private async Task RunAutoOcrRequestAsync(OneProject vm, AutoOcrRequest request)
+    private async Task RunRequestAsync(OneProject vm, AutoOcrRequest request)
     {
         var progress = new Progress<string>(Enqueue);
         var result = await AutoOcrService.RunAsync(vm, request, progress);
@@ -328,18 +332,18 @@ public partial class OcrPanel : UserControl
     private void SetCommandButtonsEnabled(bool enabled)
     {
         AutoDotButton.IsEnabled = enabled;
-        BatchCnEnButton.IsEnabled = enabled;
-        BatchJpButton.IsEnabled = enabled;
+        BatchRecognizeButton.IsEnabled = enabled;
         SetupButton.IsEnabled = enabled;
     }
 
-    private async void AutoDot_Click(object sender, RoutedEventArgs e) => await RunAutoDotAsync();
-    private async void BatchCnEn_Click(object sender, RoutedEventArgs e) => await RunBatchAsync(OcrEngineKind.Paddle);
-    private async void BatchJp_Click(object sender, RoutedEventArgs e) => await RunBatchAsync(OcrEngineKind.Manga);
-    private async void SetupOcrEnv_Click(object sender, RoutedEventArgs e) => await InstallEnvironmentAsync();
+    private async void AutoDot_Click(object sender, RoutedEventArgs e) => await DotAsync();
+    private async void BatchRecognize_Click(object sender, RoutedEventArgs e) => await RecognizeAsync();
+    private async void SetupOcrEnv_Click(object sender, RoutedEventArgs e) => await InstallAsync();
     private void OcrHelp_Click(object sender, RoutedEventArgs e) => ShowHelp();
     private void OpenWebOcr_Click(object sender, RoutedEventArgs e) => OpenWebOcr();
 
-    private bool IsMangaSelected =>
-        (EngineSelector.SelectedItem as ComboBoxItem)?.Content?.ToString() == "日文";
+    private OcrEngineKind SelectedEngine =>
+        (EngineSelector.SelectedItem as ComboBoxItem)?.Tag?.ToString() == "Manga"
+            ? OcrEngineKind.Manga
+            : OcrEngineKind.Paddle;
 }

@@ -1,15 +1,31 @@
 """manga-ocr 持久推理进程 — stdin JSON 请求，stdout JSON 响应"""
 import sys, json, os
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
 model_dir = os.path.join(os.path.dirname(__file__), "model")
 
 from PIL import Image
 from manga_ocr import MangaOcr
 
-sys.stderr.write("manga-ocr 加载中...\n")
+
+def _crop_box(box, width, height):
+    x, y, w, h = box
+    left = max(0, int(x))
+    top = max(0, int(y))
+    right = min(width, int(x + w))
+    bottom = min(height, int(y + h))
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
+
+sys.stderr.write("manga-ocr loading\n")
 sys.stderr.flush()
 mocr = MangaOcr(pretrained_model_name_or_path=model_dir)
-sys.stderr.write("manga-ocr 就绪\n")
+sys.stderr.write("manga-ocr ready\n")
 sys.stderr.flush()
 
 for line in sys.stdin:
@@ -18,19 +34,23 @@ for line in sys.stdin:
         continue
     try:
         req = json.loads(line)
-        full = Image.open(req["image"]).convert("RGB")
         texts = []
-        for x, y, w, h in req["boxes"]:
-            if w <= 0 or h <= 0:
-                texts.append("")
-                continue
-            try:
-                texts.append(mocr(full.crop((x, y, x + w, y + h))))
-            except Exception:
-                texts.append("")
+        with Image.open(req["image"]) as image:
+            full = image.convert("RGB")
+            width, height = full.size
 
-        sys.stdout.write(json.dumps({"texts": texts}, ensure_ascii=False) + "\n")
+            for box in req["boxes"]:
+                crop_box = _crop_box(box, width, height)
+                if crop_box is None:
+                    texts.append("")
+                    continue
+                try:
+                    texts.append(mocr(full.crop(crop_box)))
+                except Exception:
+                    texts.append("")
+
+        sys.stdout.write(json.dumps({"texts": texts}, ensure_ascii=True) + "\n")
         sys.stdout.flush()
     except Exception as e:
-        sys.stdout.write(json.dumps({"texts": [], "error": str(e)}, ensure_ascii=False) + "\n")
+        sys.stdout.write(json.dumps({"texts": [], "error": str(e)}, ensure_ascii=True) + "\n")
         sys.stdout.flush()

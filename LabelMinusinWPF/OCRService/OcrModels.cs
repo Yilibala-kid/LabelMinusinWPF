@@ -6,7 +6,7 @@ using System.Windows.Media.Imaging; // BitmapSource 截图输入
 namespace LabelMinusinWPF.OCRService;
 
 // IOcrProvider — OCR 提供者统一接口
-// 所有 OCR 引擎（PpOcrV5RapidOcrProvider、MangaOcrProvider）均实现此接口
+// 所有 OCR 引擎（PaddleOcrPythonProvider、MangaOcrProvider）均实现此接口
 // OcrPipeline 通过此接口调用具体引擎，引擎可替换
 // ============================================================================
 
@@ -32,8 +32,8 @@ public interface IOcrProvider
 // ============================================================================
 
 public sealed record OcrModelInfo(
-    string Name,                        // 模型显示名称（如 "ch_PP-OCRv5_rec_server"）
-    string Engine,                       // 引擎类型（如 "PpOcrV5RapidOcr"、"MangaOcr"）
+    string Name,                        // 模型显示名称（如 "PP-OCRv6"）
+    string Engine,                       // 引擎类型（如 "PaddleOcrPython"、"MangaOcr"）
     string DirectoryPath,               // 模型所在目录的完整路径
     string ManifestPath,                // model.json 文件的完整路径
     IReadOnlyDictionary<string, string> Files) // 其他模型文件的相对路径（如 detModel、recModel）
@@ -71,7 +71,7 @@ public sealed record OcrModelInfo(
                 ?? GetString(root, "id")
                 ?? Path.GetFileName(modelDirectory);
 
-            // 读取 engine 字段（如 "PpOcrV5RapidOcr"）
+            // 读取 engine 字段（如 "PaddleOcrPython"）
             string engine = GetString(root, "engine") ?? "";
 
             // 将 JSON 中除元数据字段外的所有字符串字段作为模型文件路径读取
@@ -150,7 +150,8 @@ public sealed record AutoOcrOptions(
     double MergeMaxDistance = 72,         // 最大合并距离阈值（像素，绝对值）
     double MergeDistanceScale = 2.2,     // 最大合并距离（按块尺寸比例，优先用比例）
     bool DeduplicateRegions = true,      // 是否去重（过滤中心点过近的区域）
-    double DeduplicateDistance = 0.003)  // 去重阈值（归一化 0~1，超过视为重复）
+    double DeduplicateDistance = 0.003,  // 去重阈值（归一化 0~1，超过视为重复）
+    bool DetectOnly = false)
 {
     public static AutoOcrOptions Default { get; } = new(
         MinConfidence: 0.6,
@@ -167,7 +168,7 @@ public sealed record AutoOcrOptions(
 
 // Text      : 识别出的文字内容（PositionOnly 模式下为空字符串）
 // Bounds    : 文字区域边界矩形（像素单位）
-// Confidence: 置信度 0~1（PpOcrV5 返回实际分数，MangaOcr 固定 1.0）
+// Confidence: 置信度 0~1（PaddleOCR 返回实际分数，MangaOcr 固定 1.0）
 public sealed record OcrTextRegion(string Text, Rect Bounds, double Confidence);
 
 // AutoOcrResult — OCR 批量处理结果

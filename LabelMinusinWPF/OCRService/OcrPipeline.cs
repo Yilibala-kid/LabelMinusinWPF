@@ -4,7 +4,6 @@ using System.Text;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using LabelMinusinWPF.Common;
-using RapidOcrNet;
 using SharpCompress.Archives;
 
 namespace LabelMinusinWPF.OCRService;
@@ -13,8 +12,8 @@ public static class OcrPipeline
 {
     public static string DefaultModelRoot => Path.Combine(AppContext.BaseDirectory, "models");
 
-    public static OcrModelInfo? FindPpOcrModel()
-        => FindModel(model => PpOcrV5RapidOcrProvider.CanHandleEngine(model.Engine));
+    public static OcrModelInfo? FindPaddleModel()
+        => FindModel(model => PaddleOcrPythonProvider.CanHandleEngine(model.Engine));
 
     public static OcrModelInfo? FindMangaModel()
         => FindModel(model => model.Engine.Equals(MangaOcrProvider.EngineName, StringComparison.OrdinalIgnoreCase));
@@ -61,14 +60,18 @@ public static class OcrPipeline
                     if (!ShouldMerge(blocks[i].Bounds, blocks[j].Bounds, imageSize, options))
                         continue;
 
-                    var (leftRegion, rightRegion) = (blocks[i].Region, blocks[j].Region);
-                    var mergedBounds = Union(leftRegion.Bounds, rightRegion.Bounds);
+                    var (firstRegion, secondRegion) = OrderForTextMerge(
+                        blocks[i].Region,
+                        blocks[j].Region,
+                        vertical,
+                        options.RightToLeft);
+                    var mergedBounds = Union(firstRegion.Bounds, secondRegion.Bounds);
 
                     blocks[i] = (
                         new OcrTextRegion(
-                            leftRegion.Text + rightRegion.Text,
+                            firstRegion.Text + secondRegion.Text,
                             mergedBounds,
-                            (leftRegion.Confidence + rightRegion.Confidence) / 2),
+                            (firstRegion.Confidence + secondRegion.Confidence) / 2),
                         Union(blocks[i].Bounds, blocks[j].Bounds));
 
                     blocks.RemoveAt(j);
@@ -117,21 +120,34 @@ public static class OcrPipeline
 
     internal static bool IsVerticalLayout(IReadOnlyList<OcrTextRegion> regions)
     {
-        if (regions.Count < 3)
+        if (regions.Count == 0)
             return false;
 
         int vertical = 0;
         int horizontal = 0;
+        double verticalScore = 0;
+        double horizontalScore = 0;
 
         foreach (var region in regions)
         {
-            if (region.Bounds.Height > region.Bounds.Width * 1.3)
+            double width = Math.Max(1, region.Bounds.Width);
+            double height = Math.Max(1, region.Bounds.Height);
+            double aspect = height / width;
+
+            verticalScore += aspect;
+            horizontalScore += width / height;
+
+            if (aspect >= 1.8)
                 vertical++;
-            else if (region.Bounds.Width > region.Bounds.Height * 1.3)
+            else if (width / height >= 1.8)
                 horizontal++;
         }
 
-        return vertical > horizontal;
+        if (regions.Count <= 2)
+            return vertical == regions.Count && verticalScore >= horizontalScore * 1.6;
+
+        return vertical >= Math.Max(2, horizontal + 1)
+            && verticalScore >= horizontalScore * 1.25;
     }
 
     internal static IReadOnlyList<OcrTextRegion> SortRegions(
@@ -147,18 +163,7 @@ public static class OcrPipeline
             : SortHorizontal(regions, rightToLeft);
     }
 
-    internal static Rect BlockToRect(TextBlock block)
-    {
-        var points = block.BoxPoints;
-        int minX = points.Min(point => point.X);
-        int minY = points.Min(point => point.Y);
-        int maxX = points.Max(point => point.X);
-        int maxY = points.Max(point => point.Y);
-
-        return new Rect(minX, minY, Math.Max(1, maxX - minX), Math.Max(1, maxY - minY));
-    }
-
-    internal static string SaveBitmapToTempPng(BitmapSource bitmap)
+    internal static string SaveTempPng(BitmapSource bitmap)
     {
         string tempDirectory = Path.Combine(AppContext.BaseDirectory, OcrConstants.OcrTemp);
         Directory.CreateDirectory(tempDirectory);
@@ -175,11 +180,11 @@ public static class OcrPipeline
         return tempPath;
     }
 
-    internal static async Task<T?> WithTempPngAsync<T>(
+    internal static async Task<T?> UseTempPngAsync<T>(
         BitmapSource bitmap,
         Func<string, Task<T?>> action)
     {
-        string tempPath = SaveBitmapToTempPng(bitmap);
+        string tempPath = SaveTempPng(bitmap);
         try
         {
             return await action(tempPath);
@@ -190,7 +195,7 @@ public static class OcrPipeline
         }
     }
 
-    internal static string PrepareImagePath(OneImage image)
+    internal static string ResolveImagePath(OneImage image)
     {
         var archiveResult = ResourceHelper.ParseArchivePath(image.ImagePath);
         if (!archiveResult.HasValue)
@@ -281,6 +286,54 @@ public static class OcrPipeline
                 * options.MergeDistanceScale);
 
         return distance <= maxDistance;
+    }
+
+    private static (OcrTextRegion First, OcrTextRegion Second) OrderForTextMerge(
+        OcrTextRegion left,
+        OcrTextRegion right,
+        bool vertical,
+        bool rightToLeft)
+    {
+        int comparison = vertical
+            ? CompareVerticalOrder(left, right)
+            : CompareHorizontalOrder(left, right, rightToLeft);
+
+        return comparison <= 0 ? (left, right) : (right, left);
+    }
+
+    private static int CompareHorizontalOrder(
+        OcrTextRegion left,
+        OcrTextRegion right,
+        bool rightToLeft)
+    {
+        double leftCenterY = left.Bounds.Top + left.Bounds.Height / 2;
+        double rightCenterY = right.Bounds.Top + right.Bounds.Height / 2;
+        double rowDelta = leftCenterY - rightCenterY;
+        double tolerance = Math.Max(12, Math.Min(left.Bounds.Height, right.Bounds.Height) * 0.8);
+
+        if (Math.Abs(rowDelta) > tolerance)
+            return rowDelta.CompareTo(0);
+
+        double leftX = left.Bounds.Left + left.Bounds.Width / 2;
+        double rightX = right.Bounds.Left + right.Bounds.Width / 2;
+        return rightToLeft
+            ? rightX.CompareTo(leftX)
+            : leftX.CompareTo(rightX);
+    }
+
+    private static int CompareVerticalOrder(OcrTextRegion left, OcrTextRegion right)
+    {
+        double leftCenterX = left.Bounds.Left + left.Bounds.Width / 2;
+        double rightCenterX = right.Bounds.Left + right.Bounds.Width / 2;
+        double columnDelta = leftCenterX - rightCenterX;
+        double tolerance = Math.Max(12, Math.Min(left.Bounds.Width, right.Bounds.Width) * 0.8);
+
+        if (Math.Abs(columnDelta) > tolerance)
+            return rightCenterX.CompareTo(leftCenterX);
+
+        double leftY = left.Bounds.Top + left.Bounds.Height / 2;
+        double rightY = right.Bounds.Top + right.Bounds.Height / 2;
+        return leftY.CompareTo(rightY);
     }
 
     private static IReadOnlyList<OcrTextRegion> SortHorizontal(

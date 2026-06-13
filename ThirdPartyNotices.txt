@@ -1,92 +1,76 @@
 ============================================================
-  LabelMinusinWPF — 第三方开源组件许可声明
+  LabelMinusinWPF - Third-party open source notices
 ============================================================
 
-本软件使用了以下开源项目，特此声明并致谢。
+This software uses the following open source projects.
 
 --------------------------------------------------
-  PaddleOCR (PP-OCRv5)
+  PaddleOCR / PaddlePaddle (PP-OCRv6)
 --------------------------------------------------
-  用途: 中文/英文/日文 OCR 文字检测与识别
-  项目: https://github.com/PaddlePaddle/PaddleOCR
-  模型: https://www.modelscope.cn/models/RapidAI/RapidOCR
-  许可: Apache License 2.0
+  Purpose: Chinese/English/Japanese OCR detection and recognition
+  Project: https://github.com/PaddlePaddle/PaddleOCR
+  Runtime: https://github.com/PaddlePaddle/Paddle
+  License: Apache License 2.0
   Copyright (c) Baidu Inc.
 
 --------------------------------------------------
   manga-ocr
 --------------------------------------------------
-  用途: 日文漫画 OCR 文字识别
-  项目: https://github.com/kha-white/manga-ocr
-  模型: https://huggingface.co/kha-white/manga-ocr-base
-  许可: Apache License 2.0
+  Purpose: Japanese manga OCR text recognition
+  Project: https://github.com/kha-white/manga-ocr
+  Model: https://huggingface.co/kha-white/manga-ocr-base
+  License: Apache License 2.0
   Copyright (c) kha-white
-
---------------------------------------------------
-  RapidOcrNet
---------------------------------------------------
-  用途: ONNX Runtime 推理引擎封装（C#）
-  项目: https://github.com/RapidAI/RapidOCR
-  许可: Apache License 2.0
-  Copyright (c) RapidAI
-
---------------------------------------------------
-  ONNX Runtime
---------------------------------------------------
-  用途: 跨平台机器学习模型推理引擎
-  项目: https://github.com/microsoft/onnxruntime
-  许可: MIT License
-  Copyright (c) Microsoft Corporation
 
 --------------------------------------------------
   CommunityToolkit.Mvvm
 --------------------------------------------------
-  用途: MVVM 框架
-  项目: https://github.com/CommunityToolkit/dotnet
-  许可: MIT License
+  Purpose: MVVM framework
+  Project: https://github.com/CommunityToolkit/dotnet
+  License: MIT License
   Copyright (c) .NET Foundation and Contributors
 
 --------------------------------------------------
   MaterialDesignThemes / MaterialDesignColors
 --------------------------------------------------
-  用途: WPF UI 控件和主题
-  项目: https://github.com/MaterialDesignInXAML/MaterialDesignInXamlToolkit
-  许可: MIT License
+  Purpose: WPF UI controls and themes
+  Project: https://github.com/MaterialDesignInXAML/MaterialDesignInXamlToolkit
+  License: MIT License
   Copyright (c) James Willock and Contributors
 
 --------------------------------------------------
   SharpCompress
 --------------------------------------------------
-  用途: 压缩包（zip/rar/7z）读写
-  项目: https://github.com/adamhathcock/sharpcompress
-  许可: MIT License
+  Purpose: Archive reading support (zip/rar/7z)
+  Project: https://github.com/adamhathcock/sharpcompress
+  License: MIT License
   Copyright (c) Adam Hathcock
 
 --------------------------------------------------
   Microsoft.Web.WebView2
 --------------------------------------------------
-  用途: Web 浏览器控件
-  项目: https://github.com/MicrosoftEdge/WebView2Samples
-  许可: BSD-style License
+  Purpose: Web browser control
+  Project: https://github.com/MicrosoftEdge/WebView2Samples
+  License: BSD-style License
   Copyright (c) Microsoft Corporation
 
 --------------------------------------------------
   Python (embedded)
 --------------------------------------------------
-  用途: Python 脚本运行时（用于 manga-ocr）
-  项目: https://www.python.org/
-  许可: PSF License
+  Purpose: Python runtime for PaddleOCR and manga-ocr
+  Project: https://www.python.org/
+  License: PSF License
   Copyright (c) Python Software Foundation
 
 --------------------------------------------------
   PyTorch
 --------------------------------------------------
-  用途: 深度学习框架（manga-ocr 依赖）
-  项目: https://github.com/pytorch/pytorch
-  许可: BSD-style License
+  Purpose: Deep learning framework used by manga-ocr
+  Project: https://github.com/pytorch/pytorch
+  License: BSD-style License
   Copyright (c) Meta Platforms, Inc.
 
 ============================================================
-Apache License 2.0 全文: https://www.apache.org/licenses/LICENSE-2.0
-MIT License 全文:       https://opensource.org/licenses/MIT
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
+MIT License:        https://opensource.org/licenses/MIT
 ============================================================

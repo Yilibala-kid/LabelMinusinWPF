@@ -2,7 +2,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media.Imaging;
 using LabelMinusinWPF.Common;
-using SkiaSharp;
 
 namespace LabelMinusinWPF.OCRService;
 
@@ -17,7 +16,7 @@ public static class AutoOcrService
         CancellationToken cancellationToken = default)
     {
         var options = CreateOptions(request);
-        var runtime = await ResolveRuntimeAsync(request.Engine, progress, cancellationToken);
+        var runtime = await GetRuntimeAsync(request.Engine, progress, cancellationToken);
 
         return request.Screenshot is { } screenshot
             ? await RunScreenshotAsync(project, screenshot, request.ScreenshotNormalizedRect, runtime, options, cancellationToken)
@@ -26,27 +25,28 @@ public static class AutoOcrService
 
     private static AutoOcrOptions CreateOptions(AutoOcrRequest request)
     {
-        bool rightToLeft = request.Engine == OcrEngineKind.Manga
+        bool detectOnly = request.Engine == OcrEngineKind.Manga
             || request.OutputMode == OcrOutputMode.PositionOnly;
 
         return AutoOcrOptions.Default with
         {
             OutputMode = request.OutputMode,
-            RightToLeft = rightToLeft
+            RightToLeft = detectOnly,
+            DetectOnly = detectOnly
         };
     }
 
-    private static async Task<OcrRuntime> ResolveRuntimeAsync(
+    private static async Task<OcrRuntime> GetRuntimeAsync(
         OcrEngineKind engine,
         IProgress<string> progress,
         CancellationToken cancellationToken)
     {
         if (engine == OcrEngineKind.Paddle)
         {
-            var model = OcrPipeline.FindPpOcrModel()
-                ?? throw new InvalidOperationException("未找到 PP-OCRv5 模型");
-            PpOcrV5RapidOcrProvider.EnsureSharedEngine(model);
-            return new OcrRuntime(model, PpOcrV5RapidOcrProvider.Shared);
+            var model = OcrPipeline.FindPaddleModel()
+                ?? throw new InvalidOperationException("未找到 PP-OCRv6 模型配置");
+            await PaddleOcrPythonProvider.EnsureProcessAsync(progress, cancellationToken);
+            return new OcrRuntime(model, PaddleOcrPythonProvider.Shared);
         }
 
         var mangaModel = OcrPipeline.FindMangaModel()
@@ -75,15 +75,17 @@ public static class AutoOcrService
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            string imagePath = OcrPipeline.PrepareImagePath(image);
-            var result = await RecognizeImageFileAsync(
+            progress.Report($"OCR 开始：第 {processedImages + 1}/{imageList.Count} 页 — {image.ImageName}");
+
+            string imagePath = OcrPipeline.ResolveImagePath(image);
+            var result = await RecognizeFileAsync(
                 imagePath,
                 runtime,
                 options,
                 cancellationToken,
                 path => $"无法读取图片尺寸：{path}");
 
-            createdLabels += CreateLabelsFromRegions(image, result.Regions, result.ImageSize, options);
+            createdLabels += AddLabels(image, result.Regions, result.ImageSize, options);
             processedImages++;
 
             progress.Report($"OCR 进度：{processedImages}/{imageList.Count} — {image.ImageName}");
@@ -107,9 +109,9 @@ public static class AutoOcrService
         if (normalizedRect == null)
             return new AutoOcrResult(false, 0, 0, "截图区域无效");
 
-        return await OcrPipeline.WithTempPngAsync(screenshot, async tempPath =>
+        return await OcrPipeline.UseTempPngAsync(screenshot, async tempPath =>
         {
-            var result = await RecognizeImageFileAsync(
+            var result = await RecognizeFileAsync(
                 tempPath,
                 runtime,
                 options,
@@ -119,33 +121,29 @@ public static class AutoOcrService
             if (result.Regions.Count == 0)
                 return NoTextResult();
 
-            var mappedRegions = MapScreenshotRegions(result.Regions, result.ImageSize, normalizedRect.Value);
-            var singleRegion = CombineForScreenshot(mappedRegions, options);
+            var mappedRegions = MapToImage(result.Regions, result.ImageSize, normalizedRect.Value);
+            var singleRegion = MergeRegions(mappedRegions, options);
 
             return ShouldSkipEmptyText(singleRegion, options)
                 ? NoTextResult()
-                : CreateScreenshotLabelResult(selectedImage, singleRegion, options);
+                : AddScreenshotLabel(selectedImage, singleRegion, options);
         }) ?? new AutoOcrResult(false, 0, 0, "OCR 截图处理失败");
     }
 
-    private static async Task<RecognizedImage> RecognizeImageFileAsync(
+    private static async Task<RecognizedImage> RecognizeFileAsync(
         string imagePath,
         OcrRuntime runtime,
         AutoOcrOptions options,
         CancellationToken cancellationToken,
         Func<string, string> decodeErrorMessage)
     {
-        using var bitmap = SKBitmap.Decode(imagePath);
-        if (bitmap == null)
-            throw new InvalidOperationException(decodeErrorMessage(imagePath));
-
-        var imageSize = new Size(bitmap.Width, bitmap.Height);
+        var imageSize = ReadImageSize(imagePath, decodeErrorMessage);
         var regions = await runtime.Provider.RecognizeAsync(
             imagePath,
             runtime.Model,
             options,
             cancellationToken);
-        var finalRegions = PostProcessRegions(
+        var finalRegions = PostProcess(
             regions,
             imageSize,
             options,
@@ -154,7 +152,26 @@ public static class AutoOcrService
         return new RecognizedImage(finalRegions, imageSize);
     }
 
-    private static IReadOnlyList<OcrTextRegion> PostProcessRegions(
+    private static Size ReadImageSize(string imagePath, Func<string, string> decodeErrorMessage)
+    {
+        try
+        {
+            using var stream = File.OpenRead(imagePath);
+            var decoder = BitmapDecoder.Create(
+                stream,
+                BitmapCreateOptions.DelayCreation,
+                BitmapCacheOption.None);
+            var frame = decoder.Frames.FirstOrDefault()
+                ?? throw new InvalidOperationException(decodeErrorMessage(imagePath));
+            return new Size(frame.PixelWidth, frame.PixelHeight);
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            throw new InvalidOperationException(decodeErrorMessage(imagePath), ex);
+        }
+    }
+
+    private static IReadOnlyList<OcrTextRegion> PostProcess(
         IReadOnlyList<OcrTextRegion> regions,
         Size imageSize,
         AutoOcrOptions options,
@@ -168,7 +185,7 @@ public static class AutoOcrService
         return OcrPipeline.SortRegions(deduped, options.RightToLeft, vertical);
     }
 
-    internal static int CreateLabelsFromRegions(
+    internal static int AddLabels(
         OneImage image,
         IReadOnlyList<OcrTextRegion> regions,
         Size imageSize,
@@ -198,7 +215,7 @@ public static class AutoOcrService
         return createdLabels;
     }
 
-    private static IReadOnlyList<OcrTextRegion> MapScreenshotRegions(
+    private static IReadOnlyList<OcrTextRegion> MapToImage(
         IReadOnlyList<OcrTextRegion> regions,
         Size screenshotSize,
         Rect normalizedRect)
@@ -218,7 +235,7 @@ public static class AutoOcrService
         }).ToList();
     }
 
-    private static OcrTextRegion CombineForScreenshot(
+    private static OcrTextRegion MergeRegions(
         IReadOnlyList<OcrTextRegion> regions,
         AutoOcrOptions options)
     {
@@ -244,12 +261,12 @@ public static class AutoOcrService
     private static AutoOcrResult NoTextResult() =>
         new(true, 1, 0, NoRecognizedTextMessage);
 
-    private static AutoOcrResult CreateScreenshotLabelResult(
+    private static AutoOcrResult AddScreenshotLabel(
         OneImage selectedImage,
         OcrTextRegion region,
         AutoOcrOptions options)
     {
-        int labels = CreateLabelsFromRegions(selectedImage, [region], new Size(1, 1), options);
+        int labels = AddLabels(selectedImage, [region], new Size(1, 1), options);
         string preview = region.Text.Trim();
         string message = string.IsNullOrWhiteSpace(preview)
             ? $"OCR 完成：新增 {labels} 个标签"

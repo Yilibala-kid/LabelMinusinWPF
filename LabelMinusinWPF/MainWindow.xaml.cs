@@ -77,18 +77,13 @@ public partial class MainWindow : Window
     }
 
     private async void SetupOcrEnv_Click(object sender, RoutedEventArgs e) =>
-        await OcrPanel.InstallEnvironmentAsync();
+        await OcrPanel.InstallAsync();
 
     private async void AutoOcr_Click(object sender, RoutedEventArgs e) =>
-        await OcrPanel.RunAutoDotAsync();
+        await OcrPanel.DotAsync();
 
     private async void AutoOcr_Batch(object sender, RoutedEventArgs e) =>
-        await OcrPanel.RunBatchAsync(IsJapaneseOcrMenu(sender)
-            ? OcrEngineKind.Manga
-            : OcrEngineKind.Paddle);
-
-    private static bool IsJapaneseOcrMenu(object sender) =>
-        sender is MenuItem { Tag: string tag } && tag == "JP";
+        await OcrPanel.RecognizeAsync();
 
     private void OcrHelp_Click(object sender, RoutedEventArgs e) =>
         OcrPanel.ShowHelp();

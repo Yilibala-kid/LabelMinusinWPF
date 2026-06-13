@@ -137,21 +137,14 @@
 
                 <!--  5. OCR  -->
                 <MenuItem Header="OCR" Icon="{materialDesign:PackIcon Kind=Ocr}">
-                    <MenuItem Click="AutoOcr_Click" Header="一键打点" Icon="{materialDesign:PackIcon Kind=Numeric1Circle}" ToolTip="使用 PP-OCRv5 检测文字区域，并在右上角创建位置标签" />
+                    <MenuItem Click="AutoOcr_Click" Header="一键打点" Icon="{materialDesign:PackIcon Kind=Numeric1Circle}" ToolTip="使用 PP-OCRv6 检测文字区域，并在右上角创建位置标签" />
                     <MenuItem
                         Click="AutoOcr_Batch"
-                        Header="一键中英识别"
-                        Icon="{materialDesign:PackIcon Kind=Alphabetical}"
-                        Tag="CNEN"
-                        ToolTip="使用 PP-OCRv5 识别中英文文字并创建标签" />
-                    <MenuItem
-                        Click="AutoOcr_Batch"
-                        Header="一键日文识别"
-                        Icon="{materialDesign:PackIcon Kind=Translate}"
-                        Tag="JP"
-                        ToolTip="使用 PP-OCRv5 检测区域、manga-ocr 识别日文并创建标签" />
+                        Header="一键识别"
+                        Icon="{materialDesign:PackIcon Kind=TextRecognition}"
+                        ToolTip="使用 OCR 面板当前选择的模型识别文字并创建标签" />
                     <Separator />
-                    <MenuItem Click="SetupOcrEnv_Click" Header="配置 OCR 环境" Icon="{materialDesign:PackIcon Kind=Cog}" ToolTip="下载/安装 PP-OCRv5 模型、Python、torch 和 manga-ocr" />
+                    <MenuItem Click="SetupOcrEnv_Click" Header="配置 OCR 环境" Icon="{materialDesign:PackIcon Kind=Cog}" ToolTip="安装官方 PaddleOCR/PP-OCRv6、Python、torch 和 manga-ocr" />
                     <MenuItem Click="OcrHelp_Click" Header="OCR 说明" Icon="{materialDesign:PackIcon Kind=HelpCircleOutline}" />
                 </MenuItem>
 

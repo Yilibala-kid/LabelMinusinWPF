@@ -210,10 +210,7 @@ namespace LabelMinusinWPF
                 if (bmpLeft != null || bmpRight != null)
                 {
                     string currentImgName = DualNameCombobox.SelectedItem?.ToString() ?? "截图";
-                    // Freeze on UI thread before passing to background task
-                    var frozenLeft = ScreenshotHelper.Freeze(bmpLeft);
-                    var frozenRight = ScreenshotHelper.Freeze(bmpRight);
-                    var combined = ScreenshotHelper.Combine([frozenLeft, frozenRight], currentImgName);
+                    var combined = ScreenshotHelper.Combine([bmpLeft, bmpRight], currentImgName);
                     if (combined == null) return;
 
                     bool clipboardSaved = ScreenshotHelper.SetClipboard(combined);
@@ -251,24 +248,6 @@ namespace LabelMinusinWPF
             });
         }
 
-        private void SaveImage(BitmapSource bitmap)
-        {
-            try
-            {
-                var result = ScreenshotHelper.SaveSnip(bitmap);
-                ApplyScreenshotResult(result);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"文件访问权限错误: {ex.Message}");
-                MessageBox.Show($"无法保存截图，请检查文件权限。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"截图保存失败: {ex.Message}");
-                MessageBox.Show($"截图保存失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
         #endregion
 
 
@@ -319,7 +298,15 @@ namespace LabelMinusinWPF
                     DrawingContainer.ActualWidth > 0 ? DrawingContainer.ActualWidth : DrawingContainer.Width,
                     DrawingContainer.ActualHeight > 0 ? DrawingContainer.ActualHeight : DrawingContainer.Height);
                 var merged = ScreenshotHelper.MergeInk(source, InkEditor.Strokes, displaySize);
-                if (merged != null) SaveImage(merged);
+                if (merged == null) return;
+
+                var result = ScreenshotHelper.SaveSnip(merged);
+                ApplyScreenshotResult(result);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"文件访问权限错误: {ex.Message}");
+                MessageBox.Show($"无法保存截图，请检查文件权限。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             catch (Exception ex)
             {

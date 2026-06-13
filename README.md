@@ -50,7 +50,7 @@ LabelMinus 提供多种 OCR 辅助方式，不同功能对环境要求不同：
 
 - 网页字体识别：截图后打开识别网站，并把当前截图交给网页处理。
 - 一键打点：使用 PaddleOCR 检测文字区域，并在图片上自动打点。
-- 一键中英识别：使用 PaddleOCR v5 进行中英文识别与打点。
+- 一键中英识别：使用 PaddleOCR / PP-OCRv6 进行中英文识别与打点。
 - 一键日文识别：使用 manga-ocr 进行日文检测、识别与打点。
 - 截图 OCR：在截图模式下对局部截图进行识别，并自动新建标签。
 
@@ -102,7 +102,6 @@ LabelMinus 提供多种 OCR 辅助方式，不同功能对环境要求不同：
 - [LabelPlus](https://noodlefighter.com/label_plus/)：提供原始工作流与格式参考。
 - [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR)：提供 OCR 相关能力。
 - [manga-ocr](https://github.com/kha-white/manga-ocr)：提供日文 OCR 相关能力。
-- [RapidOcrNet](https://github.com/RapidAI/RapidOCR)：提供 OCR 引擎封装。
 - [SharpCompress](https://github.com/adamhathcock/sharpcompress)：提供压缩包读取能力。
 
 更多第三方组件与模型来源见 [ThirdPartyNotices.txt](ThirdPartyNotices.txt)。
