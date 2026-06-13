@@ -25,6 +25,8 @@ namespace LabelMinusinWPF
             InitializeComponent();
             LeftPicView.Snipped += (s, rect) => SyncCapture(rect);
             RightPicView.Snipped += (s, rect) => SyncCapture(rect);
+            LeftPicView.SnipPreviewChanged += (s, e) => SyncSnipPreview(RightPicView, e);
+            RightPicView.SnipPreviewChanged += (s, e) => SyncSnipPreview(LeftPicView, e);
             _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
             _closeTimer.Tick += (s, e) =>
             {
@@ -42,6 +44,14 @@ namespace LabelMinusinWPF
             this.Loaded += OnLoaded;
 
         }
+        private static void SyncSnipPreview(ImageLabelViewer target, Rect? rect)
+        {
+            if (rect is { } value)
+                target.ShowExternalSnipPreview(value);
+            else
+                target.HideExternalSnipPreview();
+        }
+
         # region 快捷键
         private void OnLoaded(object sender, RoutedEventArgs e)
         {

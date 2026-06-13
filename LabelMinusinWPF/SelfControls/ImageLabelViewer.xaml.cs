@@ -228,6 +228,7 @@ namespace LabelMinusinWPF
             Canvas.SetTop(SnipRectangle, _snipStartUI.Y);
             SnipRectangle.Width = 0;
             SnipRectangle.Height = 0;
+            RaiseSnipPreviewChanged(null);
 
             SnipCanvas.CaptureMouse();
             e.Handled = true;
@@ -237,10 +238,14 @@ namespace LabelMinusinWPF
         {
             if (!_isSnipping) return;
             Point currentUI = e.GetPosition(SnipCanvas);
-            Canvas.SetLeft(SnipRectangle, Math.Min(_snipStartUI.X, currentUI.X));
-            Canvas.SetTop(SnipRectangle, Math.Min(_snipStartUI.Y, currentUI.Y));
-            SnipRectangle.Width = Math.Abs(_snipStartUI.X - currentUI.X);
-            SnipRectangle.Height = Math.Abs(_snipStartUI.Y - currentUI.Y);
+            ShowSnipRectangle(_snipStartUI, currentUI);
+
+            double imgW = TargetImage.ActualWidth;
+            double imgH = TargetImage.ActualHeight;
+            if (imgW <= 0 || imgH <= 0) return;
+
+            Rect normRect = CreateNormalizedRect(_snipStartImage, e.GetPosition(TargetImage), imgW, imgH);
+            RaiseSnipPreviewChanged(normRect);
         }
 
         private void SnipCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
@@ -248,19 +253,14 @@ namespace LabelMinusinWPF
             if (!_isSnipping) return;
             _isSnipping = false;
             SnipCanvas.ReleaseMouseCapture();
-            SnipRectangle.Visibility = Visibility.Collapsed;
+            HideSnipRectangle();
+            RaiseSnipPreviewChanged(null);
 
             double imgW = TargetImage.ActualWidth;
             double imgH = TargetImage.ActualHeight;
             if (imgW == 0 || imgH == 0) return;
 
-            Point snipEndImage = e.GetPosition(TargetImage);
-            Rect normRect = new(
-                Math.Min(_snipStartImage.X, snipEndImage.X) / imgW,
-                Math.Min(_snipStartImage.Y, snipEndImage.Y) / imgH,
-                Math.Abs(_snipStartImage.X - snipEndImage.X) / imgW,
-                Math.Abs(_snipStartImage.Y - snipEndImage.Y) / imgH
-            );
+            Rect normRect = CreateNormalizedRect(_snipStartImage, e.GetPosition(TargetImage), imgW, imgH);
 
             if (normRect.Width > 0.01 && normRect.Height > 0.01)
             {
@@ -272,6 +272,79 @@ namespace LabelMinusinWPF
                     ScreenshotCaptured?.Invoke(this, new(myBmp, normRect));
                 }
             }
+        }
+
+        public void ShowExternalSnipPreview(Rect normRect)
+        {
+            double imgW = TargetImage.ActualWidth;
+            double imgH = TargetImage.ActualHeight;
+            if (imgW <= 0 || imgH <= 0)
+            {
+                HideExternalSnipPreview();
+                return;
+            }
+
+            try
+            {
+                GeneralTransform transform = TargetImage.TransformToVisual(SnipCanvas);
+                Point topLeft = transform.Transform(new Point(normRect.Left * imgW, normRect.Top * imgH));
+                Point bottomRight = transform.Transform(new Point(normRect.Right * imgW, normRect.Bottom * imgH));
+                ShowSnipRectangle(topLeft, bottomRight);
+            }
+            catch (InvalidOperationException)
+            {
+                HideExternalSnipPreview();
+            }
+        }
+
+        public void HideExternalSnipPreview()
+        {
+            if (_isSnipping) return;
+            HideSnipRectangle();
+        }
+
+        private void ShowSnipRectangle(Point start, Point end)
+        {
+            SnipRectangle.Visibility = Visibility.Visible;
+            Canvas.SetLeft(SnipRectangle, Math.Min(start.X, end.X));
+            Canvas.SetTop(SnipRectangle, Math.Min(start.Y, end.Y));
+            SnipRectangle.Width = Math.Abs(start.X - end.X);
+            SnipRectangle.Height = Math.Abs(start.Y - end.Y);
+        }
+
+        private void HideSnipRectangle()
+        {
+            SnipRectangle.Visibility = Visibility.Collapsed;
+            SnipRectangle.Width = 0;
+            SnipRectangle.Height = 0;
+        }
+
+        private static Rect CreateNormalizedRect(Point startImage, Point endImage, double imgW, double imgH)
+        {
+            return new Rect(
+                Math.Min(startImage.X, endImage.X) / imgW,
+                Math.Min(startImage.Y, endImage.Y) / imgH,
+                Math.Abs(startImage.X - endImage.X) / imgW,
+                Math.Abs(startImage.Y - endImage.Y) / imgH
+            );
+        }
+
+        private void CancelSnipPreview()
+        {
+            if (_isSnipping)
+            {
+                _isSnipping = false;
+                if (SnipCanvas.IsMouseCaptured)
+                    SnipCanvas.ReleaseMouseCapture();
+            }
+
+            HideSnipRectangle();
+            RaiseSnipPreviewChanged(null);
+        }
+
+        private void RaiseSnipPreviewChanged(Rect? normalizedRect)
+        {
+            SnipPreviewChanged?.Invoke(this, normalizedRect);
         }
 
         public BitmapSource? CaptureRegion(Rect normRect)// 供外部调用，用于实现"同步"裁剪相同区域
@@ -287,6 +360,7 @@ namespace LabelMinusinWPF
         public event EventHandler<Rect>? Snipped;
         // 截图完成后带 BitmapSource 的事件（MainWindow 用）
         public event EventHandler<ScreenshotEventArgs>? ScreenshotCaptured;
+        public event EventHandler<Rect?>? SnipPreviewChanged;
 
         public sealed record ScreenshotEventArgs(BitmapSource Bitmap, Rect NormalizedRect);
 
@@ -318,7 +392,13 @@ namespace LabelMinusinWPF
         }
         public static readonly DependencyProperty IsScreenShotModeProperty =
             DependencyProperty.Register(nameof(IsScreenShotMode), typeof(bool), typeof(ImageLabelViewer),
-                new PropertyMetadata(false));
+                new PropertyMetadata(false, OnIsScreenShotModeChanged));
+
+        private static void OnIsScreenShotModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is ImageLabelViewer viewer && e.NewValue is false)
+                viewer.CancelSnipPreview();
+        }
         // 是否需要同步模式（true则通知外部，false则直接存剪贴板）
         public bool IsSyncRequired
         {
