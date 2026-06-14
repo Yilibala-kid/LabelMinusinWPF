@@ -1,5 +1,4 @@
 using LabelMinusinWPF.Common;
-using LabelMinusinWPF.SelfControls;
 using System.Windows;
 
 namespace LabelMinusinWPF

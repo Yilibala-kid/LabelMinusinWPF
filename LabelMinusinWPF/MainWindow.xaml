@@ -163,7 +163,7 @@
                     Width="40"
                     VerticalAlignment="Center"
                     Cursor="Hand"
-                    IsChecked="{Binding (sc:DarkModeBehavior.IsDarkMode), RelativeSource={RelativeSource AncestorType=Window}}"
+                    IsChecked="{Binding (common:DarkModeBehavior.IsDarkMode), RelativeSource={RelativeSource AncestorType=Window}}"
                     Style="{StaticResource MaterialDesignActionToggleButton}"
                     ToolTip="切换深色模式">
                     <materialDesign:ToggleButtonAssist.OnContent>
@@ -314,6 +314,6 @@
             </Grid>
         </DockPanel>
         <!--  图校界面  -->
-        <local:CompareImgControl x:Name="FullScreenReview" Grid.ColumnSpan="2" Visibility="Collapsed" />
+        <local:CompareImage x:Name="FullScreenReview" Grid.ColumnSpan="2" Visibility="Collapsed" />
     </Grid>
 </Window>

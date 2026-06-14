@@ -4,7 +4,7 @@ using System.Windows.Interop;
 using MaterialDesignThemes.Wpf;
 using static MaterialDesignThemes.Wpf.Theme;
 
-namespace LabelMinusinWPF.SelfControls
+namespace LabelMinusinWPF.Common
 {
     public static class DarkModeBehavior
     {

@@ -15,12 +15,12 @@ namespace LabelMinusinWPF
 
     /// ImageReview.xaml 的交互逻辑
 
-    public partial class CompareImgControl : UserControl
+    public partial class CompareImage : UserControl
     {
         private DispatcherTimer _closeTimer;
         private string _currentImgPath = string.Empty;
 
-        public CompareImgControl()
+        public CompareImage()
         {
             InitializeComponent();
             LeftPicView.Snipped += (s, rect) => SyncCapture(rect);
@@ -330,7 +330,7 @@ namespace LabelMinusinWPF
         #region 打开关闭图校
         // 定义 IsOpen 依赖属性
         public static readonly DependencyProperty IsOpenProperty =
-            DependencyProperty.Register("IsOpen", typeof(bool), typeof(CompareImgControl),
+            DependencyProperty.Register("IsOpen", typeof(bool), typeof(CompareImage),
                 new PropertyMetadata(false, OnIsOpenChanged));
 
         public bool IsOpen
@@ -341,7 +341,7 @@ namespace LabelMinusinWPF
 
         private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
-            var control = (CompareImgControl)d;
+            var control = (CompareImage)d;
             bool isOpen = (bool)e.NewValue;
             control.Visibility = isOpen ? Visibility.Visible : Visibility.Collapsed;
             if (!isOpen) control.SetScreenShotEnabled(false);
