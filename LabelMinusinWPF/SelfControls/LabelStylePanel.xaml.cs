@@ -30,13 +30,13 @@ namespace LabelMinusinWPF.SelfControls
         private string _dotStyle = "Circle";
 
         [ObservableProperty]
-        private Color _textBackgroundColor = Colors.White;
+        private Color _textBackgroundColor = Colors.Black;
 
         [ObservableProperty]
-        private Color _textForegroundColor = Colors.Black;
+        private Color _textForegroundColor = Colors.White;
 
         [ObservableProperty]
-        private double _textBackgroundOpacity = 1.0;
+        private double _textBackgroundOpacity = 0.5;
 
         [ObservableProperty]
         private double _labelScale = 1.0;

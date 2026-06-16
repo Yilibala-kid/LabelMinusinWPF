@@ -10,9 +10,9 @@ namespace LabelMinusinWPF.Common
     public class LabelStyleSettings
     {
         public string DotStyle { get; set; } = "Circle";
-        public string TextBackgroundColor { get; set; } = "White";
-        public string TextForegroundColor { get; set; } = "Black";
-        public double TextBackgroundOpacity { get; set; } = 1.0;
+        public string TextBackgroundColor { get; set; } = "Black";
+        public string TextForegroundColor { get; set; } = "White";
+        public double TextBackgroundOpacity { get; set; } = 0.5;
         public double LabelScale { get; set; } = 1.0;
     }
 

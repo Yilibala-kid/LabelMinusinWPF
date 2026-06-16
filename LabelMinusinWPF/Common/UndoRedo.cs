@@ -6,77 +6,77 @@ namespace LabelMinusinWPF.Common
 {
     #region 撤销重做功能
 
-    // 撤销重做管理器：维护两个栈实现无限撤销/重做
+    // 撤销重做管理器：维护线性历史和当前游标。
     internal sealed class UndoRedoManager
     {
         private sealed record HistoryEntry(
             Action Redo,
             Action Undo,
-            long BeforeStateId,
-            long AfterStateId,
-            object? CancellationKey)
-        {
-            public bool WasSaved { get; set; }
-        }
+            object? CancellationKey);
 
-        private readonly Stack<HistoryEntry> _undoStack = new();
-        private readonly Stack<HistoryEntry> _redoStack = new();
-        private long _nextStateId;
-        private long _currentStateId;
-        private long _savedStateId;
+        private readonly List<HistoryEntry> _entries = [];
+        private int _cursor;
+        private int _savedCursor;
 
-        public bool CanUndo => _undoStack.Count > 0;
-        public bool CanRedo => _redoStack.Count > 0;
-        public bool HasUnsavedChanges => _currentStateId != _savedStateId;
+        public bool CanUndo => _cursor > 0;
+        public bool CanRedo => _cursor < _entries.Count;
+        public bool HasUnsavedChanges => _cursor != _savedCursor;
 
         public void Execute(Action redo, Action undo, object? cancellationKey = null)
         {
+            ClearRedoBranch();
             redo();
-            var entry = new HistoryEntry(redo, undo, _currentStateId, ++_nextStateId, cancellationKey);
-            _undoStack.Push(entry);
-            _redoStack.Clear();
-            _currentStateId = entry.AfterStateId;
+            _entries.Add(new HistoryEntry(redo, undo, cancellationKey));
+            _cursor++;
         }
 
         public bool Undo()
         {
-            if (!_undoStack.TryPeek(out var entry)) return false;
+            if (!CanUndo) return false;
+
+            var entry = _entries[_cursor - 1];
             entry.Undo();
-            _undoStack.Pop();
-            _redoStack.Push(entry);
-            _currentStateId = entry.BeforeStateId;
+            _cursor--;
             return true;
         }
 
         public bool Redo()
         {
-            if (!_redoStack.TryPeek(out var entry)) return false;
+            if (!CanRedo) return false;
+
+            var entry = _entries[_cursor];
             entry.Redo();
-            _redoStack.Pop();
-            _undoStack.Push(entry);
-            _currentStateId = entry.AfterStateId;
+            _cursor++;
             return true;
         }
 
         public bool TryCancelLatest(object cancellationKey)
         {
-            if (!_undoStack.TryPeek(out var entry)
-                || entry.WasSaved
-                || !ReferenceEquals(entry.CancellationKey, cancellationKey))
+            if (!CanUndo || _cursor <= _savedCursor)
                 return false;
 
+            var entry = _entries[_cursor - 1];
+            if (!ReferenceEquals(entry.CancellationKey, cancellationKey))
+                return false;
+
+            ClearRedoBranch();
             entry.Undo();
-            _undoStack.Pop();
-            _redoStack.Clear();
-            _currentStateId = entry.BeforeStateId;
+            _entries.RemoveAt(_cursor - 1);
+            _cursor--;
             return true;
         }
 
-        public void MarkAsSaved()
+        public void MarkAsSaved() => _savedCursor = _cursor;
+
+        private void ClearRedoBranch()
         {
-            _savedStateId = _currentStateId;
-            foreach (var entry in _undoStack)
-                entry.WasSaved = true;
+            if (_cursor >= _entries.Count)
+                return;
+
+            if (_savedCursor > _cursor)
+                _savedCursor = -1;
+
+            _entries.RemoveRange(_cursor, _entries.Count - _cursor);
         }
     }
 

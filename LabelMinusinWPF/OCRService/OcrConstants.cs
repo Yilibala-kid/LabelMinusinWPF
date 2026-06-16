@@ -13,7 +13,7 @@ public static class OcrConstants
     };
 
     public const string DefaultWebsite = "YuzuMarker 字体识别";
-    public const string ModelsSubDir = "models";
+    public const string ModelsSubDir = "ocrmodels";
     public const string OcrTemp = "OCRtemp";
     public const string AutoOcrSubDir = "AutoOCR";
     public const string PaddleOcrV6SubDir = "v6";

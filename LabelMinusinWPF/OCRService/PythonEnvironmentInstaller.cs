@@ -46,7 +46,7 @@ public static class PythonEnvironmentInstaller
                 File.Delete(f);
         }
 
-        string mangaModelDir = Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model");
+        string mangaModelDir = Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir, "manga-ocr", "model");
         if (Directory.Exists(mangaModelDir))
             Directory.Delete(mangaModelDir, recursive: true);
     }
@@ -125,7 +125,7 @@ public static class PythonEnvironmentInstaller
 
         progress.Report("[stage:6/6] 下载 manga-ocr 模型");
         progress.Report("下载 manga-ocr 模型（约 400MB）...");
-        string modelDir = Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model");
+        string modelDir = Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir, "manga-ocr", "model");
         string scriptPath = Path.Combine(Path.GetTempPath(), "download_model.py");
         await File.WriteAllTextAsync(scriptPath,
             "import sys\n" +

@@ -93,7 +93,7 @@ public partial class OcrPanel : UserControl
 
     public void ShowHelp()
     {
-        string path = Path.Combine(AppContext.BaseDirectory, "models", "ocr_help.txt");
+        string path = Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir, "ocr_help.txt");
         string text = File.Exists(path) ? File.ReadAllText(path) : "帮助文件未找到";
         MessageBox.Show(text, "OCR 功能说明", MessageBoxButton.OK, MessageBoxImage.Information);
     }

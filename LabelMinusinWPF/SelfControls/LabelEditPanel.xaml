@@ -81,10 +81,7 @@
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
 
-        <Style
-            x:Key="LabelTextBoxStyle"
-            BasedOn="{StaticResource MaterialDesignOutlinedTextBox}"
-            TargetType="TextBox">
+        <Style x:Key="LabelTextBoxStyle" BasedOn="{StaticResource MaterialDesignOutlinedTextBox}" TargetType="TextBox">
             <Setter Property="Background" Value="{DynamicResource MaterialDesignDivider}" />
             <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}" />
             <Style.Triggers>

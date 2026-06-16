@@ -18,12 +18,12 @@
 
   <ItemGroup>
     <Content Include="..\ThirdPartyNotices.txt" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\手动安装模型指南.txt" Link="models\手动安装模型指南.txt" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\ocr_help.txt" Link="models\ocr_help.txt" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\v6\model.json" Link="models\v6\model.json" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\paddle-ocr\paddle_ocr_infer.py" Link="models\paddle-ocr\paddle_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\manga-ocr\manga_ocr_infer.py" Link="models\manga-ocr\manga_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="OCRService\models\manga-ocr\model.json" Link="models\manga-ocr\model.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\ocrmodels\手动安装模型指南.txt" Link="ocrmodels\手动安装模型指南.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\ocrmodels\ocr_help.txt" Link="ocrmodels\ocr_help.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\ocrmodels\v6\model.json" Link="ocrmodels\v6\model.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\ocrmodels\paddle-ocr\paddle_ocr_infer.py" Link="ocrmodels\paddle-ocr\paddle_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\ocrmodels\manga-ocr\manga_ocr_infer.py" Link="ocrmodels\manga-ocr\manga_ocr_infer.py" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="OCRService\ocrmodels\manga-ocr\model.json" Link="ocrmodels\manga-ocr\model.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

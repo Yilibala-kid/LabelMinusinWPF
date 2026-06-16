@@ -193,6 +193,106 @@ public class UndoRedoTests
         Assert.Equal(2, image.Labels.Count);
     });
 
+    [Fact]
+    public void UndoToSavePointClearsUnsavedChanges() => RunInSta(() =>
+    {
+        var image = new OneImage();
+        image.AddLabel(new Point(0.2, 0.3));
+        var label = Assert.IsType<OneLabel>(image.SelectedLabel);
+        label.Text = "saved";
+        image.MarkAsSaved();
+
+        label.Text = "edited";
+        image.Undo();
+
+        Assert.Equal("saved", label.Text);
+        Assert.False(image.HasUnsavedChanges);
+    });
+
+    [Fact]
+    public void EditingAfterUndoToSavePointKeepsSaveBaselineDirty() => RunInSta(() =>
+    {
+        var image = new OneImage();
+        image.AddLabel(new Point(0.2, 0.3));
+        var label = Assert.IsType<OneLabel>(image.SelectedLabel);
+        label.Text = "saved";
+        image.MarkAsSaved();
+
+        label.Text = "edited";
+        image.Undo();
+        Assert.False(image.HasUnsavedChanges);
+
+        label.Text = "branch";
+        image.SelectedLabel = null;
+
+        Assert.Equal("branch", label.Text);
+        Assert.True(image.HasUnsavedChanges);
+        Assert.False(image.RedoCommand.CanExecute(null));
+    });
+
+    [Fact]
+    public void EditingBeforeSavedBranchDiscardsSaveBaseline() => RunInSta(() =>
+    {
+        var image = new OneImage();
+        image.AddLabel(new Point(0.2, 0.3));
+        var label = Assert.IsType<OneLabel>(image.SelectedLabel);
+        label.Text = "saved";
+        image.MarkAsSaved();
+
+        image.Undo();
+        image.Undo();
+        image.AddLabel(new Point(0.4, 0.5));
+
+        Assert.Single(image.Labels);
+        Assert.True(image.HasUnsavedChanges);
+        Assert.False(image.RedoCommand.CanExecute(null));
+    });
+
+    [Fact]
+    public void CancelLatestAfterRedoBranchDiscardDoesNotCorruptSaveState() => RunInSta(() =>
+    {
+        var image = new OneImage();
+        image.AddLabel(new Point(0.2, 0.3));
+        var savedLabel = Assert.IsType<OneLabel>(image.SelectedLabel);
+        savedLabel.Text = "saved";
+        image.MarkAsSaved();
+
+        image.AddLabel(new Point(0.4, 0.5));
+        image.Undo();
+        image.AddLabel(new Point(0.6, 0.7));
+        var newLabel = Assert.IsType<OneLabel>(image.SelectedLabel);
+
+        image.DeleteLabel(newLabel);
+
+        Assert.Single(image.Labels);
+        Assert.Same(savedLabel, image.Labels[0]);
+        Assert.False(image.HasUnsavedChanges);
+        Assert.False(image.RedoCommand.CanExecute(null));
+    });
+
+    [Fact]
+    public void SavedEmptyLabelDeleteDoesNotCancelLatestAfterCursorRewrite() => RunInSta(() =>
+    {
+        var image = new OneImage();
+        image.AddLabel(new Point(0.2, 0.3));
+        var savedLabel = Assert.IsType<OneLabel>(image.SelectedLabel);
+        image.MarkAsSaved();
+
+        image.AddLabel(new Point(0.4, 0.5));
+        image.Undo();
+        image.SelectedLabel = savedLabel;
+        image.DeleteLabel(savedLabel);
+
+        Assert.True(savedLabel.IsDeleted);
+        Assert.Contains(savedLabel, image.Labels);
+        Assert.True(image.HasUnsavedChanges);
+        Assert.False(image.RedoCommand.CanExecute(null));
+
+        image.Undo();
+        Assert.False(savedLabel.IsDeleted);
+        Assert.False(image.HasUnsavedChanges);
+    });
+
     private static void RunInSta(Action test)
     {
         Exception? error = null;

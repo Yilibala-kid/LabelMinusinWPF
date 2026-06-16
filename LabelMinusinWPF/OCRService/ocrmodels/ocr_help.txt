@@ -18,9 +18,9 @@
   首次安装体积较大、耗时较长；PP-OCRv6 模型会由官方 PaddleOCR pipeline 预热下载。
 
 【模型文件】
-  程序目录\models\v6\         - PP-OCRv6 官方模型缓存和配置
-  程序目录\models\paddle-ocr\ - PaddleOCR 常驻进程脚本
-  程序目录\models\manga-ocr\  - manga-ocr 脚本与日文识别模型
+  程序目录\ocrmodels\v6\         - PP-OCRv6 官方模型缓存和配置
+  程序目录\ocrmodels\paddle-ocr\ - PaddleOCR 常驻进程脚本
+  程序目录\ocrmodels\manga-ocr\  - manga-ocr 脚本与日文识别模型
   程序目录\python\            - 嵌入版 Python 和 Python 包
 
 【提示】

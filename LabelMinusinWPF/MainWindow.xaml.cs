@@ -21,7 +21,6 @@ public enum DisplayMode
 
 public partial class MainWindow : Window
 {
-    private LabelSnapshot? _labelClipboard;
     private IReadOnlyList<ShortcutEntry>? _mainShortcuts;
 
     public MainWindow()
@@ -409,13 +408,6 @@ public partial class MainWindow : Window
             Key.Enter, ModifierKeys.None, BeginEditSelectedLabel),
         new("非编辑时：标签操作", "Delete", "删除当前标签", ShortcutScope.NonTextEditing,
             Key.Delete, ModifierKeys.None, DeleteSelectedLabel),
-        new("非编辑时：标签操作", "Ctrl+C", "复制当前标签", ShortcutScope.NonTextEditing,
-            Key.C, ModifierKeys.Control, CopySelectedLabel),
-        new("非编辑时：标签操作", "Ctrl+V", "粘贴为新标签", ShortcutScope.NonTextEditing,
-            Key.V, ModifierKeys.Control, PasteCopiedLabel),
-        new("非编辑时：标签操作", "Ctrl+Shift+V", "将文本粘贴到当前标签", ShortcutScope.NonTextEditing,
-            Key.V, ModifierKeys.Control | ModifierKeys.Shift, ApplyCopiedLabelText),
-
         new("非编辑时：图片与视图", "A", "上一张图片", ShortcutScope.NonTextEditing,
             Key.A, ModifierKeys.None, vm => ExecuteCommand(vm.PreviousImageCommand)),
         new("非编辑时：图片与视图", "D", "下一张图片", ShortcutScope.NonTextEditing,
@@ -570,53 +562,6 @@ public partial class MainWindow : Window
 
         image.DeleteLabelCommand.Execute(image.SelectedLabel);
         return true;
-    }
-
-    private bool CopySelectedLabel(OneProject viewModel)
-    {
-        if (viewModel.SelectedImage?.SelectedLabel is not { } label)
-            return false;
-
-        _labelClipboard = new LabelSnapshot(label);
-        viewModel.MsgQueue.Enqueue("已复制当前标签");
-        return true;
-    }
-
-    private bool PasteCopiedLabel(OneProject viewModel)
-    {
-        if (_labelClipboard == null || viewModel.SelectedImage is not { } image)
-            return false;
-
-        image.PasteLabel(_labelClipboard);
-        BeginEditSelectedLabel(viewModel);
-        viewModel.MsgQueue.Enqueue("已粘贴标签");
-        return true;
-    }
-
-    private bool ApplyCopiedLabelText(OneProject viewModel)
-    {
-        if (_labelClipboard == null || viewModel.SelectedImage?.SelectedLabel == null)
-            return false;
-
-        viewModel.SelectedImage.ApplyLabelContent(_labelClipboard);
-        BeginEditSelectedLabel(viewModel);
-        viewModel.MsgQueue.Enqueue("已套用复制标签文本");
-        return true;
-    }
-
-    private void CopySelectedLabel_Click(object sender, RoutedEventArgs e) =>
-        ExecuteWithViewModel(CopySelectedLabel);
-
-    private void PasteLabel_Click(object sender, RoutedEventArgs e) =>
-        ExecuteWithViewModel(PasteCopiedLabel);
-
-    private void ApplyCopiedLabelText_Click(object sender, RoutedEventArgs e) =>
-        ExecuteWithViewModel(ApplyCopiedLabelText);
-
-    private void ExecuteWithViewModel(Func<OneProject, bool> action)
-    {
-        if (ViewModel is { } viewModel)
-            action(viewModel);
     }
 
     #endregion

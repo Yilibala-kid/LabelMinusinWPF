@@ -18,8 +18,8 @@ public static class OcrEnvironment
     private static bool IsMangaOcrScriptReady => File.Exists(MangaOcrScript);
 
     private static bool IsMangaOcrModelReady =>
-        Directory.Exists(Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model")) &&
-        Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, "models", "manga-ocr", "model")).Any();
+        Directory.Exists(Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir, "manga-ocr", "model")) &&
+        Directory.EnumerateFiles(Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir, "manga-ocr", "model")).Any();
 
     public static bool HasPaddleOcrModels =>
         HasPaddleOcrConfig &&

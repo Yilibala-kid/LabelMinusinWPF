@@ -94,9 +94,6 @@
                     <MenuItem Command="{Binding SelectedImage.UndoCommand}" Header="撤销" Icon="{materialDesign:PackIcon Kind=Undo}" />
                     <MenuItem Command="{Binding SelectedImage.RedoCommand}" Header="重做" Icon="{materialDesign:PackIcon Kind=Redo}" />
                     <Separator />
-                    <MenuItem Click="CopySelectedLabel_Click" Header="复制标签" Icon="{materialDesign:PackIcon Kind=ContentCopy}" />
-                    <MenuItem Click="PasteLabel_Click" Header="粘贴为新标签" Icon="{materialDesign:PackIcon Kind=ContentPaste}" />
-                    <MenuItem Click="ApplyCopiedLabelText_Click" Header="粘贴到当前标签" Icon="{materialDesign:PackIcon Kind=ContentPaste}" />
                     <MenuItem Command="{Binding SelectedImage.DeleteLabelCommand}" Header="删除标签" Icon="{materialDesign:PackIcon Kind=Delete}" />
                 </MenuItem>
 

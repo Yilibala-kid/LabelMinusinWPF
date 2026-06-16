@@ -10,7 +10,7 @@ namespace LabelMinusinWPF.OCRService;
 
 public static class OcrPipeline
 {
-    public static string DefaultModelRoot => Path.Combine(AppContext.BaseDirectory, "models");
+    public static string DefaultModelRoot => Path.Combine(AppContext.BaseDirectory, OcrConstants.ModelsSubDir);
 
     public static OcrModelInfo? FindPaddleModel()
         => FindModel(model => PaddleOcrPythonProvider.CanHandleEngine(model.Engine));
